@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>Rabbit Habits 🐰</title>
+  <link rel="stylesheet" href="/css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<!-- MOBILE HEADER -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">🐰</div>
+    <div class="logo-text">Rabbit Habits</div>
+  </div>
+  <div class="header-right"><div id="header-right-extra" style="display:flex;align-items:center;gap:10px;"></div>
+    <div class="header-streak-badge" id="global-streak-badge" style="display:none">
+      <span id="global-streak-text"></span>
+    </div>
+    <button class="theme-btn" id="theme-btn" title="Đổi giao diện">☀️</button>
+    <div class="header-date" id="header-date"></div>
+  </div>
+</header>
+
+<div class="app-wrapper">
+
+  <!-- SIDEBAR TOGGLE (mobile) -->
+  <button class="sidebar-toggle" id="sidebar-toggle">🗓 Lịch & Thói quen</button>
+
+  <!-- SIDEBAR OVERLAY (mobile) -->
+  <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+  <!-- LEFT SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- DRAG HANDLE (visible on mobile only) -->
+    <div class="sheet-handle" id="sheet-handle"></div>
+
+    <!-- CLOSE BUTTON (mobile only) -->
+    <button class="sidebar-close" id="sidebar-close">
+      <span>🗓 Lịch &amp; Thói quen</span>
+      <div class="sidebar-close-x">✕</div>
+    </button>
+
+    <!-- ALL SCROLLABLE CONTENT WRAPPED -->
+    <div class="sidebar-scroll-inner" id="sidebar-scroll-inner">
+
+    <!-- CALENDAR -->
+    <div class="calendar-panel">
+      <div class="calendar-top">
+        <div class="calendar-header">
+          <button class="cal-nav-btn" id="cal-prev">‹</button>
+          <div class="calendar-title" id="cal-title"></div>
+          <button class="cal-nav-btn" id="cal-next">›</button>
+        </div>
+        <div class="calendar-weekdays">
+          <span>T2</span><span>T3</span><span>T4</span>
+          <span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+        </div>
+        <div class="calendar-grid" id="cal-grid"></div>
+      </div>
+
+      <div class="week-summary">
+        <div class="week-summary-title">Tuần này</div>
+        <div class="week-days-mini" id="week-days-mini"></div>
+      </div>
+
+      <div class="mood-section">
+        <div class="mood-title">Tâm trạng hôm nay</div>
+        <div class="mood-emojis">
+          <button class="mood-btn" data-mood="🌸">🌸</button>
+          <button class="mood-btn" data-mood="😊">😊</button>
+          <button class="mood-btn" data-mood="😌">😌</button>
+          <button class="mood-btn" data-mood="😴">😴</button>
+          <button class="mood-btn" data-mood="😤">😤</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HABITS PANEL -->
+    <div class="habits-sidebar-panel">
+      <div class="hsp-header">
+        <div class="hsp-title">🐰 Thói quen tuần này</div>
+        <button class="hsp-add-btn" id="open-add-habit">+</button>
+      </div>
+      <div class="habit-week-header" id="habit-week-header"></div>
+      <div id="habits-rows-wrap">
+        <div class="habits-empty" id="habits-empty">
+          <div style="font-size:26px;margin-bottom:6px">🐇</div>
+          <div>Chưa có thói quen nào</div>
+          <div style="font-size:11px;margin-top:3px;color:var(--text3)">Nhấn + để thêm</div>
+        </div>
+      </div>
+      <div class="add-habit-form" id="add-habit-form" style="display:none">
+        <div class="ahf-row">
+          <div class="ahf-emoji-display" id="ahf-emoji-display">🐰</div>
+          <input class="ahf-input" id="ahf-name" placeholder="Tên thói quen..." maxlength="30"/>
+        </div>
+        <div class="ahf-emojis">
+          <span class="ahf-ep" data-e="🐰">🐰</span><span class="ahf-ep" data-e="🏃">🏃</span>
+          <span class="ahf-ep" data-e="📖">📖</span><span class="ahf-ep" data-e="🎸">🎸</span>
+          <span class="ahf-ep" data-e="🌿">🌿</span><span class="ahf-ep" data-e="💊">💊</span>
+          <span class="ahf-ep" data-e="🧘">🧘</span><span class="ahf-ep" data-e="✍️">✍️</span>
+          <span class="ahf-ep" data-e="🎹">🎹</span><span class="ahf-ep" data-e="🏊">🏊</span>
+          <span class="ahf-ep" data-e="🌸">🌸</span><span class="ahf-ep" data-e="☕">☕</span>
+        </div>
+        <div class="ahf-colors">
+          <div class="ahf-color selected" data-c="#b07fff" style="background:#b07fff"></div>
+          <div class="ahf-color" data-c="#ff85c8" style="background:#ff85c8"></div>
+          <div class="ahf-color" data-c="#5ef0a0" style="background:#5ef0a0"></div>
+          <div class="ahf-color" data-c="#ffcf5c" style="background:#ffcf5c"></div>
+          <div class="ahf-color" data-c="#5ee8f0" style="background:#5ee8f0"></div>
+          <div class="ahf-color" data-c="#ff6b8a" style="background:#ff6b8a"></div>
+        </div>
+        <div class="ahf-btns">
+          <button class="ahf-cancel" id="ahf-cancel">Huỷ</button>
+          <button class="ahf-save" id="ahf-save">Lưu</button>
+        </div>
+      </div>
+    </div>
+
+    </div><!-- /sidebar-scroll-inner -->
+  </aside>
+
+  <!-- MAIN CONTENT -->
+  <main class="main-content">
+
+    <!-- VIEW CONTROLS -->
+    <div class="view-controls">
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="week">Theo tuần</button>
+        <button class="view-btn" data-view="month">Theo tháng</button>
+      </div>
+      <div class="view-period-nav">
+        <div class="nav-week-label" id="nav-label"></div>
+      </div>
+    </div>
+
+    <!-- COLUMNS NAVIGATOR — THE FIX -->
+    <div class="columns-navigator">
+      <button class="col-nav-arrow col-nav-left" id="col-nav-left" title="Trước">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+
+      <div class="columns-viewport" id="columns-viewport">
+        <div class="columns-row" id="columns-row"></div>
+      </div>
+
+      <button class="col-nav-arrow col-nav-right" id="col-nav-right" title="Tiếp">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+
+    <!-- SCROLL HINT BAR -->
+    <div class="scroll-hint-bar" id="scroll-hint-bar">
+      <div class="shb-track">
+        <div class="shb-thumb" id="shb-thumb"></div>
+      </div>
+      <div class="shb-hint">← kéo hoặc dùng nút ◀ ▶ →</div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-section">
+      <div class="section-header">
+        <div class="section-title">🐰 Tổng hợp</div>
+        <div class="stats-tabs">
+          <button class="stats-tab active" data-mode="week">Tuần</button>
+          <button class="stats-tab" data-mode="month">Tháng</button>
+          <button class="stats-tab" data-mode="year">Năm</button>
+        </div>
+      </div>
+
+      <div class="stats-summary">
+        <div class="scard"><div class="scard-label">Tổng tasks</div><div class="scard-value sv-total" id="stat-total">—</div><div class="scard-sub">đã tạo</div></div>
+        <div class="scard"><div class="scard-label">Hoàn thành</div><div class="scard-value sv-done" id="stat-done">—</div><div class="scard-sub">tasks done</div></div>
+        <div class="scard"><div class="scard-label">Tỉ lệ</div><div class="scard-value sv-rate" id="stat-rate">—</div><div class="scard-sub">completion rate</div></div>
+        <div class="scard"><div class="scard-label">Chuỗi dài nhất</div><div class="scard-value sv-streak" id="stat-streak">—</div><div class="scard-sub">ngày liên tiếp</div></div>
+      </div>
+
+      <div class="charts-row">
+        <div class="chart-panel">
+          <div class="chart-panel-header">
+            <div class="chart-panel-title">📈 Tiến độ theo ngày</div>
+            <div class="chart-panel-sub" id="chart-period-label"></div>
+          </div>
+          <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-daily"></canvas></div>
+        </div>
+        <div class="chart-panel">
+          <div class="chart-panel-header"><div class="chart-panel-title">📊 Tổng quan tasks</div></div>
+          <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-overview"></canvas></div>
+        </div>
+      </div>
+
+      <div class="heatmap-panel">
+        <div class="heatmap-panel-header">
+          <span class="chart-panel-title">🗓 Hoạt động 16 tuần gần đây</span>
+          <div class="heatmap-legend" id="heatmap-legend"></div>
+        </div>
+        <div id="heatmap-grid"></div>
+      </div>
+
+      <div class="top-tasks-panel">
+        <div class="top-tasks-header"><div class="top-tasks-header-title">🏆 Công việc xuất hiện nhiều nhất</div></div>
+        <div id="top-tasks-body"></div>
+      </div>
+
+      <!-- HABITS STATS -->
+      <div style="margin-top:28px">
+        <div class="section-header" style="margin-bottom:14px">
+          <div class="section-title">🐇 Thống kê thói quen</div>
+        </div>
+        <div class="habits-charts-row">
+          <div class="chart-panel">
+            <div class="chart-panel-header"><div class="chart-panel-title">Tuần này</div><div class="chart-panel-sub" id="habit-week-label"></div></div>
+            <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-week"></canvas></div>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-panel-header"><div class="chart-panel-title">Tháng này</div><div class="chart-panel-sub" id="habit-curmonth-label"></div></div>
+            <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-curmonth"></canvas></div>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-panel-header"><div class="chart-panel-title">Tháng trước</div><div class="chart-panel-sub" id="habit-prevmonth-label"></div></div>
+            <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-prevmonth"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /stats-section -->
+  </main>
+
+</div><!-- /app-wrapper -->
+
+<div class="toast" id="toast"></div>
+<script src="/js/app.js"></script>
+</body>
+</html>
