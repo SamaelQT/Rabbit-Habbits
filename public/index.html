@@ -34,17 +34,11 @@
 
   <!-- LEFT SIDEBAR -->
   <aside class="sidebar" id="sidebar">
-
-    <!-- DRAG HANDLE (visible on mobile only) -->
     <div class="sheet-handle" id="sheet-handle"></div>
-
-    <!-- CLOSE BUTTON (mobile only) -->
     <button class="sidebar-close" id="sidebar-close">
-      <span>🗓 Lịch &amp; Thói quen</span>
+      <span>🗓 Lịch & Nhật ký</span>
       <div class="sidebar-close-x">✕</div>
     </button>
-
-    <!-- ALL SCROLLABLE CONTENT WRAPPED -->
     <div class="sidebar-scroll-inner" id="sidebar-scroll-inner">
 
     <!-- CALENDAR -->
@@ -61,68 +55,125 @@
         </div>
         <div class="calendar-grid" id="cal-grid"></div>
       </div>
-
       <div class="week-summary">
         <div class="week-summary-title">Tuần này</div>
         <div class="week-days-mini" id="week-days-mini"></div>
       </div>
+    </div>
 
-      <div class="mood-section">
-        <div class="mood-title">Tâm trạng hôm nay</div>
-        <div class="mood-emojis">
-          <button class="mood-btn" data-mood="🌸">🌸</button>
-          <button class="mood-btn" data-mood="😊">😊</button>
-          <button class="mood-btn" data-mood="😌">😌</button>
-          <button class="mood-btn" data-mood="😴">😴</button>
-          <button class="mood-btn" data-mood="😤">😤</button>
+    <!-- MOOD + JOURNAL (Locket style) -->
+    <div class="journal-panel" id="journal-panel">
+      <!-- Screen 1: Write today -->
+      <div id="jp-screen-write">
+        <div class="jp-header">
+          <div class="jp-title">✍️ Nhật ký hôm nay</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="jp-date" id="jp-date"></div>
+            <button class="jp-history-btn" id="jp-history-btn" title="Xem lịch sử">📖</button>
+          </div>
+        </div>
+        <div class="jp-mood-row" id="jp-mood-row">
+          <div class="jp-mood-label">Hôm nay bạn thế nào?</div>
+          <div class="jp-mood-btns">
+            <button class="jp-mood-btn" data-mood="🌸" data-label="Tuyệt vời">🌸</button>
+            <button class="jp-mood-btn" data-mood="😊" data-label="Vui vẻ">😊</button>
+            <button class="jp-mood-btn" data-mood="😌" data-label="Bình thường">😌</button>
+            <button class="jp-mood-btn" data-mood="😴" data-label="Mệt mỏi">😴</button>
+            <button class="jp-mood-btn" data-mood="😤" data-label="Căng thẳng">😤</button>
+            <button class="jp-mood-btn" data-mood="😢" data-label="Buồn">😢</button>
+          </div>
+        </div>
+        <div class="jp-write-row" id="jp-write-row" style="display:none">
+          <div class="jp-selected-mood" id="jp-selected-mood"></div>
+          <div class="jp-prompt" id="jp-prompt"></div>
+          <textarea class="jp-textarea" id="jp-textarea" placeholder="Viết gì đó..." maxlength="2000"></textarea>
+          <div class="jp-actions">
+            <span class="jp-char-count" id="jp-char-count">0/2000</span>
+            <button class="jp-save-btn" id="jp-save-btn">Lưu ✓</button>
+          </div>
+        </div>
+      <!-- Saved entry preview -->
+      <div class="jp-saved" id="jp-saved" style="display:none">
+        <div class="jp-saved-mood" id="jp-saved-mood"></div>
+        <div class="jp-saved-content" id="jp-saved-content"></div>
+        <div class="jp-saved-actions">
+          <button class="jp-change-mood-btn" id="jp-change-mood-btn">↺ Đổi tâm trạng</button>
+          <button class="jp-edit-btn" id="jp-edit-btn">✎ Chỉnh sửa</button>
+        </div>
+      </div>
+      </div>
+
+      <!-- Screen 2: History -->
+      <div id="jp-screen-history" style="display:none">
+        <div class="jp-header">
+          <button class="jp-back-btn" id="jp-back-btn">← Quay lại</button>
+          <div class="jp-title">📖 Nhật ký</div>
+        </div>
+        <div class="jp-history-scroll" id="jp-history-scroll">
+          <div class="jp-history-loading">Đang tải...</div>
         </div>
       </div>
     </div>
 
-    <!-- HABITS PANEL -->
-    <div class="habits-sidebar-panel">
-      <div class="hsp-header">
-        <div class="hsp-title">🐰 Thói quen tuần này</div>
-        <button class="hsp-add-btn" id="open-add-habit">+</button>
-      </div>
-      <div class="habit-week-header" id="habit-week-header"></div>
-      <div id="habits-rows-wrap">
-        <div class="habits-empty" id="habits-empty">
-          <div style="font-size:26px;margin-bottom:6px">🐇</div>
-          <div>Chưa có thói quen nào</div>
-          <div style="font-size:11px;margin-top:3px;color:var(--text3)">Nhấn + để thêm</div>
-        </div>
-      </div>
-      <div class="add-habit-form" id="add-habit-form" style="display:none">
-        <div class="ahf-row">
-          <div class="ahf-emoji-display" id="ahf-emoji-display">🐰</div>
-          <input class="ahf-input" id="ahf-name" placeholder="Tên thói quen..." maxlength="30"/>
-        </div>
-        <div class="ahf-emojis">
-          <span class="ahf-ep" data-e="🐰">🐰</span><span class="ahf-ep" data-e="🏃">🏃</span>
-          <span class="ahf-ep" data-e="📖">📖</span><span class="ahf-ep" data-e="🎸">🎸</span>
-          <span class="ahf-ep" data-e="🌿">🌿</span><span class="ahf-ep" data-e="💊">💊</span>
-          <span class="ahf-ep" data-e="🧘">🧘</span><span class="ahf-ep" data-e="✍️">✍️</span>
-          <span class="ahf-ep" data-e="🎹">🎹</span><span class="ahf-ep" data-e="🏊">🏊</span>
-          <span class="ahf-ep" data-e="🌸">🌸</span><span class="ahf-ep" data-e="☕">☕</span>
-        </div>
-        <div class="ahf-colors">
-          <div class="ahf-color selected" data-c="#b07fff" style="background:#b07fff"></div>
-          <div class="ahf-color" data-c="#ff85c8" style="background:#ff85c8"></div>
-          <div class="ahf-color" data-c="#5ef0a0" style="background:#5ef0a0"></div>
-          <div class="ahf-color" data-c="#ffcf5c" style="background:#ffcf5c"></div>
-          <div class="ahf-color" data-c="#5ee8f0" style="background:#5ee8f0"></div>
-          <div class="ahf-color" data-c="#ff6b8a" style="background:#ff6b8a"></div>
-        </div>
-        <div class="ahf-btns">
-          <button class="ahf-cancel" id="ahf-cancel">Huỷ</button>
-          <button class="ahf-save" id="ahf-save">Lưu</button>
-        </div>
+    <!-- Journal popup overlay -->
+    <div class="jp-overlay" id="jp-overlay" style="display:none">
+      <div class="jp-overlay-card" id="jp-overlay-card">
+        <button class="jp-overlay-close" id="jp-overlay-close">✕</button>
+        <div class="jp-overlay-mood" id="jp-overlay-mood"></div>
+        <div class="jp-overlay-date" id="jp-overlay-date"></div>
+        <div class="jp-overlay-content" id="jp-overlay-content"></div>
+        <div class="jp-overlay-meta" id="jp-overlay-meta"></div>
       </div>
     </div>
 
     </div><!-- /sidebar-scroll-inner -->
   </aside>
+
+  <!-- HABITS SECTION — full width in main -->
+  <div class="habits-main-section" id="habits-main-section">
+    <div class="habits-main-header">
+      <div class="habits-main-title">🐰 Thói quen tuần này</div>
+      <button class="hsp-add-btn" id="open-add-habit">+</button>
+    </div>
+    <!-- Week day headers -->
+    <div class="habits-grid-wrap">
+      <div class="habits-col-header" id="habits-col-header"></div>
+      <div id="habits-rows-wrap">
+        <div class="habits-empty" id="habits-empty">
+          <div style="font-size:28px;margin-bottom:8px">🐇</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text2)">Chưa có thói quen nào</div>
+          <div style="font-size:12px;margin-top:4px;color:var(--text3)">Nhấn + để thêm thói quen đầu tiên</div>
+        </div>
+      </div>
+    </div>
+    <!-- Add habit form -->
+    <div class="add-habit-form" id="add-habit-form" style="display:none">
+      <div class="ahf-row">
+        <div class="ahf-emoji-display" id="ahf-emoji-display">🐰</div>
+        <input class="ahf-input" id="ahf-name" placeholder="Tên thói quen..." maxlength="30"/>
+      </div>
+      <div class="ahf-emojis">
+        <span class="ahf-ep" data-e="🐰">🐰</span><span class="ahf-ep" data-e="🏃">🏃</span>
+        <span class="ahf-ep" data-e="📖">📖</span><span class="ahf-ep" data-e="🎸">🎸</span>
+        <span class="ahf-ep" data-e="🌿">🌿</span><span class="ahf-ep" data-e="💊">💊</span>
+        <span class="ahf-ep" data-e="🧘">🧘</span><span class="ahf-ep" data-e="✍️">✍️</span>
+        <span class="ahf-ep" data-e="🎹">🎹</span><span class="ahf-ep" data-e="🏊">🏊</span>
+        <span class="ahf-ep" data-e="🌸">🌸</span><span class="ahf-ep" data-e="☕">☕</span>
+      </div>
+      <div class="ahf-colors">
+        <div class="ahf-color selected" data-c="#b07fff" style="background:#b07fff"></div>
+        <div class="ahf-color" data-c="#ff85c8" style="background:#ff85c8"></div>
+        <div class="ahf-color" data-c="#5ef0a0" style="background:#5ef0a0"></div>
+        <div class="ahf-color" data-c="#ffcf5c" style="background:#ffcf5c"></div>
+        <div class="ahf-color" data-c="#5ee8f0" style="background:#5ee8f0"></div>
+        <div class="ahf-color" data-c="#ff6b8a" style="background:#ff6b8a"></div>
+      </div>
+      <div class="ahf-btns">
+        <button class="ahf-cancel" id="ahf-cancel">Huỷ</button>
+        <button class="ahf-save" id="ahf-save">Lưu</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN CONTENT -->
   <main class="main-content">
@@ -155,10 +206,118 @@
 
     <!-- SCROLL HINT BAR -->
     <div class="scroll-hint-bar" id="scroll-hint-bar">
-      <div class="shb-track">
-        <div class="shb-thumb" id="shb-thumb"></div>
-      </div>
+      <div class="shb-track"><div class="shb-thumb" id="shb-thumb"></div></div>
       <div class="shb-hint">← kéo hoặc dùng nút ◀ ▶ →</div>
+    </div>
+
+    <!-- HABITS MAIN SECTION (injected here by JS) -->
+    <div id="habits-main-inject"></div>
+
+    <!-- GOALS SECTION -->
+    <div class="goals-section" id="goals-section">
+      <div class="goals-header">
+        <div class="goals-title-wrap">
+          <div class="section-title">🎯 Mục tiêu dài hạn</div>
+          <div class="goals-subtitle">Theo dõi các kế hoạch nhiều ngày</div>
+        </div>
+        <button class="goal-create-btn" id="goal-create-btn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          Tạo mục tiêu
+        </button>
+      </div>
+      <div id="goals-list">
+        <div class="goals-empty" id="goals-empty">
+          <div class="goals-empty-icon">🎯</div>
+          <div class="goals-empty-text">Chưa có mục tiêu nào</div>
+          <div class="goals-empty-sub">Tạo mục tiêu đầu tiên để bắt đầu hành trình!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CREATE GOAL MODAL -->
+    <div class="modal-overlay" id="goal-modal-overlay" style="display:none">
+      <div class="modal-card" id="goal-modal">
+
+        <!-- Step 1: Basic info -->
+        <div id="goal-step-1">
+          <div class="modal-header">
+            <div class="modal-title">🎯 Tạo mục tiêu mới</div>
+            <button class="modal-close" id="goal-modal-close">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="modal-field">
+              <label class="modal-label">Tên mục tiêu</label>
+              <input class="modal-input" id="goal-title" placeholder="VD: Học TOEIC 30 ngày..." maxlength="60"/>
+            </div>
+            <div class="modal-field">
+              <label class="modal-label">Số ngày</label>
+              <div class="modal-days-row">
+                <input class="modal-input" id="goal-days" type="number" min="1" max="365" value="7" style="max-width:90px"/>
+                <div class="modal-days-presets">
+                  <button class="days-preset" data-d="7">7 ngày</button>
+                  <button class="days-preset" data-d="14">2 tuần</button>
+                  <button class="days-preset" data-d="30">30 ngày</button>
+                  <button class="days-preset" data-d="90">3 tháng</button>
+                </div>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label class="modal-label">Ngày bắt đầu</label>
+              <input class="modal-input" id="goal-startdate" type="date"/>
+            </div>
+            <div class="modal-field">
+              <label class="modal-label">Emoji & Màu</label>
+              <div class="modal-emoji-color-row">
+                <div class="modal-emoji-grid" id="goal-emoji-grid">
+                  <span class="goal-ep selected" data-e="🎯">🎯</span>
+                  <span class="goal-ep" data-e="📚">📚</span>
+                  <span class="goal-ep" data-e="💪">💪</span>
+                  <span class="goal-ep" data-e="🏃">🏃</span>
+                  <span class="goal-ep" data-e="✍️">✍️</span>
+                  <span class="goal-ep" data-e="🎵">🎵</span>
+                  <span class="goal-ep" data-e="💻">💻</span>
+                  <span class="goal-ep" data-e="🌱">🌱</span>
+                  <span class="goal-ep" data-e="🎨">🎨</span>
+                  <span class="goal-ep" data-e="🧘">🧘</span>
+                </div>
+                <div class="modal-color-grid" id="goal-color-grid">
+                  <div class="goal-color selected" data-c="#b07fff" style="background:#b07fff"></div>
+                  <div class="goal-color" data-c="#ff85c8" style="background:#ff85c8"></div>
+                  <div class="goal-color" data-c="#5ef0a0" style="background:#5ef0a0"></div>
+                  <div class="goal-color" data-c="#ffcf5c" style="background:#ffcf5c"></div>
+                  <div class="goal-color" data-c="#5ee8f0" style="background:#5ee8f0"></div>
+                  <div class="goal-color" data-c="#ff6b8a" style="background:#ff6b8a"></div>
+                  <div class="goal-color" data-c="#ffa048" style="background:#ffa048"></div>
+                  <div class="goal-color" data-c="#3ddbb8" style="background:#3ddbb8"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="modal-cancel" id="goal-modal-cancel">Huỷ</button>
+            <button class="modal-submit" id="goal-step1-next">Tiếp theo → Lên kế hoạch</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Fill in daily plans -->
+        <div id="goal-step-2" style="display:none">
+          <div class="modal-header">
+            <button class="modal-back-btn" id="goal-step2-back">← Quay lại</button>
+            <div class="modal-title" id="goal-step2-title">📅 Lên kế hoạch từng ngày</div>
+            <button class="modal-close" id="goal-modal-close2">✕</button>
+          </div>
+          <div class="modal-body" style="padding-top:12px">
+            <div class="gs2-subtitle" id="gs2-subtitle"></div>
+            <div class="gs2-hint">Điền kế hoạch cho từng ngày — có thể bỏ trống và điền sau</div>
+            <div class="gs2-days-list" id="gs2-days-list"></div>
+          </div>
+          <div class="modal-footer">
+            <button class="modal-cancel" id="goal-step2-cancel">Huỷ</button>
+            <button class="modal-submit" id="goal-step2-submit">Tạo mục tiêu 🎯</button>
+          </div>
+        </div>
+
+      </div>
     </div>
 
     <!-- STATS -->
@@ -211,7 +370,9 @@
         <div class="section-header" style="margin-bottom:14px">
           <div class="section-title">🐇 Thống kê thói quen</div>
         </div>
-        <div class="habits-charts-row">
+
+        <!-- Row 1: week / this month / last month -->
+        <div class="habits-charts-row" style="margin-bottom:14px">
           <div class="chart-panel">
             <div class="chart-panel-header"><div class="chart-panel-title">Tuần này</div><div class="chart-panel-sub" id="habit-week-label"></div></div>
             <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-week"></canvas></div>
@@ -223,6 +384,42 @@
           <div class="chart-panel">
             <div class="chart-panel-header"><div class="chart-panel-title">Tháng trước</div><div class="chart-panel-sub" id="habit-prevmonth-label"></div></div>
             <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-prevmonth"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Row 2: streak leaderboard + weekly trend -->
+        <div class="charts-row" style="margin-bottom:14px">
+          <div class="chart-panel">
+            <div class="chart-panel-header">
+              <div class="chart-panel-title">🔥 Streak hiện tại</div>
+              <div class="chart-panel-sub">Chuỗi ngày liên tiếp</div>
+            </div>
+            <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-habit-streak"></canvas></div>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-panel-header">
+              <div class="chart-panel-title">📅 Xu hướng 8 tuần</div>
+              <div class="chart-panel-sub">% hoàn thành mỗi tuần</div>
+            </div>
+            <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-habit-trend"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Row 3: best day of week + consistency score -->
+        <div class="charts-row">
+          <div class="chart-panel">
+            <div class="chart-panel-header">
+              <div class="chart-panel-title">📆 Ngày làm tốt nhất</div>
+              <div class="chart-panel-sub">Thứ nào hay làm nhất</div>
+            </div>
+            <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-habit-bestday"></canvas></div>
+          </div>
+          <div class="chart-panel">
+            <div class="chart-panel-header">
+              <div class="chart-panel-title">⭐ Điểm kiên trì</div>
+              <div class="chart-panel-sub">Tổng số ngày đã làm</div>
+            </div>
+            <div id="habit-consistency-wrap" class="chart-canvas-wrap" style="height:200px;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:16px 20px;"></div>
           </div>
         </div>
       </div>

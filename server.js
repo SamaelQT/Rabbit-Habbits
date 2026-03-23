@@ -11,25 +11,20 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Auth routes (no middleware)
-app.use('/api/auth', require('./routes/auth'));
+app.use('/api/auth',    require('./routes/auth'));
+app.use('/api/tasks',   require('./routes/tasks'));
+app.use('/api/habits',  require('./routes/habits'));
+app.use('/api/journal', require('./routes/journal'));
+app.use('/api/goals',   require('./routes/goals'));
 
-// Protected API routes
-app.use('/api/tasks',  require('./routes/tasks'));
-app.use('/api/habits', require('./routes/habits'));
-
-// Serve auth page
 app.get('/auth.html', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'auth.html')));
-
-// All other routes → main app
 app.get('*', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => {
-    console.log('✅ Connected to MongoDB');
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => console.log(`🐰 Rabbit Habits: http://localhost:${PORT}`));
   })
-  .catch(err => console.error('❌ MongoDB error:', err.message));
+  .catch(err => console.error('❌ MongoDB:', err.message));

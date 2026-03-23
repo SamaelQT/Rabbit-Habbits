@@ -58,13 +58,19 @@ const apiTasks={
   globalStreak:()=>API.g('/api/tasks/global-streak'),
   heatmap:(s,e)=>API.g(`/api/tasks/heatmap?startDate=${s}&endDate=${e}`),
 };
+const apiJournal={
+  get:(date)=>API.g(`/api/journal/${date}`),
+  range:(s,e)=>API.g(`/api/journal/?startDate=${s}&endDate=${e}`),
+  save:(date,mood,content)=>fetch(`/api/journal/${date}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({mood,content}),credentials:"include"}).then(r=>r.json()),
+};
 const apiHabits={
-  list:()=>API.g('/api/habits'),
-  add:(b)=>API.p('/api/habits',b),
+  list:()=>API.g("/api/habits"),
+  add:(b)=>API.p("/api/habits",b),
   del:(id)=>API.d(`/api/habits/${id}`),
   logs:(s,e)=>API.g(`/api/habits/logs?startDate=${s}&endDate=${e}`),
-  toggleLog:(hid,d)=>API.p('/api/habits/logs/toggle',{habitId:hid,date:d}),
+  toggleLog:(hid,d)=>API.p("/api/habits/logs/toggle",{habitId:hid,date:d}),
   stats:(s,e)=>API.g(`/api/habits/stats?startDate=${s}&endDate=${e}`),
+  analytics:()=>API.g("/api/habits/analytics"),
 };
 
 // ─── THEME ────────────────────────────────────────────────
@@ -499,7 +505,7 @@ async function renderStats(stats,s,e,globalStreak){
   for(let d=new Date(s);tds(d)<=e;d.setDate(d.getDate()+1)){
     const ds=tds(new Date(d)),bd=stats.byDate[ds];
     labels.push(`${new Date(d).getDate()}/${new Date(d).getMonth()+1}`);
-    rateData.push(bd&&bd.total>0?Math.round((bd.completed/bd.total)*100):0);
+    rateData.push(bd&&bd.total>0?Math.round((bd.done/bd.total)*100):0);
   }
   document.getElementById('chart-period-label').textContent=`${s.split('-').reverse().join('/')} – ${e.split('-').reverse().join('/')}`;
   mkLineChart('chart-daily',labels,rateData);
@@ -770,7 +776,7 @@ async function _buildHeatmap(){
       const day = addDays(cur, d), ds = tds(day);
       const bd  = data[ds], fut = day > state.today;
       let lv = 0;
-      if(!fut && bd && bd.total > 0){ const r = bd.completed/bd.total; lv = r>=1?4:r>=.66?3:r>=.33?2:1; }
+      if(!fut && bd && bd.total > 0){ const r = bd.done/bd.total; lv = r>=1?4:r>=.66?3:r>=.33?2:1; }
       cells.push({ day, ds, lv, bd, fut });
     }
     cols.push({ cells, monthLabel });
@@ -803,7 +809,7 @@ async function _buildHeatmap(){
       const dot = document.createElement('div'); dot.className = 'hmap-day';
       dot.setAttribute('data-level', c.fut ? 'future' : c.lv);
       dot.title = `${c.day.getDate()}/${c.day.getMonth()+1}: ${c.bd
-        ? c.bd.completed+'/'+c.bd.total+' tasks' : 'chưa có task'}`;
+        ? c.bd.done+'/'+c.bd.total+' tasks' : 'chưa có task'}`;
       col.appendChild(dot);
     });
     area.appendChild(col);
@@ -838,48 +844,85 @@ async function loadHabits(){
   renderHabitsPanel(wd);
   renderHabitsStats();
 }
+
 function renderHabitsPanel(wd){
   const todayStr=tds(state.today);
-  document.getElementById('habit-week-header').innerHTML=`
-    <div style="display:flex;align-items:center">
-      <div style="flex:1;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3)">THÓI QUEN</div>
-      <div style="display:flex;gap:2px">
-        ${wd.map(d=>`<div style="width:24px;text-align:center;font-size:8.5px;font-weight:700;text-transform:uppercase;color:${tds(d)===todayStr?'var(--accent2)':'var(--text3)'}">
-          ${VI_DAYS[d.getDay()]}<br><span style="font-size:8px;font-family:'JetBrains Mono',monospace">${d.getDate()}</span>
-        </div>`).join('')}
+
+  // Move habits-main-section into inject point inside main
+  const inject=document.getElementById('habits-main-inject');
+  const section=document.getElementById('habits-main-section');
+  if(inject&&section&&!inject.contains(section)) inject.appendChild(section);
+
+  // Build column headers
+  const colHeader=document.getElementById('habits-col-header');
+  if(colHeader){
+    colHeader.innerHTML=`
+      <div class="hch-name-col">THÓI QUEN</div>
+      <div class="hch-days">
+        ${wd.map(d=>{
+          const ds=tds(d), isT=ds===todayStr;
+          return `<div class="hch-day${isT?' hch-today':''}">
+            <div class="hch-weekday">${VI_DAYS[d.getDay()]}</div>
+            <div class="hch-date">${d.getDate()}</div>
+          </div>`;
+        }).join('')}
       </div>
-    </div>`;
+      <div class="hch-del-col"></div>`;
+  }
+
   const wrap=document.getElementById('habits-rows-wrap');
   const empty=document.getElementById('habits-empty');
-  wrap.querySelectorAll('.habit-row').forEach(r=>r.remove());
-  if(!state.habits.length){if(empty)empty.style.display='';return;}
-  if(empty)empty.style.display='none';
+  wrap.querySelectorAll('.habit-row-main').forEach(r=>r.remove());
+
+  if(!state.habits.length){ if(empty)empty.style.display=''; return; }
+  if(empty) empty.style.display='none';
+
   state.habits.forEach(h=>{
-    const row=document.createElement('div'); row.className='habit-row';
+    const row=document.createElement('div'); row.className='habit-row-main';
     const cellsHtml=wd.map(d=>{
-      const ds=tds(d),done=state.habitLogs[`${h._id}_${ds}`]===true;
-      const fut=new Date(ds)>state.today;
-      return `<div class="hr-day-cell${done?' done':''}${fut?' future':''}${ds===todayStr?' is-today-cell':''}"
-        data-hid="${h._id}" data-date="${ds}" style="${done?`background:${h.color};`:''}">${done?'✓':''}</div>`;
+      const ds=tds(d);
+      const done=state.habitLogs[`${h._id}_${ds}`]===true;
+      // future = strictly after today
+      const isFuture=new Date(ds+' 00:00:00') > state.today;
+      const isToday_=ds===todayStr;
+      return `<div class="hrm-cell${done?' hrm-done':''}${isFuture?' hrm-future':''}${isToday_?' hrm-today':''}"
+        data-hid="${h._id}" data-date="${ds}"
+        style="${done?`--hcolor:${h.color};background:${h.color}22;border-color:${h.color};`:''}"
+        title="${d.getDate()}/${d.getMonth()+1}">
+        ${done?`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="${done?h.color:'currentColor'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`:''}
+      </div>`;
     }).join('');
     row.innerHTML=`
-      <div class="hr-emoji">${h.emoji}</div>
-      <div class="hr-name" title="${esc(h.name)}">${esc(h.name)}</div>
-      <div class="hr-days">${cellsHtml}</div>
-      <button class="hr-delete" data-hid="${h._id}">✕</button>`;
-    row.querySelectorAll('.hr-day-cell:not(.future)').forEach(cell=>{
+      <div class="hrm-info">
+        <span class="hrm-emoji">${h.emoji}</span>
+        <span class="hrm-name">${esc(h.name)}</span>
+      </div>
+      <div class="hrm-cells">${cellsHtml}</div>
+      <button class="hrm-delete" title="Xóa">✕</button>`;
+
+    // Click cells — only non-future
+    row.querySelectorAll('.hrm-cell:not(.hrm-future)').forEach(cell=>{
       cell.addEventListener('click',async()=>{
         const log=await apiHabits.toggleLog(cell.dataset.hid,cell.dataset.date);
         const key=`${cell.dataset.hid}_${cell.dataset.date}`;
         state.habitLogs[key]=log.done;
-        cell.classList.toggle('done',log.done);
-        cell.textContent=log.done?'✓':''; cell.style.background=log.done?h.color:'';
-        renderHabitsStats(); toast(log.done?`${h.emoji} Đã ghi nhận!`:`${h.emoji} Đã bỏ chọn`);
+        // Refresh row
+        const ds=cell.dataset.date;
+        if(log.done){
+          cell.classList.add('hrm-done');
+          cell.style.background=`${h.color}22`; cell.style.borderColor=h.color;
+          cell.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="${h.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        } else {
+          cell.classList.remove('hrm-done');
+          cell.style.background=''; cell.style.borderColor=''; cell.innerHTML='';
+        }
+        renderHabitsStats();
+        toast(log.done?`${h.emoji} Đã ghi nhận!`:`${h.emoji} Đã bỏ chọn`);
       });
     });
-    row.querySelector('.hr-delete').addEventListener('click',async()=>{
+    row.querySelector('.hrm-delete').addEventListener('click',async()=>{
       if(!confirm(`Xoá thói quen "${h.name}"?`)) return;
-      await apiHabits.del(h._id); await loadHabits(); toast('🗑 Đã xóa thói quen');
+      await apiHabits.del(h._id); await loadHabits(); toast('🗑 Đã xóa');
     });
     wrap.insertBefore(row,empty||null);
   });
@@ -894,10 +937,126 @@ async function renderHabitsStats(){
   const pm=new Date(now.getFullYear(),now.getMonth()-1,1);
   const pms=tds(pm),pme=tds(new Date(pm.getFullYear(),pm.getMonth()+1,0));
   document.getElementById('habit-prevmonth-label').textContent=`${VI_MONTHS[pm.getMonth()]} ${pm.getFullYear()}`;
-  const [wD,cmD,pmD]=await Promise.all([apiHabits.stats(ws,we),apiHabits.stats(cms,cme),apiHabits.stats(pms,pme)]);
+
+  const [wD,cmD,pmD]=await Promise.all([
+    apiHabits.stats(ws,we), apiHabits.stats(cms,cme), apiHabits.stats(pms,pme)
+  ]);
   mkHabitChart('chart-habit-week',wD);
   mkHabitChart('chart-habit-curmonth',cmD);
   mkHabitChart('chart-habit-prevmonth',pmD);
+
+  // Analytics charts
+  try{
+    const ana = await apiHabits.analytics();
+    if(ana?.length) renderHabitAnalytics(ana);
+  }catch(e){}
+}
+
+function renderHabitAnalytics(ana){
+  const c = chartColors();
+  const VI_DAY_FULL = ['CN','T2','T3','T4','T5','T6','T7'];
+
+  // 1. Streak leaderboard (horizontal bar)
+  const ctx1 = document.getElementById('chart-habit-streak')?.getContext('2d');
+  if(ctx1){
+    if(state.charts['habit-streak']) state.charts['habit-streak'].destroy();
+    state.charts['habit-streak'] = new Chart(ctx1,{
+      type:'bar',
+      data:{
+        labels: ana.map(h=>`${h.emoji} ${h.name}`),
+        datasets:[
+          { label:'Chuỗi hiện tại', data:ana.map(h=>h.curStreak),
+            backgroundColor:ana.map(h=>h.color+'cc'), borderColor:ana.map(h=>h.color),
+            borderWidth:1.5, borderRadius:6 },
+          { label:'Chuỗi dài nhất', data:ana.map(h=>h.maxStreak),
+            backgroundColor:'rgba(46,49,80,.5)', borderColor:'rgba(46,49,80,.8)',
+            borderWidth:1, borderRadius:6 }
+        ]},
+      options:{
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:true,labels:{color:c.tick,font:{size:10}}},
+          tooltip:{backgroundColor:'#1f2030',borderColor:'#2e3150',borderWidth:1,
+            titleColor:'#ecedf5',bodyColor:'#8b8fa8'}},
+        scales:{
+          x:{min:0, grid:{color:c.grid}, ticks:{color:c.tick,font:{size:10},stepSize:1}},
+          y:{grid:{display:false}, ticks:{color:c.tick,font:{size:11}}}
+        }}});
+  }
+
+  // 2. Weekly trend — line chart for first habit (or average)
+  const ctx2 = document.getElementById('chart-habit-trend')?.getContext('2d');
+  if(ctx2 && ana.length){
+    if(state.charts['habit-trend']) state.charts['habit-trend'].destroy();
+    const labels = ana[0].weeklyData.map((_,i)=> i===7?'Tuần này':`-${7-i}W`);
+    const datasets = ana.slice(0,4).map(h=>({
+      label:`${h.emoji} ${h.name}`,
+      data: h.weeklyData.map(w=>w.rate),
+      borderColor: h.color, backgroundColor: h.color+'20',
+      borderWidth:2, pointRadius:3, tension:.4, fill:false
+    }));
+    state.charts['habit-trend'] = new Chart(ctx2,{
+      type:'line', data:{labels,datasets},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:true,labels:{color:c.tick,font:{size:10},boxWidth:12}},
+          tooltip:{backgroundColor:'#1f2030',borderColor:'#2e3150',borderWidth:1,
+            titleColor:'#ecedf5',bodyColor:'#8b8fa8',
+            callbacks:{label:ct=>` ${ct.dataset.label}: ${ct.parsed.y}%`}}},
+        scales:{
+          x:{grid:{color:c.grid},ticks:{color:c.tick,font:{size:10}}},
+          y:{min:0,max:100,grid:{color:c.grid},ticks:{color:c.tick,font:{size:10},callback:v=>v+'%'}}
+        }}});
+  }
+
+  // 3. Best day of week (radar/bar)
+  const ctx3 = document.getElementById('chart-habit-bestday')?.getContext('2d');
+  if(ctx3 && ana.length){
+    if(state.charts['habit-bestday']) state.charts['habit-bestday'].destroy();
+    // Aggregate across all habits: how many total completions per weekday
+    const dayTotals = Array(7).fill(0);
+    ana.forEach(h=>{
+      // rebuild from weeklyData is approximate; best we can do without raw log access
+    });
+    // Use first habit's best day as representative
+    const bestDayData = ana.map(h=>({ name:`${h.emoji} ${h.name}`, best: h.bestDay, color: h.color }));
+    const dayCounts = Array(7).fill(0);
+    bestDayData.forEach(h=>dayCounts[h.best]++);
+    state.charts['habit-bestday'] = new Chart(ctx3,{
+      type:'bar',
+      data:{
+        labels: VI_DAY_FULL,
+        datasets:[{ label:'Số thói quen hay làm nhất', data:dayCounts,
+          backgroundColor:['#b07fff99','#ff85c899','#5ef0a099','#ffcf5c99','#5ee8f099','#ff6b8a99','#ffa8d899'],
+          borderColor:['#b07fff','#ff85c8','#5ef0a0','#ffcf5c','#5ee8f0','#ff6b8a','#ffa8d8'],
+          borderWidth:1.5, borderRadius:6 }]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},
+          tooltip:{backgroundColor:'#1f2030',borderColor:'#2e3150',borderWidth:1,
+            titleColor:'#ecedf5',bodyColor:'#8b8fa8'}},
+        scales:{
+          x:{grid:{display:false},ticks:{color:c.tick,font:{size:11}}},
+          y:{min:0,grid:{color:c.grid},ticks:{color:c.tick,font:{size:10},stepSize:1}}
+        }}});
+  }
+
+  // 4. Consistency score — visual cards
+  const wrap = document.getElementById('habit-consistency-wrap');
+  if(wrap){
+    wrap.innerHTML='';
+    const sorted = [...ana].sort((a,b)=>b.totalDone-a.totalDone);
+    sorted.forEach(h=>{
+      const score = Math.min(100, Math.round((h.totalDone/90)*100)); // out of 90 days
+      const bar = document.createElement('div');
+      bar.style.cssText='display:flex;align-items:center;gap:8px;';
+      bar.innerHTML=`
+        <span style="font-size:14px;flex-shrink:0">${h.emoji}</span>
+        <span style="font-size:12px;color:var(--text2);min-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(h.name)}</span>
+        <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${score}%;background:${h.color};border-radius:3px;transition:width .6s"></div>
+        </div>
+        <span style="font-size:11px;font-family:'JetBrains Mono',monospace;color:${h.color};min-width:28px;text-align:right">${h.totalDone}d</span>`;
+      wrap.appendChild(bar);
+    });
+  }
 }
 function mkHabitChart(id,data){
   const ctx=document.getElementById(id)?.getContext('2d'); if(!ctx) return;
@@ -952,19 +1111,203 @@ function initHabitsForm(){
   });
 }
 
-// ─── MOOD ─────────────────────────────────────────────────
-function initMood(){
-  const key='mood-'+tds(state.today);
-  const saved=localStorage.getItem(key);
-  if(saved) document.querySelectorAll('.mood-btn').forEach(b=>b.classList.toggle('selected',b.dataset.mood===saved));
-  document.querySelectorAll('.mood-btn').forEach(btn=>{
+// ─── MOOD + JOURNAL (Locket style) ───────────────────────
+const MOOD_PROMPTS = {
+  '🌸':{ label:'Tuyệt vời! 🌸', color:'#ff85c8', prompt:'Hôm nay điều gì khiến bạn cảm thấy tuyệt vời vậy? Hãy ghi lại để nhớ mãi nhé!' },
+  '😊':{ label:'Vui vẻ 😊',     color:'#ffcf5c', prompt:'Ngày hôm nay vui vẻ thật đấy! Có chuyện gì thú vị xảy ra không?' },
+  '😌':{ label:'Bình thường 😌',color:'#b07fff', prompt:'Một ngày bình yên. Bạn đang suy nghĩ gì hoặc có điều gì muốn ghi lại không?' },
+  '😴':{ label:'Mệt mỏi 😴',    color:'#5ee8f0', prompt:'Bạn đang mệt mỏi... Chuyện gì đang làm bạn kiệt sức vậy? Chia sẻ ra đây cho nhẹ lòng nhé.' },
+  '😤':{ label:'Căng thẳng 😤', color:'#ff9900', prompt:'Có chuyện gì đang làm bạn căng thẳng không? Cứ viết ra đây — đôi khi nói ra là nhẹ hơn nhiều đó.' },
+  '😢':{ label:'Buồn 😢',       color:'#7cb9ff', prompt:'Bạn đang buồn... Có chuyện gì không vui xảy ra không? Tôi lắng nghe bạn đây 💕' },
+};
+
+async function initJournal(){
+  const dateStr = tds(state.today);
+  document.getElementById('jp-date').textContent =
+    `${state.today.getDate()}/${state.today.getMonth()+1}/${state.today.getFullYear()}`;
+
+  let entry = { mood:'', content:'' };
+  try { entry = await apiJournal.get(dateStr); } catch(e){}
+  if(entry.mood) showJournalSaved(entry.mood, entry.content);
+  else showMoodPicker();
+
+  // Mood buttons
+  document.querySelectorAll('.jp-mood-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      document.querySelectorAll('.mood-btn').forEach(b=>b.classList.remove('selected'));
-      btn.classList.add('selected');
-      localStorage.setItem(key,btn.dataset.mood);
-      toast(`${btn.dataset.mood} Đã lưu tâm trạng!`);
+      document.querySelectorAll('.jp-mood-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      showJournalWrite(btn.dataset.mood);
     });
   });
+
+  // Save
+  document.getElementById('jp-save-btn').addEventListener('click', async()=>{
+    const mood    = document.querySelector('.jp-mood-btn.active')?.dataset.mood||'';
+    const content = document.getElementById('jp-textarea').value.trim();
+    if(!mood){ toast('Chọn tâm trạng trước nhé!'); return; }
+    await apiJournal.save(dateStr, mood, content);
+    showJournalSaved(mood, content);
+    toast('✍️ Đã lưu nhật ký!');
+  });
+
+  // Edit
+  document.getElementById('jp-edit-btn').addEventListener('click',()=>{
+    const mood = document.querySelector('.jp-mood-btn.active')?.dataset.mood || entry.mood;
+    showJournalWrite(mood);
+  });
+
+  // Change mood — go back to mood picker, keep content in textarea
+  document.getElementById('jp-change-mood-btn')?.addEventListener('click',()=>{
+    showMoodPicker();
+  });
+
+  // Char count
+  document.getElementById('jp-textarea').addEventListener('input', e=>{
+    document.getElementById('jp-char-count').textContent = `${e.target.value.length}/2000`;
+  });
+
+  // History button
+  document.getElementById('jp-history-btn').addEventListener('click', ()=> showHistoryScreen());
+
+  // Back button
+  document.getElementById('jp-back-btn').addEventListener('click', ()=>{
+    document.getElementById('jp-screen-history').style.display='none';
+    document.getElementById('jp-screen-write').style.display='';
+  });
+
+  // Overlay close
+  document.getElementById('jp-overlay-close').addEventListener('click', ()=>{
+    document.getElementById('jp-overlay').style.display='none';
+  });
+  document.getElementById('jp-overlay').addEventListener('click', e=>{
+    if(e.target===document.getElementById('jp-overlay'))
+      document.getElementById('jp-overlay').style.display='none';
+  });
+}
+
+function showMoodPicker(){
+  document.getElementById('jp-mood-row').style.display='';
+  document.getElementById('jp-write-row').style.display='none';
+  document.getElementById('jp-saved').style.display='none';
+}
+function showJournalWrite(mood){
+  const info = MOOD_PROMPTS[mood]||{ label:mood, color:'var(--accent)', prompt:'Hôm nay bạn có muốn ghi lại điều gì không?' };
+  document.getElementById('jp-mood-row').style.display='none';
+  document.getElementById('jp-write-row').style.display='';
+  document.getElementById('jp-saved').style.display='none';
+  document.getElementById('jp-selected-mood').textContent = info.label;
+  document.getElementById('jp-selected-mood').style.color = info.color;
+  document.getElementById('jp-prompt').textContent = info.prompt;
+  document.querySelectorAll('.jp-mood-btn').forEach(b=>b.classList.toggle('active',b.dataset.mood===mood));
+}
+function showJournalSaved(mood, content){
+  const info = MOOD_PROMPTS[mood]||{ label:mood, color:'var(--accent)' };
+  document.getElementById('jp-mood-row').style.display='none';
+  document.getElementById('jp-write-row').style.display='none';
+  document.getElementById('jp-saved').style.display='';
+  document.getElementById('jp-saved-mood').textContent = info.label;
+  document.getElementById('jp-saved-mood').style.color = info.color;
+  document.getElementById('jp-saved-content').textContent = content||'(Chưa có ghi chú)';
+  document.getElementById('jp-textarea').value = content||'';
+  document.getElementById('jp-char-count').textContent = `${(content||'').length}/2000`;
+  document.querySelectorAll('.jp-mood-btn').forEach(b=>b.classList.toggle('active',b.dataset.mood===mood));
+}
+
+// ── HISTORY SCREEN ──
+async function showHistoryScreen(){
+  document.getElementById('jp-screen-write').style.display='none';
+  document.getElementById('jp-screen-history').style.display='';
+  const scroll = document.getElementById('jp-history-scroll');
+  scroll.innerHTML = '<div class="jp-history-loading">Đang tải...</div>';
+
+  // Fetch last 6 months of entries
+  const end   = tds(state.today);
+  const start6 = new Date(state.today); start6.setMonth(start6.getMonth()-5); start6.setDate(1);
+  const start = tds(start6);
+
+  let entries = [];
+  try { entries = await apiJournal.range(start, end); } catch(e){}
+
+  // Map by date for quick lookup
+  const byDate = {};
+  entries.forEach(e=>{ byDate[e.date]=e; });
+
+  // Build month groups — newest first
+  scroll.innerHTML='';
+  const months=[];
+  for(let m=0;m<6;m++){
+    const d=new Date(state.today.getFullYear(), state.today.getMonth()-m, 1);
+    months.push({year:d.getFullYear(), month:d.getMonth()});
+  }
+
+  months.forEach(({year,month})=>{
+    const daysInMo = new Date(year,month+1,0).getDate();
+    const group = document.createElement('div');
+    group.className='jph-group';
+
+    const title = document.createElement('div');
+    title.className='jph-month-title';
+    title.textContent=`${VI_MONTHS[month]} ${year}`;
+    group.appendChild(title);
+
+    const grid = document.createElement('div');
+    grid.className='jph-grid';
+
+    for(let day=1;day<=daysInMo;day++){
+      const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const entry = byDate[ds];
+      const isToday_ = ds===tds(state.today);
+      const isFuture = new Date(ds+'T00:00:00')>state.today;
+
+      const cell = document.createElement('div');
+      cell.className='jph-cell'+(isToday_?' jph-today':'')+(isFuture?' jph-future':'');
+
+      if(entry?.mood){
+        const info = MOOD_PROMPTS[entry.mood]||{ color:'#b07fff' };
+        cell.classList.add('jph-has-entry');
+        cell.style.background = info.color+'22';
+        cell.style.borderColor = info.color+'88';
+        cell.innerHTML=`<span class="jph-cell-emoji">${entry.mood}</span><span class="jph-cell-day">${day}</span>`;
+        cell.addEventListener('click',()=>showEntryOverlay(ds, entry));
+      } else {
+        cell.innerHTML=`<span class="jph-cell-day jph-day-only">${day}</span>`;
+      }
+      grid.appendChild(cell);
+    }
+    group.appendChild(grid);
+    scroll.appendChild(group);
+  });
+}
+
+async function showEntryOverlay(dateStr, entry){
+  const [y,m,d] = dateStr.split('-');
+  const info = MOOD_PROMPTS[entry.mood]||{ label:entry.mood, color:'#b07fff' };
+
+  // Fetch task stats for that day
+  let taskDone=0, taskTotal=0;
+  try{
+    const stats = await apiTasks.stats(dateStr, dateStr);
+    taskDone  = stats.overall.completed;
+    taskTotal = stats.overall.total;
+  }catch(e){}
+
+  // Fetch habit logs for that day
+  let habitsDone = [];
+  try{
+    const logs = await apiHabits.logs(dateStr, dateStr);
+    const done = logs.filter(l=>l.done);
+    habitsDone = state.habits.filter(h=>done.some(l=>String(l.habitId)===String(h._id)));
+  }catch(e){}
+
+  document.getElementById('jp-overlay-mood').textContent = info.label;
+  document.getElementById('jp-overlay-mood').style.color  = info.color;
+  document.getElementById('jp-overlay-date').textContent  = `${parseInt(d)}/${parseInt(m)}/${y}`;
+  document.getElementById('jp-overlay-content').textContent = entry.content||'(Không có ghi chú)';
+  document.getElementById('jp-overlay-meta').innerHTML = `
+    ${taskTotal>0 ? `<div class="jp-ov-meta-item">✅ Task: <b>${taskDone}/${taskTotal}</b></div>` : ''}
+    ${habitsDone.length>0 ? `<div class="jp-ov-meta-item">🐰 Thói quen: ${habitsDone.map(h=>`${h.emoji} ${h.name}`).join(', ')}</div>` : ''}
+  `;
+  document.getElementById('jp-overlay').style.display='flex';
 }
 
 // ─── MOBILE SIDEBAR ───────────────────────────────────────
@@ -1091,13 +1434,464 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     if(e.key==='ArrowRight'){if(state.viewMode==='week')state.weekOffset++;else state.monthOffset++;loadAndRender();}
   });
 
-  initMood();
+  initJournal();
   initHabitsForm();
   initMobileSidebar();
   loadAndRender();
   loadHabits();
+  initGoals();
 
   // Render heatmap once after layout is ready, and on window resize (debounced)
   setTimeout(()=> _buildHeatmap(), 400);
   window.addEventListener('resize', scheduleHeatmap, {passive:true});
 });
+
+// ═══════════════════════════════════════════
+// GOALS — Long-term task tracker
+// ═══════════════════════════════════════════
+
+// 50 motivational messages grouped by context
+const MOTIVATIONS = {
+  start: [
+    "🚀 Hành trình vạn dặm bắt đầu từ một bước chân!",
+    "✨ Ngày đầu tiên luôn là ngày quan trọng nhất — bạn đã bắt đầu rồi!",
+    "🌱 Mỗi chuyên gia từng là người mới bắt đầu. Hôm nay là ngày 1 của bạn!",
+    "💫 Không cần hoàn hảo, chỉ cần bắt đầu thôi!",
+    "🐰 Thỏ nhỏ cũng leo được núi cao, từng bước một thôi!",
+  ],
+  middle: [
+    "💪 Bạn đã đi được nửa đường rồi — đừng dừng lại bây giờ!",
+    "🔥 Momentum đang ở phía bạn, hãy tiếp tục nhé!",
+    "🌊 Sóng lớn nhất thường đến giữa hành trình — vượt qua đi!",
+    "⭐ Mỗi ngày kiên trì là một viên gạch xây nên thành công.",
+    "🎯 Bạn đang đi đúng hướng rồi, chỉ cần giữ nhịp thôi!",
+    "🏃 Không cần nhanh, chỉ cần không dừng lại!",
+    "💎 Kim cương cũng cần áp lực để tỏa sáng — bạn đang làm được!",
+  ],
+  nearEnd: [
+    "🎊 Sắp về đích rồi! Cố lên một chút nữa thôi!",
+    "🏆 Đích đến đang ở trước mặt rồi — đừng từ bỏ lúc này!",
+    "⚡ Giai đoạn cuối luôn khó nhất, nhưng bạn gần xong rồi!",
+    "🌅 Bình minh luôn đến sau đêm dài — bạn sắp thấy kết quả rồi!",
+    "💪 Vài ngày nữa thôi! Bạn đã làm được nhiều thứ hơn bạn nghĩ đấy!",
+  ],
+  done: [
+    "🎉 TUYỆT VỜI! Bạn đã hoàn thành mục tiêu! Tự hào về bản thân đi!",
+    "🏆 100%! Bạn làm được rồi! Đây là minh chứng cho sự kiên trì của bạn!",
+    "✨ Xong rồi! Hôm nay bạn là phiên bản tốt hơn của chính mình hôm qua!",
+    "🌟 Bạn đã chứng minh rằng mình có thể làm được — đây chỉ là khởi đầu!",
+  ],
+  missed: [
+    "😌 Không sao cả! Một ngày nghỉ không phá hủy cả hành trình đâu.",
+    "🌱 Ngã là chuyện bình thường, quan trọng là đứng dậy. Hôm nay thử lại nhé!",
+    "💙 Hãy nhẹ nhàng với bản thân — hôm qua qua rồi, hôm nay là cơ hội mới.",
+    "🐰 Thỏ cũng có lúc mệt, nhưng không bỏ cuộc! Tiếp tục nào!",
+    "⭐ Bỏ lỡ một ngày không có nghĩa là thất bại — quay lại ngay hôm nay đi!",
+  ],
+  daily: [
+    "☀️ Chào buổi sáng! Hôm nay là ngày để tiến gần hơn đến mục tiêu của bạn!",
+    "🌸 Một ngày mới, một cơ hội mới. Bạn làm được!",
+    "✍️ Đừng để ngày này trôi qua mà không làm gì cho mục tiêu của mình nhé!",
+    "💡 Nhắc nhở nhỏ: mục tiêu của bạn đang chờ bạn hôm nay!",
+    "🎯 Focus! Hôm nay chỉ cần hoàn thành 1 ngày này thôi — làm được không?",
+    "🔑 Chìa khóa thành công là nhất quán — và hôm nay bạn có cơ hội đó!",
+    "🌊 Từng giọt nước tạo nên đại dương. Hành động nhỏ hôm nay tạo nên thành tích lớn!",
+  ]
+};
+
+function getMotivation(goal){
+  const done = goal.days.filter(d=>d.done).length;
+  const pct  = goal.totalDays > 0 ? (done/goal.totalDays)*100 : 0;
+  const hasMissed = goal.days.some(d=>d.missedAt);
+  if(pct >= 100) return MOTIVATIONS.done[Math.floor(Math.random()*MOTIVATIONS.done.length)];
+  if(hasMissed && done === 0) return MOTIVATIONS.missed[Math.floor(Math.random()*MOTIVATIONS.missed.length)];
+  if(pct >= 80) return MOTIVATIONS.nearEnd[Math.floor(Math.random()*MOTIVATIONS.nearEnd.length)];
+  if(pct >= 30) return MOTIVATIONS.middle[Math.floor(Math.random()*MOTIVATIONS.middle.length)];
+  return MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)];
+}
+
+// API
+const apiGoals = {
+  list:      ()           => API.g('/api/goals'),
+  create:    (b)          => API.p('/api/goals', b),
+  del:       (id)         => API.d(`/api/goals/${id}`),
+  updateDay: (id,idx,b)   => API.pa(`/api/goals/${id}/day/${idx}`, b),
+  toggleDay: (id,idx)     => API.pa(`/api/goals/${id}/day/${idx}/toggle`, {}),
+};
+
+// Progress bar color based on %
+function progressColor(pct){
+  if(pct >= 100) return '#5ef0a0';
+  if(pct >= 80)  return '#3ddbb8';
+  if(pct >= 60)  return '#ffcf5c';
+  if(pct >= 40)  return '#ffa048';
+  if(pct >= 20)  return '#ff7744';
+  return '#ff6b8a';
+}
+
+// ── RENDER ALL GOALS ──
+async function loadGoals(){
+  let goals = [];
+  try {
+    goals = await apiGoals.list();
+  } catch(e){
+    console.error('loadGoals error:', e);
+  }
+  renderGoalsList(goals);
+}
+
+function renderGoalsList(goals){
+  const list  = document.getElementById('goals-list');
+  const empty = document.getElementById('goals-empty');
+  // Remove existing goal cards
+  list.querySelectorAll('.goal-card').forEach(c=>c.remove());
+
+  if(!goals.length){ if(empty) empty.style.display=''; return; }
+  if(empty) empty.style.display='none';
+
+  goals.forEach(g => list.appendChild(createGoalCard(g)));
+}
+
+
+function createGoalCard(g){
+  const done    = g.days.filter(d=>d.done).length;
+  const missed  = g.days.filter(d=>d.missedAt && !d.done).length;
+  const pct     = g.totalDays > 0 ? Math.round((done/g.totalDays)*100) : 0;
+  const color   = g.color || '#b07fff';
+  const barColor = progressColor(pct);
+  const todayStr = tds(state.today);
+  const todayDay = g.days.find(d=>d.date===todayStr);
+  const lastDay  = g.days[g.days.length-1];
+  const motivation = getMotivation(g);
+
+  const card = document.createElement('div');
+  card.className = 'goal-card';
+  card.dataset.id = g._id;
+  card.style.cssText = `border-color:${color}33;`;
+
+  const endLabel = lastDay
+    ? `Kết thúc ${parseInt(lastDay.date.split('-')[2])}/${parseInt(lastDay.date.split('-')[1])}`
+    : '';
+
+  card.innerHTML = `
+    <div class="gc-header">
+      <div class="gc-emoji-wrap" style="background:${color}20">${g.emoji}</div>
+      <div class="gc-info">
+        <div class="gc-title">${esc(g.title)}</div>
+        <div class="gc-meta">
+          <span>${done}/${g.totalDays} ngày</span>
+          ${missed>0?`<span class="gc-missed-badge">${missed} bỏ lỡ</span>`:''}
+          <span style="color:var(--text3);font-size:10px">${endLabel}</span>
+        </div>
+      </div>
+      <button class="gc-delete" title="Xoá">✕</button>
+    </div>
+
+    <div class="gc-progress-wrap">
+      <div class="gc-progress-track">
+        <div class="gc-progress-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${barColor});box-shadow:0 0 ${4+Math.round(pct/8)}px ${color}55"></div>
+      </div>
+      <div class="gc-progress-row">
+        <span class="gc-motivation-text">${motivation}</span>
+        <span class="gc-pct-text" style="color:${barColor}">${pct}%</span>
+      </div>
+    </div>
+
+    ${todayDay ? `<div class="gc-today-banner" style="border-color:${color}44;background:${color}08">
+      <div class="gc-today-top">
+        <span class="gc-today-tag" style="color:${color}">📅 Hôm nay — Ngày ${todayDay.dayIndex+1}</span>
+        ${!todayDay.done
+          ? `<button class="gc-today-tick" style="background:${color}">✓ Xong rồi!</button>`
+          : `<span class="gc-today-done-tag">✅ Hoàn thành!</span>`}
+      </div>
+      <div class="gc-today-task-text">${todayDay.task||`<span style="color:var(--text3);font-style:italic">Chưa có kế hoạch — mở kế hoạch để thêm</span>`}</div>
+    </div>` : ''}
+
+    <button class="gc-toggle-days">
+      <span class="gc-toggle-label">📋 Xem kế hoạch ${g.totalDays} ngày</span>
+      <svg class="gc-toggle-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <div class="gc-days-list" style="display:none"></div>
+  `;
+
+  // Populate days list (real DOM — not innerHTML — for inputs)
+  const daysList = card.querySelector('.gc-days-list');
+  g.days.forEach(d => {
+    daysList.appendChild(buildDayCard(d, g, todayStr, color));
+  });
+
+  // Toggle
+  card.querySelector('.gc-toggle-days').addEventListener('click', ()=>{
+    const open = daysList.style.display==='none';
+    daysList.style.display = open ? '' : 'none';
+    card.querySelector('.gc-toggle-label').textContent = open
+      ? `📋 Ẩn kế hoạch`
+      : `📋 Xem kế hoạch ${g.totalDays} ngày`;
+    card.querySelector('.gc-toggle-arrow').style.transform = open ? 'rotate(180deg)' : '';
+  });
+
+  // Delete
+  card.querySelector('.gc-delete').addEventListener('click', async()=>{
+    if(!confirm(`Xoá mục tiêu "${g.title}"?`)) return;
+    await apiGoals.del(g._id);
+    card.style.cssText += 'opacity:0;transform:translateY(-8px);transition:all .3s;';
+    setTimeout(()=>card.remove(), 300);
+    toast('🗑 Đã xoá mục tiêu');
+  });
+
+  // Today tick
+  card.querySelector('.gc-today-tick')?.addEventListener('click', async()=>{
+    if(!todayDay) return;
+    await apiGoals.toggleDay(g._id, todayDay.dayIndex);
+    await loadGoals();
+    toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)]);
+  });
+
+  return card;
+}
+
+function buildDayCard(d, g, todayStr, color){
+  const isToday_  = d.date === todayStr;
+  const isFuture  = d.date > todayStr;
+  const [yr,mo,dy] = d.date.split('-');
+  const VI_D = ['CN','T2','T3','T4','T5','T6','T7'];
+  const dow  = new Date(d.date+'T00:00:00').getDay();
+
+  const el = document.createElement('div');
+  el.className = 'gc-day-card' +
+    (d.done ? ' gdc-done' : '') +
+    (d.missedAt&&!d.done ? ' gdc-missed' : '') +
+    (isToday_ ? ' gdc-today' : '') +
+    (isFuture ? ' gdc-future' : '');
+  el.dataset.idx = d.dayIndex;
+
+  if(d.done) el.style.cssText = `border-color:${color}55;background:${color}0a`;
+  else if(isToday_) el.style.cssText = `border-color:${color}88;box-shadow:0 0 0 2px ${color}22`;
+
+  // Left side
+  const left = document.createElement('div');
+  left.className = 'gdc-left';
+
+  const dayNum = document.createElement('div');
+  dayNum.className = 'gdc-day-num';
+  dayNum.innerHTML = `<b ${isToday_?`style="color:${color}"`:''}">Ngày ${d.dayIndex+1}</b>
+    ${isToday_?`<span class="gdc-today-tag" style="background:${color}22;color:${color}">Hôm nay</span>`:''}
+    ${d.missedAt&&!d.done?`<span class="gdc-missed-tag">Bỏ lỡ</span>`:''}`;
+  left.appendChild(dayNum);
+
+  const dateEl = document.createElement('div');
+  dateEl.className = 'gdc-date';
+  dateEl.textContent = `${VI_D[dow]}, ${parseInt(dy)}/${parseInt(mo)}`;
+  left.appendChild(dateEl);
+
+  // Task — input for all days (not just future)
+  const taskInput = document.createElement('input');
+  taskInput.type = 'text';
+  taskInput.className = 'gc-day-input';
+  taskInput.placeholder = 'Kế hoạch ngày này...';
+  taskInput.value = d.task || '';
+  if(d.done) taskInput.disabled = true;
+  let saveTimer;
+  taskInput.addEventListener('input', ()=>{
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async()=>{
+      await apiGoals.updateDay(g._id, d.dayIndex, { task: taskInput.value.trim() });
+    }, 700);
+  });
+  left.appendChild(taskInput);
+  el.appendChild(left);
+
+  // Right side — check button
+  const right = document.createElement('div');
+  right.className = 'gdc-right';
+
+  if(!isFuture){
+    const checkBtn = document.createElement('button');
+    checkBtn.className = 'gc-day-check-btn' + (d.done ? ' gdc-checked' : '');
+    if(d.done) checkBtn.style.cssText = `background:${color};border-color:${color}`;
+    checkBtn.innerHTML = d.done
+      ? `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5L5.5 10L11 3" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+      : '';
+    checkBtn.title = d.done ? 'Đánh dấu chưa xong' : 'Đánh dấu xong';
+    checkBtn.addEventListener('click', async()=>{
+      await apiGoals.toggleDay(g._id, d.dayIndex);
+      await loadGoals();
+      if(!d.done) toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)]);
+    });
+    right.appendChild(checkBtn);
+  } else {
+    const dot = document.createElement('div');
+    dot.className = 'gdc-future-dot';
+    right.appendChild(dot);
+  }
+  el.appendChild(right);
+
+  return el;
+}
+
+// ── INIT GOALS ──
+function initGoals(){
+  const createBtn = document.getElementById('goal-create-btn');
+  const modal     = document.getElementById('goal-modal-overlay');
+  const step1     = document.getElementById('goal-step-1');
+  const step2     = document.getElementById('goal-step-2');
+
+  let selEmoji = '🎯', selColor = '#b07fff';
+  let pendingDayTasks = []; // array of task strings per day
+
+  function closeModal(){
+    modal.style.display='none';
+    step1.style.display=''; step2.style.display='none';
+    document.getElementById('goal-title').value='';
+    document.getElementById('goal-days').value='7';
+    document.getElementById('goal-startdate').value='';
+    document.querySelectorAll('.days-preset').forEach(b=>b.classList.remove('active'));
+    pendingDayTasks=[];
+  }
+
+  // Set default start date = today
+  const sdInput = document.getElementById('goal-startdate');
+  if(sdInput) sdInput.value = tds(state.today);
+
+  createBtn?.addEventListener('click', ()=>{
+    if(sdInput) sdInput.value = tds(state.today);
+    modal.style.display='flex';
+    document.getElementById('goal-title').focus();
+  });
+
+  // Close buttons
+  ['goal-modal-close','goal-modal-close2','goal-modal-cancel','goal-step2-cancel'].forEach(id=>{
+    document.getElementById(id)?.addEventListener('click', closeModal);
+  });
+  modal?.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+  // Day presets
+  document.querySelectorAll('.days-preset').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('.days-preset').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('goal-days').value = btn.dataset.d;
+    });
+  });
+
+  // Emoji picker
+  document.querySelectorAll('.goal-ep').forEach(ep=>{
+    ep.addEventListener('click',()=>{
+      document.querySelectorAll('.goal-ep').forEach(e=>e.classList.remove('selected'));
+      ep.classList.add('selected'); selEmoji = ep.dataset.e;
+    });
+  });
+
+  // Color picker
+  document.querySelectorAll('.goal-color').forEach(cp=>{
+    cp.addEventListener('click',()=>{
+      document.querySelectorAll('.goal-color').forEach(c=>c.classList.remove('selected'));
+      cp.classList.add('selected'); selColor = cp.dataset.c;
+    });
+  });
+
+  // Step 1 → Step 2: show day plan inputs
+  document.getElementById('goal-step1-next')?.addEventListener('click', ()=>{
+    const title     = document.getElementById('goal-title').value.trim();
+    const totalDays = parseInt(document.getElementById('goal-days').value);
+    const startDate = document.getElementById('goal-startdate').value;
+    if(!title){ toast('⚠ Nhập tên mục tiêu!'); return; }
+    if(!totalDays||totalDays<1){ toast('⚠ Chọn số ngày!'); return; }
+    if(!startDate){ toast('⚠ Chọn ngày bắt đầu!'); return; }
+
+    // Build day list for step 2
+    pendingDayTasks = Array(totalDays).fill('');
+    document.getElementById('goal-step2-title').textContent = `${selEmoji} ${title}`;
+    document.getElementById('gs2-subtitle').textContent =
+      `${totalDays} ngày · Bắt đầu ${parseInt(startDate.split('-')[2])}/${parseInt(startDate.split('-')[1])}/${startDate.split('-')[0]}`;
+
+    const daysList = document.getElementById('gs2-days-list');
+    daysList.innerHTML = '';
+    const VI_D = ['CN','T2','T3','T4','T5','T6','T7'];
+    for(let i=0; i<totalDays; i++){
+      const d = new Date(startDate+'T00:00:00');
+      d.setDate(d.getDate()+i);
+      const dow = d.getDay();
+      const ds  = tds(d);
+      const isToday_ = ds===tds(state.today);
+
+      const row = document.createElement('div');
+      row.className = 'gs2-day-row' + (isToday_?' gs2-today':'');
+      row.style.borderLeftColor = selColor;
+
+      const label = document.createElement('div');
+      label.className = 'gs2-day-label';
+      label.innerHTML = `<span class="gs2-day-num" style="${isToday_?`color:${selColor}`:''}">Ngày ${i+1}</span>
+        <span class="gs2-day-date">${VI_D[dow]}, ${d.getDate()}/${d.getMonth()+1}${isToday_?' · Hôm nay':''}</span>`;
+
+      const input = document.createElement('input');
+      input.type='text'; input.className='gs2-day-input';
+      input.placeholder=`Kế hoạch ngày ${i+1}...`;
+      input.maxLength=200;
+      const idx=i;
+      input.addEventListener('input', ()=>{ pendingDayTasks[idx]=input.value; });
+      input.addEventListener('keydown', e=>{
+        if(e.key==='Enter'){
+          e.preventDefault();
+          const next=daysList.querySelectorAll('.gs2-day-input')[idx+1];
+          next?.focus();
+        }
+      });
+
+      row.append(label,input);
+      daysList.appendChild(row);
+    }
+
+    step1.style.display='none';
+    step2.style.display='';
+    daysList.querySelector('.gs2-day-input')?.focus();
+  });
+
+  // Back to step 1
+  document.getElementById('goal-step2-back')?.addEventListener('click',()=>{
+    step2.style.display='none'; step1.style.display='';
+  });
+
+  // Submit
+  document.getElementById('goal-step2-submit')?.addEventListener('click', async()=>{
+    const title     = document.getElementById('goal-title').value.trim();
+    const totalDays = parseInt(document.getElementById('goal-days').value);
+    const startDate = document.getElementById('goal-startdate').value;
+    const submitBtn = document.getElementById('goal-step2-submit');
+    submitBtn.disabled=true; submitBtn.textContent='Đang tạo...';
+    try{
+      const res = await fetch('/api/goals',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ title, emoji:selEmoji, color:selColor, totalDays, startDate, dayTasks: pendingDayTasks }),
+        credentials:'include'
+      });
+      const data = await res.json();
+      if(!res.ok){ toast('❌ '+(data.error||'Có lỗi xảy ra')); throw new Error(data.error); }
+      closeModal();
+      await loadGoals();
+      toast(`🎯 Đã tạo "${title}"! Hãy bắt đầu hành trình!`);
+    }catch(e){ console.error(e); }
+    submitBtn.disabled=false; submitBtn.textContent='Tạo mục tiêu 🎯';
+  });
+
+  loadGoals();
+  if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
+}
+
+// Daily notification
+function checkGoalNotifications(goals){
+  if(!('Notification' in window)||Notification.permission!=='granted') return;
+  const todayStr=tds(state.today);
+  goals.forEach(g=>{
+    const todayDay=g.days.find(d=>d.date===todayStr);
+    if(todayDay&&!todayDay.done){
+      const msg=MOTIVATIONS.daily[Math.floor(Math.random()*MOTIVATIONS.daily.length)];
+      new Notification(`🎯 ${g.emoji} ${g.title}`,{
+        body:`Hôm nay: ${todayDay.task||'Chưa có kế hoạch'}\n${msg}`,icon:'/favicon.ico'
+      });
+    }
+  });
+}
