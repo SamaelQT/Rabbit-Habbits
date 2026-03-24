@@ -72,7 +72,7 @@ router.get('/stats', async (req, res) => {
       if(t.completed) freq[key].completed++;
       if(!freq[key].dates.includes(t.date)) freq[key].dates.push(t.date);
     });
-    const freqList = Object.values(freq).sort((a,b) => b.total - a.total).slice(0, 10);
+    const freqList = Object.values(freq).filter(t => t.total >= 2).sort((a,b) => b.total - a.total).slice(0, 10);
     const total = tasks.length, completed = tasks.filter(t => t.completed).length;
     res.json({ overall: { total, completed, rate: total > 0 ? Math.round((completed/total)*100) : 0 }, byDate, topTasks: freqList });
   } catch(e) { res.status(500).json({ error: e.message }); }
