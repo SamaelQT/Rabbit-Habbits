@@ -1,9 +1,18 @@
 const express     = require('express');
 const router      = express.Router();
 const Goal        = require('../models/Goal');
+const UserPoints  = require('../models/UserPoints');
 const requireAuth = require('../middleware/auth');
 
 router.use(requireAuth);
+
+async function awardPts(userId, amount) {
+  let up = await UserPoints.findOne({ userId });
+  if (!up) up = new UserPoints({ userId });
+  up.addPoints(amount);
+  await up.save();
+  return up.points;
+}
 
 // GET all active goals
 router.get('/', async (req, res) => {
@@ -85,7 +94,12 @@ router.patch('/:id/day/:dayIndex/toggle', async (req, res) => {
     day.done = !day.done;
     if(day.done) day.missedAt = null;
     await goal.save();
-    res.json(goal);
+    let pointsAwarded = 0;
+    if (day.done) {
+      await awardPts(req.userId, 8);
+      pointsAwarded = 8;
+    }
+    res.json({ ...goal.toObject(), pointsAwarded });
   } catch(e){ res.status(400).json({ error: e.message }); }
 });
 

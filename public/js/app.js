@@ -456,7 +456,16 @@ async function toggleTask(id,itemEl){
   const ds=itemEl.closest('.day-column').dataset.date;
   const t=state.tasks[ds]?.find(t=>t._id===id); if(t) t.completed=task.completed;
   refreshDonut(ds); renderCalendar();
-  if(task.completed) toast('🌸 Task hoàn thành!');
+  if(task.completed){
+    const pts = task.pointsAwarded || 5;
+    toast(`🌸 Task hoàn thành! +${pts}⭐`);
+    showPointsToast(pts);
+    updatePointsUI((_shopData.points||0) + pts);
+    // Confetti based on priority
+    const intensity = task.priority >= 3 ? 'high' : task.priority >= 2 ? 'medium' : 'low';
+    launchConfetti(intensity);
+    checkAndAwardBadges();
+  }
 }
 async function deleteTask(id,itemEl){
   await apiTasks.del(id);
@@ -497,9 +506,11 @@ async function renderStats(stats,s,e,globalStreak){
   // Global streak
   const gs=globalStreak?.currentStreak||0, gm=globalStreak?.maxStreak||0;
   document.getElementById('stat-streak').textContent=(gs>0?gs:gm);
-  if(gs>=3){
-    document.getElementById('global-streak-badge').style.display='flex';
-    document.getElementById('global-streak-text').textContent=`🔥 ${gs} ngày liên tiếp`;
+  const gsBadge = document.getElementById('global-streak-badge');
+  if(gs>=3 && gsBadge){
+    gsBadge.style.display='flex';
+    const gsText = document.getElementById('global-streak-text');
+    if(gsText) gsText.textContent=`🔥 ${gs} ngày liên tiếp`;
   }
   const labels=[],rateData=[];
   for(let d=new Date(s);tds(d)<=e;d.setDate(d.getDate()+1)){
@@ -532,7 +543,7 @@ async function renderStats(stats,s,e,globalStreak){
         <div class="ttc-name" title="${esc(t.title)}">${esc(t.title)}</div>
         <div class="ttc-meta">
           <span class="ttc-count">${t.total}×</span>
-          <span class="ttc-rate" style="color:${rc}">${rate}%</span>
+          <span class="ttc-fire">${streakFlames(sd.currentStreak||0)}</span>
         </div>
       </div>
       <div class="ttc-freq-row">
@@ -546,6 +557,15 @@ async function renderStats(stats,s,e,globalStreak){
       </div>`;
     tbody.appendChild(card);
   }
+}
+
+// Streak flames: more flames for longer streaks (max 31)
+function streakFlames(n) {
+  if (n <= 0) return '<span style="color:var(--text3);font-size:12px">—</span>';
+  // 1-3: 🔥, 4-7: 🔥🔥, 8-14: 🔥🔥🔥, 15-21: 🔥🔥🔥🔥, 22-30: 🔥🔥🔥🔥🔥, 31: 🔥🔥🔥🔥🔥🔥
+  const flames = n >= 31 ? 6 : n >= 22 ? 5 : n >= 15 ? 4 : n >= 8 ? 3 : n >= 4 ? 2 : 1;
+  const size = Math.min(20, 12 + Math.floor(n / 5) * 2);
+  return `<span style="font-size:${size}px;filter:brightness(${1 + n/40})" title="${n} ngày streak">${'🔥'.repeat(flames)}</span>`;
 }
 
 // Build the big horizontal fire streak bar
@@ -921,7 +941,15 @@ function renderHabitsPanel(wd){
           cell.style.background=''; cell.style.borderColor=''; cell.innerHTML='';
         }
         renderHabitsStats();
-        toast(log.done?`${h.emoji} Đã ghi nhận!`:`${h.emoji} Đã bỏ chọn`);
+        if(log.done){
+          const pts = log.pointsAwarded || 5;
+          toast(`${h.emoji} Đã ghi nhận! +${pts}⭐`);
+          showPointsToast(pts);
+          updatePointsUI((_shopData.points||0) + pts);
+          launchConfetti('low');
+        } else {
+          toast(`${h.emoji} Đã bỏ chọn`);
+        }
       });
     });
     row.querySelector('.hrm-delete').addEventListener('click',async()=>{
@@ -1515,6 +1543,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
   setTimeout(()=> _buildHeatmap(), 400);
   window.addEventListener('resize', scheduleHeatmap, {passive:true});
+
+  // Load points for header badge
+  loadInitialPoints();
 });
 
 // ═══════════════════════════════════════════
@@ -1715,9 +1746,14 @@ function createGoalCard(g){
   // Today tick
   card.querySelector('.gc-today-tick')?.addEventListener('click', async()=>{
     if(!todayDay) return;
-    await apiGoals.toggleDay(g._id, todayDay.dayIndex);
+    const res = await apiGoals.toggleDay(g._id, todayDay.dayIndex);
     await loadGoals();
-    toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)]);
+    const pts = res.pointsAwarded || 8;
+    toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)] + ` +${pts}⭐`);
+    showPointsToast(pts);
+    updatePointsUI((_shopData.points||0) + pts);
+    launchConfetti('medium');
+    checkAndAwardBadges();
   });
 
   return card;
@@ -1787,9 +1823,15 @@ function buildDayCard(d, g, todayStr, color){
       : '';
     checkBtn.title = d.done ? 'Đánh dấu chưa xong' : 'Đánh dấu xong';
     checkBtn.addEventListener('click', async()=>{
-      await apiGoals.toggleDay(g._id, d.dayIndex);
+      const res = await apiGoals.toggleDay(g._id, d.dayIndex);
       await loadGoals();
-      if(!d.done) toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)]);
+      if(!d.done){
+        const pts = res.pointsAwarded || 8;
+        toast('✅ ' + MOTIVATIONS.start[Math.floor(Math.random()*MOTIVATIONS.start.length)] + ` +${pts}⭐`);
+        showPointsToast(pts);
+        updatePointsUI((_shopData.points||0) + pts);
+        launchConfetti('medium');
+      }
     });
     right.appendChild(checkBtn);
   } else {
@@ -1966,3 +2008,392 @@ function checkGoalNotifications(goals){
     }
   });
 }
+
+// ═══════════════════════════════════════════
+// SHOP & PET SYSTEM
+// ═══════════════════════════════════════════
+
+const apiShop = {
+  points:      ()       => API.g('/api/shop/points'),
+  catalog:     ()       => API.g('/api/shop/catalog'),
+  buyPet:      (type)   => API.p('/api/shop/buy-pet', { type }),
+  buyItem:     (id,qty) => API.p('/api/shop/buy-item', { itemId: id, qty }),
+  buyFreeze:   ()       => API.p('/api/shop/buy-freeze', {}),
+  activateFreeze: ()    => API.p('/api/shop/activate-freeze', {}),
+  pets:        ()       => API.g('/api/shop/pets'),
+  care:        (petId, action) => API.p('/api/shop/care', { petId, action }),
+  badgesCatalog: ()     => API.g('/api/shop/badges-catalog'),
+  checkBadges: (stats)  => API.p('/api/shop/check-badges', { stats }),
+  addPoints:   (amt)    => API.p('/api/shop/add-points', { amount: amt }),
+};
+
+let _shopInited = false;
+let _shopData = { points:0, food:0, water:0, fertilizer:0, streakFreezes:0, badges:[] };
+
+// Update points display everywhere
+function updatePointsUI(pts) {
+  if (pts !== undefined) _shopData.points = pts;
+  const hdr = document.getElementById('header-points-val');
+  const shop = document.getElementById('shop-points-value');
+  if (hdr) hdr.textContent = _shopData.points;
+  if (shop) shop.textContent = _shopData.points;
+}
+
+function updateInventoryUI() {
+  const f = document.getElementById('inv-food');
+  const w = document.getElementById('inv-water');
+  const fe = document.getElementById('inv-fert');
+  const fr = document.getElementById('inv-freeze');
+  if (f) f.textContent = _shopData.food;
+  if (w) w.textContent = _shopData.water;
+  if (fe) fe.textContent = _shopData.fertilizer;
+  if (fr) fr.textContent = _shopData.streakFreezes;
+}
+
+// ── Points toast (floating +X) ──
+let _ptsToastEl;
+function showPointsToast(pts) {
+  if (!_ptsToastEl) {
+    _ptsToastEl = document.createElement('div');
+    _ptsToastEl.className = 'points-toast';
+    document.body.appendChild(_ptsToastEl);
+  }
+  _ptsToastEl.textContent = `+${pts} ⭐`;
+  _ptsToastEl.classList.add('show');
+  setTimeout(() => _ptsToastEl.classList.remove('show'), 1800);
+}
+
+// ── CONFETTI ──
+function launchConfetti(intensity = 'medium') {
+  const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const counts = { low: 30, medium: 60, high: 120 };
+  const count = counts[intensity] || 60;
+  const colors = ['#b07fff','#ff85c8','#5ef0a0','#ffcf5c','#5ee8f0','#ff6b8a','#ffa048','#3ddbb8'];
+  const pieces = [];
+
+  for (let i = 0; i < count; i++) {
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height * -1,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 4 + 2,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * 3 + 2,
+      rot: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 10,
+      opacity: 1
+    });
+  }
+
+  let frame = 0;
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    for (const p of pieces) {
+      if (p.opacity <= 0) continue;
+      alive = true;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05;
+      p.rot += p.rotSpeed;
+      if (p.y > canvas.height) p.opacity -= 0.02;
+      if (frame > 60) p.opacity -= 0.01;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    frame++;
+    if (alive && frame < 200) requestAnimationFrame(animate);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  animate();
+}
+
+// ── SHOP INIT ──
+async function initShop() {
+  if (_shopInited) return;
+  _shopInited = true;
+
+  await loadShopData();
+  await loadStoreCatalog();
+}
+
+async function loadShopData() {
+  try {
+    const data = await apiShop.points();
+    _shopData = { ...data };
+    updatePointsUI(data.points);
+    updateInventoryUI();
+  } catch(e) { console.error('loadShopData:', e); }
+}
+
+function makeStoreCard(p) {
+  const card = document.createElement('div');
+  card.className = 'store-card';
+  card.innerHTML = `
+    <div class="store-emoji">${p.emoji}</div>
+    <div class="store-name">${p.name}</div>
+    <div class="store-desc">${p.desc}</div>
+    <button class="store-price" data-type="${p.type}">⭐ ${p.price} điểm</button>
+  `;
+  card.querySelector('.store-price').addEventListener('click', async () => {
+    try {
+      const res = await apiShop.buyPet(p.type);
+      updatePointsUI(res.points);
+      toast(`🎉 Bạn đã mua ${p.name}!`);
+      launchConfetti('medium');
+      await loadMyPets();
+      await loadShopData();
+      checkAndAwardBadges();
+    } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+  });
+  return card;
+}
+
+// ── STORE CATALOG ──
+async function loadStoreCatalog() {
+  try {
+    const { pets, items, streakFreezePrice } = await apiShop.catalog();
+
+    // Animals
+    const aGrid = document.getElementById('store-animals-grid');
+    aGrid.innerHTML = '';
+    pets.filter(p => p.category === 'animal').forEach(p => {
+      aGrid.appendChild(makeStoreCard(p));
+    });
+
+    // Plants
+    const plGrid = document.getElementById('store-plants-grid');
+    plGrid.innerHTML = '';
+    pets.filter(p => p.category === 'plant').forEach(p => {
+      plGrid.appendChild(makeStoreCard(p));
+    });
+
+    // Items
+    const iGrid = document.getElementById('store-items-grid');
+    iGrid.innerHTML = '';
+    items.forEach(it => {
+      const card = document.createElement('div');
+      card.className = 'store-card';
+      card.innerHTML = `
+        <div class="store-emoji">${it.emoji}</div>
+        <div class="store-name">${it.name}</div>
+        <div class="store-desc">${it.desc}</div>
+        <button class="store-price" data-item="${it.id}">⭐ ${it.price} điểm</button>
+      `;
+      card.querySelector('.store-price').addEventListener('click', async () => {
+        try {
+          const res = await apiShop.buyItem(it.id, 1);
+          updatePointsUI(res.points);
+          _shopData[it.id] = res[it.id];
+          updateInventoryUI();
+          toast(`✅ Đã mua ${it.name}!`);
+        } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+      });
+      iGrid.appendChild(card);
+    });
+
+    // Streak freeze
+    const sGrid = document.getElementById('store-special-grid');
+    sGrid.innerHTML = '';
+    const fCard = document.createElement('div');
+    fCard.className = 'store-card';
+    fCard.innerHTML = `
+      <div class="store-emoji">❄️</div>
+      <div class="store-name">Streak Freeze</div>
+      <div class="store-desc">Bảo vệ streak & thú cưng 24h khi bạn không thể dùng app</div>
+      <button class="store-price">⭐ ${streakFreezePrice} điểm</button>
+    `;
+    fCard.querySelector('.store-price').addEventListener('click', async () => {
+      try {
+        const res = await apiShop.buyFreeze();
+        updatePointsUI(res.points);
+        _shopData.streakFreezes = res.streakFreezes;
+        updateInventoryUI();
+        toast('❄️ Đã mua Streak Freeze!');
+      } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+    });
+    sGrid.appendChild(fCard);
+
+    // Activate freeze card
+    const aCard = document.createElement('div');
+    aCard.className = 'store-card';
+    aCard.innerHTML = `
+      <div class="store-emoji">🛡️</div>
+      <div class="store-name">Kích hoạt Freeze</div>
+      <div class="store-desc">Dùng 1 thẻ freeze để bảo vệ streak và thú cưng trong 24h</div>
+      <button class="store-price" style="background:linear-gradient(135deg,#5ee8f0,#3ddbb8)">❄️ Kích hoạt</button>
+    `;
+    aCard.querySelector('.store-price').addEventListener('click', async () => {
+      try {
+        const res = await apiShop.activateFreeze();
+        _shopData.streakFreezes = res.streakFreezes;
+        updateInventoryUI();
+        toast('❄️ Freeze đã kích hoạt! Bảo vệ 24h');
+        launchConfetti('low');
+      } catch(e) { toast('❌ ' + (e.message || 'Không có thẻ freeze!')); }
+    });
+    sGrid.appendChild(aCard);
+
+  } catch(e) { console.error('loadStoreCatalog:', e); }
+}
+
+// ── MY PETS ──
+async function loadMyPets() {
+  try {
+    const pets = await apiShop.pets();
+    const grid = document.getElementById('my-pets-grid');
+    const empty = document.getElementById('my-pets-empty');
+
+    // Remove existing pet cards
+    grid.querySelectorAll('.pet-card').forEach(c => c.remove());
+
+    if (!pets.length) { if (empty) empty.style.display = ''; return; }
+    if (empty) empty.style.display = 'none';
+
+    const isAnimal = t => ['rabbit','cat','dog'].includes(t);
+    const TYPE_LABELS = { rabbit:'Thỏ', cat:'Mèo', dog:'Chó', tree:'Cây Bonsai', flower:'Hoa Anh Đào' };
+
+    pets.forEach(pet => {
+      const card = document.createElement('div');
+      card.className = 'pet-card' + (!pet.alive ? ' pet-dead' : '') + (pet.warning ? ' pet-warning' : '');
+
+      const ptsInLevel = pet.totalPoints % 50;
+      const pctLevel = Math.min(100, Math.round((ptsInLevel / 50) * 100));
+
+      card.innerHTML = `
+        ${pet.warning ? '<div class="pet-warning-badge">⚠️ Cần chăm sóc!</div>' : ''}
+        <div class="pet-emoji">${pet.emoji}</div>
+        <div class="pet-name">${esc(pet.name)}</div>
+        <div class="pet-type-label">${TYPE_LABELS[pet.type] || pet.type} · Lv.${pet.level}</div>
+        <div class="pet-level-bar"><div class="pet-level-fill" style="width:${pet.level >= 10 ? 100 : pctLevel}%"></div></div>
+        <div class="pet-level-text">${pet.totalPoints} pts${pet.level >= 10 ? ' · MAX' : ` · ${50 - ptsInLevel} pts đến Lv.${pet.level + 1}`}</div>
+        <div class="pet-care-btns">
+          ${isAnimal(pet.type) ? `
+            <button class="pet-care-btn" data-action="food" ${!pet.alive ? 'disabled' : ''}>🥕 Cho ăn</button>
+            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''}>💧 Cho uống</button>
+          ` : `
+            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''}>💧 Tưới nước</button>
+            <button class="pet-care-btn" data-action="fertilizer" ${!pet.alive ? 'disabled' : ''}>🌿 Bón phân</button>
+          `}
+        </div>
+        ${!pet.alive ? `<div class="pet-dead-overlay"><div style="font-size:36px">😢</div><div class="pet-dead-text">Đã mất do không được chăm sóc</div></div>` : ''}
+      `;
+
+      // Care button handlers
+      card.querySelectorAll('.pet-care-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const action = btn.dataset.action;
+          try {
+            const res = await apiShop.care(pet._id, action);
+            _shopData.food = res.inventory.food;
+            _shopData.water = res.inventory.water;
+            _shopData.fertilizer = res.inventory.fertilizer;
+            updateInventoryUI();
+            const actionNames = { food:'Đã cho ăn', water:'Đã cho uống', fertilizer:'Đã bón phân' };
+            toast(`${actionNames[action]} (+${res.pointsGain} pts cho pet)`);
+            await loadMyPets();
+          } catch(e) { toast('❌ ' + (e.message || 'Hết vật phẩm!')); }
+        });
+      });
+
+      grid.appendChild(card);
+    });
+  } catch(e) { console.error('loadMyPets:', e); }
+}
+
+// ── BADGES ──
+async function loadBadges() {
+  try {
+    const catalog = await apiShop.badgesCatalog();
+    const { badges: earned } = await apiShop.points();
+    const earnedIds = new Set((earned || []).map(b => b.id));
+
+    const grid = document.getElementById('badges-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    catalog.forEach(badge => {
+      const isEarned = earnedIds.has(badge.id);
+      const card = document.createElement('div');
+      card.className = 'badge-card ' + (isEarned ? 'badge-earned' : 'badge-locked');
+      card.innerHTML = `
+        <div class="badge-emoji">${isEarned ? badge.emoji : '🔒'}</div>
+        <div class="badge-name">${badge.name}</div>
+        <div class="badge-desc">${isEarned ? badge.desc : ''}</div>
+        <div class="badge-requirement">${isEarned ? '' : (badge.requirement || badge.desc)}</div>
+        ${isEarned ? '<div class="badge-earned-tag">✅ Đã đạt</div>' : ''}
+      `;
+      grid.appendChild(card);
+    });
+  } catch(e) { console.error('loadBadges:', e); }
+}
+
+// ── CHECK & AWARD BADGES (called after completing tasks/etc) ──
+async function checkAndAwardBadges() {
+  try {
+    // Gather stats
+    const [pointsData, pets, globalStreak, habitAnalytics] = await Promise.all([
+      apiShop.points(),
+      apiShop.pets(),
+      apiTasks.globalStreak(),
+      apiHabits.analytics().catch(() => [])
+    ]);
+
+    // Count completed tasks (approximate from totalEarned)
+    const tasksCompleted = Math.floor(pointsData.totalEarned / 5); // rough estimate
+    const maxHabitStreak = habitAnalytics.length > 0 ? Math.max(...habitAnalytics.map(h => h.maxStreak || 0)) : 0;
+
+    const stats = {
+      tasks: tasksCompleted,
+      streak: globalStreak.maxStreak || 0,
+      pets: pets.filter(p => p.alive).length,
+      points: pointsData.totalEarned,
+      goals: 0, // would need API to count completed goals
+      habit_streak: maxHabitStreak
+    };
+
+    const res = await apiShop.checkBadges(stats);
+    if (res.newBadges && res.newBadges.length > 0) {
+      for (const b of res.newBadges) {
+        toast(`🏅 Thành tựu mới: ${b.emoji} ${b.name}!`);
+        launchConfetti('high');
+      }
+      await loadBadges();
+    }
+  } catch(e) { console.error('checkBadges:', e); }
+}
+
+// ── LOAD INITIAL POINTS (on app start) ──
+async function loadInitialPoints() {
+  try {
+    const data = await apiShop.points();
+    _shopData = { ...data };
+    updatePointsUI(data.points);
+  } catch(e) {}
+}
+
+// ── Hook into navigateTo for shop/profile pages ──
+const _origNavigateTo = navigateTo;
+let _profilePetsInited = false;
+navigateTo = function(page) {
+  _origNavigateTo(page);
+  if (page === 'shop') {
+    initShop();
+  }
+  if (page === 'profile' && !_profilePetsInited) {
+    _profilePetsInited = true;
+    loadMyPets();
+    loadBadges();
+  }
+};

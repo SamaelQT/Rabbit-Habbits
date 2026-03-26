@@ -1,9 +1,18 @@
 const express     = require('express');
 const router      = express.Router();
 const Task        = require('../models/Task');
+const UserPoints  = require('../models/UserPoints');
 const requireAuth = require('../middleware/auth');
 
 router.use(requireAuth);
+
+async function awardPts(userId, amount) {
+  let up = await UserPoints.findOne({ userId });
+  if (!up) up = new UserPoints({ userId });
+  up.addPoints(amount);
+  await up.save();
+  return up.points;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -31,7 +40,14 @@ router.patch('/:id/toggle', async (req, res) => {
     task.completed   = !task.completed;
     task.completedAt = task.completed ? new Date() : null;
     await task.save();
-    res.json(task);
+    let pointsAwarded = 0;
+    if (task.completed) {
+      // Points based on priority: 0=5, 1=5, 2=8, 3=12
+      const pts = [5, 5, 8, 12][task.priority] || 5;
+      await awardPts(req.userId, pts);
+      pointsAwarded = pts;
+    }
+    res.json({ ...task.toObject(), pointsAwarded });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 
