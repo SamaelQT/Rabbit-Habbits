@@ -524,9 +524,8 @@ async function renderStats(stats,s,e,globalStreak){
     const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
     let sd={currentStreak:0,maxStreak:0};
     try{sd=await apiTasks.streak(t.title);}catch(_){}
-
     const card=document.createElement('div');
-    card.className='ttc'; // top-task-card
+    card.className='ttc';
     card.innerHTML=`
       <div class="ttc-top">
         <div class="ttc-rank">${i+1}</div>
@@ -851,7 +850,12 @@ function renderHabitsPanel(wd){
   // Move habits-main-section into inject point inside main
   const inject=document.getElementById('habits-main-inject');
   const section=document.getElementById('habits-main-section');
-  if(inject&&section&&!inject.contains(section)) inject.appendChild(section);
+  if(inject&&section&&!inject.contains(section)){
+    inject.appendChild(section);
+    section.style.display=''; // show after injecting
+  } else if(section){
+    section.style.display='';
+  }
 
   // Build column headers
   const colHeader=document.getElementById('habits-col-header');
@@ -1347,33 +1351,96 @@ function toast(msg){
 }
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
+// ─── PAGE NAVIGATION ──────────────────────────────────────
+let _currentPage = 'home';
+let _statsInited = false;
+
+function navigateTo(page){
+  if(_currentPage === page) return;
+  _currentPage = page;
+  document.querySelectorAll('.page-content').forEach(p=>p.style.display='none');
+  document.getElementById(`page-${page}`).style.display='';
+  document.querySelectorAll('.tnav-btn').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
+  // Lazy load stats page
+  if(page==='stats' && !_statsInited){
+    _statsInited = true;
+    loadStats();
+    setTimeout(()=>_buildHeatmap(), 300);
+  }
+}
+
+function initTopNav(){
+  document.querySelectorAll('.tnav-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> navigateTo(btn.dataset.page));
+  });
+}
+
+// ─── PROFILE PAGE ─────────────────────────────────────────
+function initProfilePage(user){
+  document.getElementById('profile-display-name').textContent = user.displayName||user.username||'—';
+  document.getElementById('profile-username-label').textContent = '@'+(user.username||'');
+  const nameInput = document.getElementById('edit-display-name');
+  if(nameInput) nameInput.value = user.displayName||'';
+
+  // Save display name
+  document.getElementById('save-display-name')?.addEventListener('click', async()=>{
+    const newName = document.getElementById('edit-display-name').value.trim();
+    if(!newName){ toast('⚠ Nhập tên hiển thị!'); return; }
+    try{
+      const r = await fetch('/api/auth/profile', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ displayName: newName }), credentials:'include'
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error);
+      document.getElementById('profile-display-name').textContent = newName;
+      toast('✓ Đã cập nhật tên!');
+    }catch(e){ toast('❌ '+(e.message||'Có lỗi xảy ra')); }
+  });
+
+  // Change password
+  document.getElementById('save-password')?.addEventListener('click', async()=>{
+    const cur = document.getElementById('pw-current').value;
+    const nw  = document.getElementById('pw-new').value;
+    if(!cur||!nw){ toast('⚠ Điền đầy đủ!'); return; }
+    if(nw.length < 6){ toast('⚠ Mật khẩu mới tối thiểu 6 ký tự!'); return; }
+    try{
+      const r = await fetch('/api/auth/password', {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ currentPassword: cur, newPassword: nw }), credentials:'include'
+      });
+      const d = await r.json();
+      if(!r.ok) throw new Error(d.error);
+      document.getElementById('pw-current').value='';
+      document.getElementById('pw-new').value='';
+      toast('✓ Đã đổi mật khẩu!');
+    }catch(e){ toast('❌ '+(e.message||'Mật khẩu hiện tại không đúng')); }
+  });
+
+  // Theme toggle
+  document.getElementById('psb-theme-btn')?.addEventListener('click',()=>{
+    toggleTheme();
+    document.getElementById('psb-theme-btn').textContent = state.theme==='dark'?'☀️ Đổi giao diện':'🌙 Đổi giao diện';
+  });
+
+  // Logout
+  document.getElementById('profile-logout-btn')?.addEventListener('click', async()=>{
+    await fetch('/api/auth/logout',{method:'POST',credentials:'include'});
+    window.location.href='/auth.html';
+  });
+}
+
 // ─── INIT ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async ()=>{
-  // ── AUTH CHECK ── redirect to /auth.html if not logged in
+  // ── AUTH CHECK ──
   try {
     const r = await fetch('/api/auth/me', { credentials: 'include' });
     if(!r.ok){ window.location.href = '/auth.html'; return; }
     const { user } = await r.json();
-    // Show user name + logout in header
-    const headerRight = document.getElementById('header-right-extra');
-    if(headerRight){
-      headerRight.innerHTML = `
-        <span style="font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace">
-          🐰 ${esc(user.displayName||user.username)}
-        </span>
-        <button id="logout-btn" style="
-          padding:5px 12px;background:var(--bg3);border:1px solid var(--border2);
-          border-radius:20px;color:var(--text2);font-size:11.5px;font-weight:600;
-          font-family:'Plus Jakarta Sans',sans-serif;cursor:pointer;transition:all .2s;
-        ">Đăng xuất</button>`;
-      document.getElementById('logout-btn').addEventListener('click', async ()=>{
-        await fetch('/api/auth/logout',{ method:'POST', credentials:'include' });
-        window.location.href = '/auth.html';
-      });
-    }
+    state.currentUser = user;
+    initProfilePage(user);
   } catch(e){ window.location.href = '/auth.html'; return; }
 
-  // Apply saved theme
   applyTheme(state.theme);
 
   // Header date
@@ -1381,8 +1448,11 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   const now=state.today;
   document.getElementById('header-date').textContent=`${days[now.getDay()]}, ${now.getDate()}/${now.getMonth()+1}/${now.getFullYear()}`;
 
-  // Theme toggle
+  // Theme toggle (header)
   document.getElementById('theme-btn')?.addEventListener('click',toggleTheme);
+
+  // Top nav
+  initTopNav();
 
   // Col nav arrows
   document.getElementById('col-nav-left')?.addEventListener('click',()=>scrollByCol(-1));
@@ -1440,8 +1510,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   loadAndRender();
   loadHabits();
   initGoals();
+  // Stats summary cards still on home page
+  loadStats();
 
-  // Render heatmap once after layout is ready, and on window resize (debounced)
   setTimeout(()=> _buildHeatmap(), 400);
   window.addEventListener('resize', scheduleHeatmap, {passive:true});
 });

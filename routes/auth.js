@@ -71,3 +71,43 @@ router.get('/me', async (req, res) => {
 });
 
 module.exports = router;
+
+// PATCH /api/auth/profile — update display name
+router.patch('/profile', async (req, res) => {
+  try {
+    const token = req.cookies?.rh_token;
+    if(!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
+    const jwt  = require('jsonwebtoken');
+    const SECRET = process.env.JWT_SECRET || 'rabbit-habits-secret-2024';
+    const payload = jwt.verify(token, SECRET);
+    const User = require('../models/User');
+    const user = await User.findByIdAndUpdate(
+      payload.id,
+      { displayName: String(req.body.displayName||'').trim() },
+      { new: true }
+    );
+    res.json({ ok: true, user: { id: user._id, username: user.username, displayName: user.displayName } });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+
+// PATCH /api/auth/password — change password
+router.patch('/password', async (req, res) => {
+  try {
+    const token = req.cookies?.rh_token;
+    if(!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
+    const jwt    = require('jsonwebtoken');
+    const bcrypt = require('bcryptjs');
+    const SECRET = process.env.JWT_SECRET || 'rabbit-habits-secret-2024';
+    const payload = jwt.verify(token, SECRET);
+    const User = require('../models/User');
+    const user = await User.findById(payload.id);
+    if(!user) return res.status(404).json({ error: 'Tài khoản không tồn tại' });
+    const ok = await user.comparePassword(req.body.currentPassword);
+    if(!ok) return res.status(400).json({ error: 'Mật khẩu hiện tại không đúng' });
+    if(!req.body.newPassword || req.body.newPassword.length < 6)
+      return res.status(400).json({ error: 'Mật khẩu mới tối thiểu 6 ký tự' });
+    user.password = req.body.newPassword;
+    await user.save();
+    res.json({ ok: true });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});

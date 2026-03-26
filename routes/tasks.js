@@ -72,7 +72,13 @@ router.get('/stats', async (req, res) => {
       if(t.completed) freq[key].completed++;
       if(!freq[key].dates.includes(t.date)) freq[key].dates.push(t.date);
     });
-    const freqList = Object.values(freq).filter(t => t.total >= 2).sort((a,b) => b.total - a.total).slice(0, 10);
+    const allSorted = Object.values(freq).filter(t=>t.total>=2).sort((a,b)=>b.total-a.total);
+    const top3Keys  = new Set(allSorted.slice(0,3).map(t=>t.title.toLowerCase().trim()));
+    const last3 = []; for(let i=0;i<3;i++){ const d=new Date(); d.setDate(d.getDate()-i); last3.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }
+    const freqList = allSorted.filter(t=>{
+      const k=t.title.toLowerCase().trim();
+      return top3Keys.has(k) || t.dates.some(d=>last3.includes(d));
+    }).slice(0,10);
     const total = tasks.length, completed = tasks.filter(t => t.completed).length;
     res.json({ overall: { total, completed, rate: total > 0 ? Math.round((completed/total)*100) : 0 }, byDate, topTasks: freqList });
   } catch(e) { res.status(500).json({ error: e.message }); }
