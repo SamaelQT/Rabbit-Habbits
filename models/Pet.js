@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const petSchema = new mongoose.Schema({
   userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  type:      { type: String, required: true, enum: ['rabbit','cat','dog','tree','flower','tree2','flower2','flower3'] },
+  type:      { type: String, required: true, enum: ['rabbit','cat','dog','hamster','bird','tree','flower','tree2','flower2','flower3','kim_ngan','ngoc_bich','van_loc'] },
   name:      { type: String, required: true, maxlength: 30 },
   emoji:     { type: String, default: '🐰' },
   // Growth & health
@@ -34,8 +34,8 @@ petSchema.methods.checkHealth = function(freezeActive) {
 
   const now = new Date();
   const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
-  const isAnimal = ['rabbit','cat','dog'].includes(this.type);
-  const isPlant  = ['tree','flower'].includes(this.type);
+  const isAnimal = ['rabbit','cat','dog','hamster','bird'].includes(this.type);
+  const isPlant  = ['tree','flower','tree2','flower2','flower3','kim_ngan','ngoc_bich','van_loc'].includes(this.type);
 
   let neglected = false;
   if (isAnimal && this.lastFedAt) {
