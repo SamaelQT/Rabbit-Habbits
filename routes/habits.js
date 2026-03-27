@@ -1,9 +1,18 @@
 const express     = require('express');
 const router      = express.Router();
 const { Habit, HabitLog } = require('../models/Habit');
+const UserPoints  = require('../models/UserPoints');
 const requireAuth = require('../middleware/auth');
 
 router.use(requireAuth);
+
+async function awardPts(userId, amount) {
+  let up = await UserPoints.findOne({ userId });
+  if (!up) up = new UserPoints({ userId });
+  up.addPoints(amount);
+  await up.save();
+  return up.points;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -40,7 +49,12 @@ router.post('/logs/toggle', async (req, res) => {
     let log = await HabitLog.findOne({ userId: req.userId, habitId, date });
     if(log){ log.done = !log.done; await log.save(); }
     else { log = await HabitLog.create({ userId: req.userId, habitId, date, done: true }); }
-    res.json(log);
+    let pointsAwarded = 0;
+    if (log.done) {
+      await awardPts(req.userId, 5);
+      pointsAwarded = 5;
+    }
+    res.json({ ...log.toObject(), pointsAwarded });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 

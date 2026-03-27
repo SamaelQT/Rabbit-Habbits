@@ -26,6 +26,9 @@
   </nav>
 
   <div class="header-right">
+    <div class="header-points-badge" id="header-points-badge" title="Điểm của bạn">
+      <span>⭐</span><span id="header-points-val">0</span>
+    </div>
     <button class="theme-btn" id="theme-btn" title="Đổi giao diện">☀️</button>
     <div class="header-date" id="header-date"></div>
   </div>
@@ -294,12 +297,44 @@
 ────────────────────────────────── -->
 <div class="page-content" id="page-shop" style="display:none">
   <div class="page-inner">
-    <div class="section-title" style="margin-bottom:24px">🛒 Cửa hàng</div>
-    <div class="shop-coming-soon">
-      <div class="shop-cs-icon">🐰</div>
-      <div class="shop-cs-title">Sắp ra mắt!</div>
-      <div class="shop-cs-sub">Cửa hàng đang được xây dựng.<br/>Sắp có thú cưng ảo, skin và nhiều phần thưởng thú vị!</div>
+
+    <!-- Points bar -->
+    <div class="shop-points-bar">
+      <div class="shop-points-left">
+        <div class="section-title">🛒 Cửa hàng</div>
+      </div>
+      <div class="shop-points-right">
+        <div class="shop-points-badge" id="shop-points-badge">
+          <span class="spb-icon">⭐</span>
+          <span class="spb-value" id="shop-points-value">0</span>
+          <span class="spb-label">điểm</span>
+        </div>
+        <div class="shop-inventory-pills">
+          <span class="inv-pill" title="Thức ăn">🥕 <b id="inv-food">0</b></span>
+          <span class="inv-pill" title="Nước">💧 <b id="inv-water">0</b></span>
+          <span class="inv-pill" title="Phân bón">🌿 <b id="inv-fert">0</b></span>
+          <span class="inv-pill" title="Streak Freeze">❄️ <b id="inv-freeze">0</b></span>
+        </div>
+      </div>
     </div>
+
+    <!-- Store sections -->
+    <div class="store-section">
+      <div class="store-section-title">🐾 Thú cưng</div>
+      <div class="store-section-desc">Thú cưng cần được cho ăn mỗi 5 ngày — quá thời gian sẽ buồn và cuối cùng có thể mất!</div>
+      <div class="store-grid" id="store-animals-grid"></div>
+    </div>
+    <div class="store-section">
+      <div class="store-section-title">🌿 Cây phong thủy</div>
+      <div class="store-section-desc">Cây cần được tưới nước mỗi 7 ngày — cây mang may mắn, tài lộc và sức khỏe theo phong thủy Việt Nam!</div>
+      <div class="store-grid" id="store-plants-grid"></div>
+    </div>
+    <div class="store-section">
+      <div class="store-section-title">🎒 Vật phẩm</div>
+      <div class="store-section-desc">Mua thức ăn, nước uống, phân bón để chăm sóc thú cưng và cây. Streak Freeze bảo vệ streak và thú cưng khi bạn bận.</div>
+      <div class="store-grid" id="store-items-grid"></div>
+    </div>
+
   </div>
 </div>
 
@@ -352,6 +387,67 @@
         <span>🌙 Giao diện tối / sáng</span>
         <button class="psb-theme-btn" id="psb-theme-btn">☀️ Đổi giao diện</button>
       </div>
+    </div>
+
+    <!-- Inventory -->
+    <div class="profile-section-block">
+      <div class="psb-title">🎒 Vật phẩm của tôi</div>
+      <div class="profile-inventory">
+        <div class="pinv-item">
+          <span class="pinv-emoji">🥕</span>
+          <span class="pinv-name">Thức ăn</span>
+          <span class="pinv-count" id="pinv-food">0</span>
+        </div>
+        <div class="pinv-item">
+          <span class="pinv-emoji">💧</span>
+          <span class="pinv-name">Nước uống</span>
+          <span class="pinv-count" id="pinv-water">0</span>
+        </div>
+        <div class="pinv-item">
+          <span class="pinv-emoji">🌿</span>
+          <span class="pinv-name">Phân bón</span>
+          <span class="pinv-count" id="pinv-fert">0</span>
+        </div>
+        <div class="pinv-item">
+          <span class="pinv-emoji">❄️</span>
+          <span class="pinv-name">Streak Freeze</span>
+          <span class="pinv-count" id="pinv-freeze">0</span>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="psb-save-btn" id="pinv-activate-freeze" style="background:linear-gradient(135deg,#5ee8f0,#3ddbb8)">❄️ Kích hoạt Freeze</button>
+        <button class="psb-save-btn" id="btn-add-testpts" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border)">🧪 +100 điểm thử nghiệm</button>
+      </div>
+    </div>
+
+    <!-- My Pets (animals) -->
+    <div class="profile-section-block">
+      <div class="psb-title">🐾 Thú cưng của tôi</div>
+      <div class="my-pets-grid" id="my-animals-grid">
+        <div class="my-pets-empty" id="my-animals-empty">
+          <div style="font-size:28px;margin-bottom:6px">🐾</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text2)">Chưa có thú cưng nào</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Đến cửa hàng để mua nhé!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Plants -->
+    <div class="profile-section-block">
+      <div class="psb-title">🌿 Cây cối của tôi</div>
+      <div class="my-pets-grid" id="my-plants-grid">
+        <div class="my-pets-empty" id="my-plants-empty">
+          <div style="font-size:28px;margin-bottom:6px">🌱</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text2)">Chưa có cây nào</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Đến cửa hàng để mua nhé!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="profile-section-block">
+      <div class="psb-title">🏅 Thành tựu</div>
+      <div class="badges-grid" id="badges-grid"></div>
     </div>
 
     <!-- Logout -->
@@ -489,7 +585,15 @@
   </div>
 </div>
 
+<canvas id="confetti-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999"></canvas>
 <div class="toast" id="toast"></div>
+
+<!-- ═══ FLOATING PET ═══ -->
+<div id="floating-pet" class="floating-pet" style="display:none" title="Nhấn vào để tương tác!">
+  <div id="floating-pet-emoji" class="fp-emoji">🐰</div>
+  <div id="fp-bubble" class="fp-bubble" style="display:none"></div>
+</div>
+
 <script src="/js/app.js"></script>
 </body>
 </html>
