@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c server.js)",
+      "Bash(node -c routes/shop.js)",
+      "Bash(node -c models/Pet.js)",
+      "Bash(node -c public/js/app.js)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(timeout 5 node server.js)",
+      "Bash(npm install:*)",
+      "Bash(node -c routes/tasks.js)",
+      "Bash(node -c routes/habits.js)",
+      "Bash(node -c routes/goals.js)"
+    ]
+  }
+}

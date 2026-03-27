@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rabbit Habits 🐰 — Đăng nhập</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg:#0a0b0f;--bg2:#111218;--bg3:#181921;--bg4:#1f2030;
+      --border:#222435;--border2:#2e3150;
+      --text:#ecedf5;--text2:#8b8fa8;--text3:#4a4d65;
+      --accent:#b07fff;--accent2:#d4b0ff;--accent3:#7c52d4;
+      --pink:#ff85c8;--pink2:#ffa8d8;
+      --green:#5ef0a0;--red:#ff6b8a;
+      --radius:14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'Plus Jakarta Sans',sans-serif;
+      background:var(--bg);color:var(--text);
+      min-height:100vh;display:flex;align-items:center;justify-content:center;
+      position:relative;overflow:hidden;
+    }
+    body::before{
+      content:'';position:fixed;inset:0;pointer-events:none;
+      background:
+        radial-gradient(ellipse 60% 50% at 20% 20%,rgba(176,127,255,.08) 0%,transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%,rgba(255,133,200,.06) 0%,transparent 50%);
+    }
+    /* Floating bunnies background */
+    .bg-rabbit{
+      position:fixed;font-size:80px;opacity:.04;pointer-events:none;user-select:none;
+      animation:floatUp 20s linear infinite;
+    }
+    @keyframes floatUp{
+      0%{transform:translateY(110vh) rotate(0deg);}
+      100%{transform:translateY(-20vh) rotate(20deg);}
+    }
+
+    .auth-card{
+      background:var(--bg2);border:1px solid var(--border2);
+      border-radius:20px;padding:40px 36px;width:100%;max-width:420px;
+      position:relative;z-index:1;
+      box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 0 1px rgba(176,127,255,.08);
+    }
+
+    .auth-logo{
+      display:flex;align-items:center;gap:12px;justify-content:center;
+      margin-bottom:32px;
+    }
+    .auth-logo-icon{
+      width:48px;height:48px;border-radius:14px;font-size:26px;
+      display:flex;align-items:center;justify-content:center;
+      background:linear-gradient(135deg,rgba(176,127,255,.3),rgba(255,133,200,.2));
+      border:1px solid rgba(176,127,255,.3);
+    }
+    .auth-logo-text{
+      font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;
+      background:linear-gradient(135deg,#d4b0ff,#ffa8d8);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    }
+
+    .auth-tabs{
+      display:flex;background:var(--bg3);border-radius:10px;
+      padding:4px;gap:3px;margin-bottom:28px;
+    }
+    .auth-tab{
+      flex:1;padding:9px;border:none;border-radius:7px;
+      font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;
+      cursor:pointer;transition:all .2s;background:transparent;color:var(--text2);
+    }
+    .auth-tab.active{
+      background:linear-gradient(135deg,var(--accent3),var(--pink));
+      color:#fff;box-shadow:0 0 14px rgba(176,127,255,.3);
+    }
+
+    .auth-form{display:flex;flex-direction:column;gap:14px;}
+
+    .form-group{display:flex;flex-direction:column;gap:6px;}
+    .form-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--text3);}
+    .form-input{
+      background:var(--bg3);border:1.5px solid var(--border2);border-radius:10px;
+      padding:11px 14px;font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;
+      color:var(--text);outline:none;transition:border-color .2s;
+    }
+    .form-input:focus{border-color:var(--accent);}
+    .form-input::placeholder{color:var(--text3);}
+
+    .form-hint{font-size:11px;color:var(--text3);margin-top:2px;}
+
+    .submit-btn{
+      padding:13px;margin-top:6px;
+      background:linear-gradient(135deg,var(--accent3),var(--pink));
+      border:none;border-radius:10px;color:#fff;
+      font-family:'Plus Jakarta Sans',sans-serif;font-size:14px;font-weight:700;
+      cursor:pointer;transition:all .2s;
+      box-shadow:0 4px 18px rgba(176,127,255,.35);
+    }
+    .submit-btn:hover{transform:translateY(-1px);box-shadow:0 6px 24px rgba(176,127,255,.45);}
+    .submit-btn:active{transform:translateY(0);}
+    .submit-btn:disabled{opacity:.6;cursor:default;transform:none;}
+
+    .error-msg{
+      background:rgba(255,107,138,.12);border:1px solid rgba(255,107,138,.3);
+      border-radius:8px;padding:10px 14px;
+      font-size:12.5px;color:var(--red);display:none;
+    }
+    .error-msg.show{display:block;}
+
+    .divider{
+      display:flex;align-items:center;gap:12px;margin:4px 0;
+      font-size:11px;color:var(--text3);
+    }
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+    .auth-footer{
+      margin-top:20px;text-align:center;
+      font-size:12px;color:var(--text3);
+    }
+  </style>
+</head>
+<body>
+
+<!-- Floating bunnies -->
+<div class="bg-rabbit" style="left:5%;animation-delay:0s;animation-duration:18s">🐰</div>
+<div class="bg-rabbit" style="left:25%;animation-delay:4s;animation-duration:22s">🐇</div>
+<div class="bg-rabbit" style="left:55%;animation-delay:8s;animation-duration:16s">🐰</div>
+<div class="bg-rabbit" style="left:80%;animation-delay:2s;animation-duration:25s">🐇</div>
+
+<div class="auth-card">
+  <div class="auth-logo">
+    <div class="auth-logo-icon">🐰</div>
+    <div class="auth-logo-text">Rabbit Habits</div>
+  </div>
+
+  <div class="auth-tabs">
+    <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">Đăng nhập</button>
+    <button class="auth-tab" id="tab-register" onclick="switchTab('register')">Đăng ký</button>
+  </div>
+
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- LOGIN FORM -->
+  <form class="auth-form" id="login-form" onsubmit="handleLogin(event)">
+    <div class="form-group">
+      <label class="form-label">Email hoặc tên đăng nhập</label>
+      <input class="form-input" type="text" id="login-id" placeholder="email@example.com hoặc username" required autocomplete="username"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mật khẩu</label>
+      <input class="form-input" type="password" id="login-pw" placeholder="••••••••" required autocomplete="current-password"/>
+    </div>
+    <button class="submit-btn" type="submit" id="login-btn">Đăng nhập →</button>
+  </form>
+
+  <!-- REGISTER FORM -->
+  <form class="auth-form" id="register-form" style="display:none" onsubmit="handleRegister(event)">
+    <div class="form-group">
+      <label class="form-label">Tên hiển thị</label>
+      <input class="form-input" type="text" id="reg-display" placeholder="Tên của bạn" required/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tên đăng nhập</label>
+      <input class="form-input" type="text" id="reg-username" placeholder="username (3-30 ký tự)" required/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" type="email" id="reg-email" placeholder="email@example.com" required autocomplete="email"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Mật khẩu</label>
+      <input class="form-input" type="password" id="reg-pw" placeholder="Tối thiểu 6 ký tự" required autocomplete="new-password"/>
+      <div class="form-hint">Ít nhất 6 ký tự</div>
+    </div>
+    <button class="submit-btn" type="submit" id="reg-btn">Tạo tài khoản 🐰</button>
+  </form>
+
+  <div class="auth-footer">
+    Dữ liệu của bạn được lưu riêng tư và bảo mật
+  </div>
+</div>
+
+<script>
+function switchTab(tab){
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  document.getElementById('login-form').style.display    = tab==='login'    ? 'flex' : 'none';
+  document.getElementById('register-form').style.display = tab==='register' ? 'flex' : 'none';
+  hideError();
+}
+
+function showError(msg){ const el=document.getElementById('error-msg'); el.textContent=msg; el.classList.add('show'); }
+function hideError(){ document.getElementById('error-msg').classList.remove('show'); }
+
+async function handleLogin(e){
+  e.preventDefault(); hideError();
+  const btn=document.getElementById('login-btn');
+  btn.disabled=true; btn.textContent='Đang đăng nhập...';
+  try{
+    const r=await fetch('/api/auth/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ login:document.getElementById('login-id').value, password:document.getElementById('login-pw').value }),
+      credentials:'include'
+    });
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error);
+    window.location.href='/';
+  }catch(err){ showError(err.message); btn.disabled=false; btn.textContent='Đăng nhập →'; }
+}
+
+async function handleRegister(e){
+  e.preventDefault(); hideError();
+  const btn=document.getElementById('reg-btn');
+  btn.disabled=true; btn.textContent='Đang tạo tài khoản...';
+  try{
+    const r=await fetch('/api/auth/register',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        username:    document.getElementById('reg-username').value,
+        email:       document.getElementById('reg-email').value,
+        password:    document.getElementById('reg-pw').value,
+        displayName: document.getElementById('reg-display').value,
+      }),
+      credentials:'include'
+    });
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.error);
+    window.location.href='/';
+  }catch(err){ showError(err.message); btn.disabled=false; btn.textContent='Tạo tài khoản 🐰'; }
+}
+
+// Check if already logged in
+fetch('/api/auth/me',{credentials:'include'}).then(r=>{ if(r.ok) window.location.href='/'; });
+</script>
+</body>
+</html>
