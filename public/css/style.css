@@ -1318,14 +1318,83 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 }
 .pet-card{
   background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);
-  padding:18px;transition:all .3s;position:relative;overflow:hidden;
+  padding:18px;transition:all .3s;position:relative;overflow:visible;
 }
 .pet-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:var(--shadow);}
 .pet-card.pet-dead{opacity:.5;filter:grayscale(.6);}
 .pet-card.pet-warning{border-color:var(--red);animation:pet-warn 2s infinite;}
 @keyframes pet-warn{0%,100%{box-shadow:0 0 0 0 rgba(255,107,138,0)}50%{box-shadow:0 0 0 4px rgba(255,107,138,.2)}}
-.pet-emoji{font-size:48px;text-align:center;margin-bottom:10px;transition:transform .3s;}
+.pet-emoji{font-size:48px;text-align:center;margin-bottom:10px;transition:transform .3s;position:relative;cursor:pointer;user-select:none;}
 .pet-card:hover .pet-emoji{transform:scale(1.1);}
+
+/* ── PLANT ANIMATIONS ── */
+.pet-card[data-category="plant"] .pet-emoji{animation:plantSway 4s ease-in-out infinite;}
+@keyframes plantSway{0%,100%{transform:rotate(0deg)}25%{transform:rotate(2deg)}75%{transform:rotate(-2deg)}}
+.pet-card[data-category="plant"]:active .pet-emoji{animation:plantShake .4s ease-in-out;}
+@keyframes plantShake{0%{transform:rotate(0)}20%{transform:rotate(-8deg)}40%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}100%{transform:rotate(0)}}
+
+/* Drop particle container */
+.drop-particles{position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;z-index:10;}
+.drop-particle{position:absolute;font-size:16px;opacity:1;animation:particleFall 1.5s ease-in forwards;pointer-events:none;}
+@keyframes particleFall{
+  0%{transform:translate(0,0) rotate(0deg) scale(1);opacity:1;}
+  30%{opacity:1;}
+  100%{transform:translate(var(--dx),120px) rotate(var(--rot)) scale(0.3);opacity:0;}
+}
+
+/* ── PET ANIMATIONS ── */
+.pet-card[data-category="animal"] .pet-emoji{animation:petBounce 2s ease-in-out infinite;}
+@keyframes petBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.pet-card[data-category="animal"]:hover .pet-emoji{animation:petWiggle .6s ease-in-out infinite;}
+@keyframes petWiggle{0%,100%{transform:rotate(0) scale(1.1)}25%{transform:rotate(-8deg) scale(1.1)}75%{transform:rotate(8deg) scale(1.1)}}
+
+/* Pet dialogue bubble */
+.pet-dialogue{
+  position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%) scale(0.9);
+  background:var(--bg2);border:1.5px solid var(--accent);border-radius:14px;
+  padding:8px 14px;font-size:12px;color:var(--text);line-height:1.4;
+  opacity:0;pointer-events:none;transition:opacity .3s, transform .3s;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);z-index:50;min-width:140px;max-width:220px;
+  text-align:center;word-wrap:break-word;
+}
+.pet-dialogue.show{opacity:1;transform:translateX(-50%) scale(1);}
+.pet-dialogue::after{
+  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border-left:8px solid transparent;border-right:8px solid transparent;
+  border-top:8px solid var(--accent);
+}
+
+/* Pet visibility toggle */
+.pet-visibility-btn{
+  position:absolute;top:8px;left:8px;width:28px;height:28px;border-radius:50%;
+  background:var(--bg3);border:1.5px solid var(--border2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:14px;
+  transition:all .2s;z-index:5;padding:0;
+}
+.pet-visibility-btn:hover{border-color:var(--accent);background:rgba(176,127,255,.1);}
+.pet-card.pet-hidden{opacity:.35;filter:grayscale(.4);}
+.pet-card.pet-hidden .pet-emoji{animation:none !important;}
+
+/* Feeding animation */
+.pet-feeding .pet-emoji{animation:petFeedBounce .5s ease-in-out 3 !important;}
+@keyframes petFeedBounce{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.feed-hearts{position:absolute;top:50%;left:50%;width:0;height:0;pointer-events:none;z-index:10;}
+.feed-heart{position:absolute;font-size:18px;animation:heartFloat 1.2s ease-out forwards;pointer-events:none;}
+@keyframes heartFloat{
+  0%{transform:translate(0,0) scale(0.5);opacity:1;}
+  100%{transform:translate(var(--hx),-60px) scale(1);opacity:0;}
+}
+
+/* Pet status indicator */
+.pet-health-status{
+  display:flex;align-items:center;justify-content:center;gap:4px;
+  font-size:11px;margin-bottom:8px;font-weight:600;
+}
+.pet-health-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.pet-health-dot.healthy{background:#5ef0a0;box-shadow:0 0 6px rgba(94,240,160,.5);}
+.pet-health-dot.warning{background:var(--amber);box-shadow:0 0 6px rgba(255,207,92,.5);animation:pulse 1.5s infinite;}
+.pet-health-dot.dead{background:var(--red);}
+
 .pet-name{font-size:15px;font-weight:700;text-align:center;margin-bottom:4px;}
 .pet-type-label{font-size:11px;color:var(--text3);text-align:center;margin-bottom:10px;}
 .pet-level-bar{
@@ -1477,4 +1546,123 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 @media(max-width:480px){
   .top-nav{gap:2px;padding:3px;}
   .tnav-btn{padding:5px 8px;font-size:11px;}
+}
+
+/* ── FREEZE BADGE ── */
+.header-freeze-badge{
+  display:flex;align-items:center;gap:4px;padding:4px 10px;
+  background:rgba(94,232,240,.12);border:1px solid rgba(94,232,240,.3);
+  border-radius:20px;font-size:12px;color:var(--cyan);font-weight:600;
+  cursor:default;position:relative;animation:freezePulse 2s infinite;
+}
+@keyframes freezePulse{0%,100%{box-shadow:0 0 0 0 rgba(94,232,240,0)}50%{box-shadow:0 0 8px rgba(94,232,240,.3)}}
+.header-freeze-badge:hover::after{
+  content:attr(title);position:absolute;top:calc(100% + 8px);right:0;
+  background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:6px 10px;font-size:11px;color:var(--text);white-space:nowrap;z-index:100;
+  box-shadow:0 4px 12px rgba(0,0,0,.3);
+}
+
+/* ── SHOP INVENTORY BAR ── */
+.shop-inventory-pills{display:flex;flex-wrap:wrap;gap:4px;}
+.inv-pill{
+  padding:3px 8px;background:var(--bg3);border:1px solid var(--border);
+  border-radius:12px;font-size:11px;color:var(--text2);white-space:nowrap;
+}
+
+/* ── STORE CARD DETAIL ── */
+.store-detail{
+  font-size:10px;color:var(--text3);line-height:1.3;margin-top:6px;
+  padding-top:6px;border-top:1px solid var(--border);display:none;
+}
+.store-card:hover .store-detail{display:block;}
+.store-card .store-how{
+  margin-top:6px;padding:6px 8px;background:rgba(176,127,255,.06);
+  border-radius:8px;font-size:10px;color:var(--text2);line-height:1.4;
+}
+
+/* ── PET WALKING ANIMATION ── */
+.floating-pet[data-category="animal"]{
+  animation:none !important;
+  transition:left 3s linear, top 3s linear;
+}
+.floating-pet.walking{animation:petWalk .4s steps(2) infinite !important;}
+@keyframes petWalk{0%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.floating-pet.walking-left{transform:scaleX(-1);}
+
+/* ── EMOTION STATS ── */
+.emotion-bar{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.emotion-bar-emoji{font-size:20px;min-width:28px;text-align:center;}
+.emotion-bar-label{font-size:12px;color:var(--text2);min-width:70px;}
+.emotion-bar-track{flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;}
+.emotion-bar-fill{height:100%;border-radius:4px;transition:width .6s;}
+.emotion-bar-count{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;min-width:20px;text-align:right;}
+
+/* ═══════════════════════════════════════════
+   FLOATING PETS (visible on all pages)
+═══════════════════════════════════════════ */
+#floating-pets-container{
+  position:fixed;bottom:0;left:0;right:0;height:100vh;
+  pointer-events:none;z-index:50;overflow:hidden;
+}
+.floating-pet{
+  position:absolute;pointer-events:auto;cursor:pointer;
+  font-size:36px;user-select:none;transition:none;
+  filter:drop-shadow(0 2px 6px rgba(0,0,0,.3));
+}
+.floating-pet[data-category="animal"]{animation:floatPetIdle 2s ease-in-out infinite;}
+.floating-pet[data-category="plant"]{animation:floatPlantSway 4s ease-in-out infinite;}
+@keyframes floatPetIdle{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes floatPlantSway{0%,100%{transform:rotate(0)}25%{transform:rotate(3deg)}75%{transform:rotate(-3deg)}}
+
+.floating-pet .floating-dialogue{
+  position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%) scale(0);
+  background:var(--bg2);border:1.5px solid var(--accent);border-radius:12px;
+  padding:6px 12px;font-size:11px;color:var(--text);text-align:center;
+  white-space:nowrap;opacity:0;transition:all .3s;z-index:60;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);pointer-events:none;
+}
+.floating-pet .floating-dialogue.show{opacity:1;transform:translateX(-50%) scale(1);}
+.floating-pet .floating-dialogue::after{
+  content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border-left:6px solid transparent;border-right:6px solid transparent;
+  border-top:6px solid var(--accent);
+}
+
+/* Floating pet drop particles */
+.floating-drop{position:absolute;font-size:14px;pointer-events:none;
+  animation:floatingParticleFall 1.2s ease-in forwards;}
+@keyframes floatingParticleFall{
+  0%{opacity:1;transform:translate(0,0) rotate(0) scale(1);}
+  100%{opacity:0;transform:translate(var(--dx),80px) rotate(var(--rot)) scale(.3);}
+}
+
+/* ═══════════════════════════════════════════
+   MOTIVATIONAL QUOTE OVERLAY
+═══════════════════════════════════════════ */
+.motivation-overlay{
+  position:fixed;inset:0;z-index:9990;
+  display:none;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(8px);
+  animation:motFadeIn .4s ease-out;
+}
+.motivation-overlay.show{display:flex;}
+@keyframes motFadeIn{from{opacity:0}to{opacity:1}}
+.motivation-card{
+  max-width:500px;width:90%;padding:40px 36px;text-align:center;
+  background:linear-gradient(135deg,rgba(176,127,255,.12),rgba(255,133,200,.08));
+  border:1.5px solid rgba(176,127,255,.3);border-radius:24px;
+  box-shadow:0 20px 60px rgba(0,0,0,.4);
+  animation:motCardIn .5s ease-out;
+}
+@keyframes motCardIn{from{transform:scale(.8) translateY(30px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.motivation-emoji{font-size:48px;margin-bottom:16px;}
+.motivation-text{
+  font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;
+  line-height:1.6;color:var(--text);margin-bottom:12px;
+}
+.motivation-author{font-size:13px;color:var(--text3);font-style:italic;}
+@media(max-width:480px){
+  .motivation-text{font-size:18px;}
+  .motivation-card{padding:28px 20px;}
 }
