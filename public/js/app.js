@@ -464,6 +464,8 @@ async function toggleTask(id,itemEl){
     // Confetti based on priority
     const intensity = task.priority >= 3 ? 'high' : task.priority >= 2 ? 'medium' : 'low';
     launchConfetti(intensity);
+    // Show motivational quote overlay
+    setTimeout(() => showMotivationOverlay(), 600);
     checkAndAwardBadges();
   }
 }
@@ -496,7 +498,104 @@ async function loadStats(){
   const {s,e}=statsRange();
   const [stats,globalStreak]=await Promise.all([apiTasks.stats(s,e),apiTasks.globalStreak()]);
   await renderStats(stats,s,e,globalStreak);
-  // Heatmap is rendered separately - don't call here to avoid ResizeObserver conflict
+  // Monthly charts
+  loadMonthlyCharts();
+  // Weekly emotion stats
+  loadEmotionStats();
+}
+
+async function loadMonthlyCharts() {
+  try {
+    const now = state.today;
+    // Current month
+    const cms = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+    const cme = tds(new Date(now.getFullYear(), now.getMonth()+1, 0));
+    // Previous month
+    const pm = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    const pms = tds(pm);
+    const pme = tds(new Date(pm.getFullYear(), pm.getMonth()+1, 0));
+
+    document.getElementById('chart-month-label').textContent = VI_MONTHS[now.getMonth()] + ' ' + now.getFullYear();
+    document.getElementById('chart-prevmonth-label').textContent = VI_MONTHS[pm.getMonth()] + ' ' + pm.getFullYear();
+
+    const [cmStats, pmStats] = await Promise.all([apiTasks.stats(cms, cme), apiTasks.stats(pms, pme)]);
+
+    // Current month daily chart
+    const cmLabels = [], cmData = [];
+    for (let d = new Date(cms); tds(d) <= cme; d.setDate(d.getDate()+1)) {
+      const ds = tds(new Date(d)), bd = cmStats.byDate[ds];
+      cmLabels.push(new Date(d).getDate() + '');
+      cmData.push(bd && bd.total > 0 ? Math.round((bd.done/bd.total)*100) : 0);
+    }
+    mkLineChart('chart-monthly', cmLabels, cmData);
+
+    // Previous month
+    const pmLabels = [], pmData = [];
+    for (let d = new Date(pms); tds(d) <= pme; d.setDate(d.getDate()+1)) {
+      const ds = tds(new Date(d)), bd = pmStats.byDate[ds];
+      pmLabels.push(new Date(d).getDate() + '');
+      pmData.push(bd && bd.total > 0 ? Math.round((bd.done/bd.total)*100) : 0);
+    }
+    mkLineChart('chart-prevmonthly', pmLabels, pmData);
+  } catch(e) { console.error('loadMonthlyCharts:', e); }
+}
+
+async function loadEmotionStats() {
+  try {
+    const wrap = document.getElementById('emotion-week-wrap');
+    if (!wrap) return;
+    // Get last 7 days of journal entries
+    const end = tds(state.today);
+    const start = tds(addDays(state.today, -6));
+    const entries = await apiJournal.range(start, end);
+
+    if (!entries || !entries.length) {
+      wrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px">Chưa có nhật ký nào trong tuần. Hãy viết nhật ký mỗi ngày nhé!</div>';
+      return;
+    }
+
+    // Count moods
+    const moodCounts = {};
+    entries.forEach(e => { if (e.mood) moodCounts[e.mood] = (moodCounts[e.mood] || 0) + 1; });
+    const totalEntries = entries.filter(e => e.mood).length;
+
+    const MOOD_INFO = {
+      '🌸': { label: 'Tuyệt vời', color: '#ff85c8' },
+      '😊': { label: 'Vui vẻ', color: '#ffcf5c' },
+      '😌': { label: 'Bình thường', color: '#b07fff' },
+      '😴': { label: 'Mệt mỏi', color: '#5ee8f0' },
+      '😤': { label: 'Căng thẳng', color: '#ff9900' },
+      '😢': { label: 'Buồn', color: '#7cb9ff' },
+    };
+
+    wrap.innerHTML = '';
+    // Sort by count desc
+    const sorted = Object.entries(moodCounts).sort((a,b) => b[1] - a[1]);
+    sorted.forEach(([mood, count]) => {
+      const info = MOOD_INFO[mood] || { label: mood, color: '#b07fff' };
+      const pct = Math.round((count / 7) * 100);
+      const bar = document.createElement('div');
+      bar.className = 'emotion-bar';
+      bar.innerHTML = `
+        <div class="emotion-bar-emoji">${mood}</div>
+        <div class="emotion-bar-label">${info.label}</div>
+        <div class="emotion-bar-track">
+          <div class="emotion-bar-fill" style="width:${pct}%;background:${info.color}"></div>
+        </div>
+        <div class="emotion-bar-count">${count}/${7}</div>
+      `;
+      wrap.appendChild(bar);
+    });
+
+    // Add summary text
+    if (sorted.length > 0) {
+      const topMood = MOOD_INFO[sorted[0][0]]?.label || sorted[0][0];
+      const summary = document.createElement('div');
+      summary.style.cssText = 'margin-top:10px;font-size:12px;color:var(--text2);text-align:center;';
+      summary.textContent = `Tuần qua bạn chủ yếu cảm thấy: ${sorted[0][0]} ${topMood} (${sorted[0][1]}/${totalEntries} ngày)`;
+      wrap.appendChild(summary);
+    }
+  } catch(e) { console.error('loadEmotionStats:', e); }
 }
 
 async function renderStats(stats,s,e,globalStreak){
@@ -984,7 +1083,7 @@ async function renderHabitsStats(){
   }catch(e){}
 }
 
-function renderHabitAnalytics(ana){
+async function renderHabitAnalytics(ana){
   const c = chartColors();
   const VI_DAY_FULL = ['CN','T2','T3','T4','T5','T6','T7'];
 
@@ -1039,35 +1138,40 @@ function renderHabitAnalytics(ana){
         }}});
   }
 
-  // 3. Best day of week (radar/bar)
+  // 3. Best day of week — current week only (from habit logs)
   const ctx3 = document.getElementById('chart-habit-bestday')?.getContext('2d');
-  if(ctx3 && ana.length){
+  if(ctx3){
     if(state.charts['habit-bestday']) state.charts['habit-bestday'].destroy();
-    // Aggregate across all habits: how many total completions per weekday
-    const dayTotals = Array(7).fill(0);
-    ana.forEach(h=>{
-      // rebuild from weeklyData is approximate; best we can do without raw log access
-    });
-    // Use first habit's best day as representative
-    const bestDayData = ana.map(h=>({ name:`${h.emoji} ${h.name}`, best: h.bestDay, color: h.color }));
-    const dayCounts = Array(7).fill(0);
-    bestDayData.forEach(h=>dayCounts[h.best]++);
-    state.charts['habit-bestday'] = new Chart(ctx3,{
-      type:'bar',
-      data:{
-        labels: VI_DAY_FULL,
-        datasets:[{ label:'Số thói quen hay làm nhất', data:dayCounts,
-          backgroundColor:['#b07fff99','#ff85c899','#5ef0a099','#ffcf5c99','#5ee8f099','#ff6b8a99','#ffa8d899'],
-          borderColor:['#b07fff','#ff85c8','#5ef0a0','#ffcf5c','#5ee8f0','#ff6b8a','#ffa8d8'],
-          borderWidth:1.5, borderRadius:6 }]},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:false},
-          tooltip:{backgroundColor:'#1f2030',borderColor:'#2e3150',borderWidth:1,
-            titleColor:'#ecedf5',bodyColor:'#8b8fa8'}},
-        scales:{
-          x:{grid:{display:false},ticks:{color:c.tick,font:{size:11}}},
-          y:{min:0,grid:{color:c.grid},ticks:{color:c.tick,font:{size:10},stepSize:1}}
-        }}});
+    // Fetch current week's habit logs
+    const weekDates = getWeekDates(state.weekOffset);
+    const ws = tds(weekDates[0]), we = tds(weekDates[6]);
+    try {
+      const weekLogs = await apiHabits.logs(ws, we);
+      const dayCounts = Array(7).fill(0); // 0=Sun
+      if(weekLogs?.length){
+        weekLogs.forEach(log => {
+          const d = new Date(log.date + 'T00:00:00');
+          dayCounts[d.getDay()]++;
+        });
+      }
+      state.charts['habit-bestday'] = new Chart(ctx3,{
+        type:'bar',
+        data:{
+          labels: VI_DAY_FULL,
+          datasets:[{ label:'Hoàn thành trong tuần', data:dayCounts,
+            backgroundColor:['#b07fff99','#ff85c899','#5ef0a099','#ffcf5c99','#5ee8f099','#ff6b8a99','#ffa8d899'],
+            borderColor:['#b07fff','#ff85c8','#5ef0a0','#ffcf5c','#5ee8f0','#ff6b8a','#ffa8d8'],
+            borderWidth:1.5, borderRadius:6 }]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},
+            tooltip:{backgroundColor:'#1f2030',borderColor:'#2e3150',borderWidth:1,
+              titleColor:'#ecedf5',bodyColor:'#8b8fa8',
+              callbacks:{label:ct=>` ${ct.parsed.y} thói quen hoàn thành`}}},
+          scales:{
+            x:{grid:{display:false},ticks:{color:c.tick,font:{size:11}}},
+            y:{min:0,grid:{color:c.grid},ticks:{color:c.tick,font:{size:10},stepSize:1}}
+          }}});
+    } catch(e) { console.error('bestday chart:', e); }
   }
 
   // 4. Consistency score — visual cards
@@ -1546,13 +1650,75 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
   // Load points for header badge
   loadInitialPoints();
+
+  // Load floating pets after a short delay (let auth settle)
+  setTimeout(() => loadFloatingPets(), 1500);
 });
 
 // ═══════════════════════════════════════════
 // GOALS — Long-term task tracker
 // ═══════════════════════════════════════════
 
-// 50 motivational messages grouped by context
+// ═══ MOTIVATIONAL QUOTES — ca dao, tục ngữ, trích dẫn nổi tiếng ═══
+const TASK_QUOTES = [
+  // Ca dao tục ngữ Việt Nam
+  { text: "Có công mài sắt, có ngày nên kim.", author: "Ca dao Việt Nam" },
+  { text: "Kiến tha lâu cũng đầy tổ.", author: "Tục ngữ Việt Nam" },
+  { text: "Chớ thấy sóng cả mà ngã tay chèo.", author: "Ca dao Việt Nam" },
+  { text: "Lửa thử vàng, gian nan thử sức.", author: "Tục ngữ Việt Nam" },
+  { text: "Ai ơi bưng bát cơm đầy, dẻo thơm một hạt, đắng cay muôn phần.", author: "Ca dao Việt Nam" },
+  { text: "Không thầy đố mày làm nên. Nhưng chính sự kiên trì mới là thầy vĩ đại nhất.", author: "Ca dao & Suy ngẫm" },
+  { text: "Một cây làm chẳng nên non, ba cây chụm lại nên hòn núi cao.", author: "Ca dao Việt Nam" },
+  { text: "Có chí thì nên.", author: "Tục ngữ Việt Nam" },
+  { text: "Thua keo này, bày keo khác.", author: "Tục ngữ Việt Nam" },
+  { text: "Nước chảy đá mòn.", author: "Tục ngữ Việt Nam" },
+  { text: "Dù ai nói ngả nói nghiêng, lòng ta vẫn vững như kiềng ba chân.", author: "Ca dao Việt Nam" },
+  { text: "Muốn ăn phải lăn vào bếp.", author: "Tục ngữ Việt Nam" },
+  { text: "Đường đi khó, không khó vì ngăn sông cách núi, mà khó vì lòng người ngại núi e sông.", author: "Nguyễn Bá Học" },
+  { text: "Thất bại là mẹ thành công.", author: "Tục ngữ Việt Nam" },
+  { text: "Siêng làm thì có, siêng học thì hay.", author: "Tục ngữ Việt Nam" },
+
+  // Trích dẫn nổi tiếng thế giới
+  { text: "Bạn không cần phải vĩ đại mới bắt đầu. Nhưng bạn phải bắt đầu để trở nên vĩ đại.", author: "Zig Ziglar" },
+  { text: "Thành công không phải là chìa khóa dẫn đến hạnh phúc. Hạnh phúc mới là chìa khóa dẫn đến thành công.", author: "Albert Schweitzer" },
+  { text: "Điều duy nhất đứng giữa bạn và giấc mơ của bạn là ý chí muốn thử và niềm tin rằng nó thực sự khả thi.", author: "Joel Brown" },
+  { text: "Tương lai thuộc về những người tin vào vẻ đẹp của ước mơ mình.", author: "Eleanor Roosevelt" },
+  { text: "Bạn bỏ lỡ 100% những cú sút mà bạn không thực hiện.", author: "Wayne Gretzky" },
+  { text: "Thành công là đi từ thất bại này sang thất bại khác mà không đánh mất nhiệt huyết.", author: "Winston Churchill" },
+  { text: "Cách tốt nhất để dự đoán tương lai là tạo ra nó.", author: "Peter Drucker" },
+  { text: "Không phải vì khó mà ta không dám, mà vì ta không dám nên mới thấy khó.", author: "Seneca" },
+  { text: "Mỗi ngày là một cơ hội mới để thay đổi cuộc đời bạn.", author: "Khuyết danh" },
+  { text: "Hãy luôn nhớ rằng quyết tâm thành công của bạn quan trọng hơn bất kỳ điều gì khác.", author: "Abraham Lincoln" },
+  { text: "Người thành công và người không thành công không khác nhau nhiều về khả năng, mà khác nhau về khát vọng.", author: "John Maxwell" },
+  { text: "Giọt nước xuyên đá không phải nhờ sức mạnh, mà nhờ sự kiên trì.", author: "Ovid" },
+  { text: "Kỷ luật là cầu nối giữa mục tiêu và thành tựu.", author: "Jim Rohn" },
+  { text: "Không có thang máy dẫn đến thành công. Bạn phải leo cầu thang.", author: "Zig Ziglar" },
+  { text: "Ngày hôm nay là ngày khó nhất. Ngày mai sẽ dễ hơn, nếu bạn không bỏ cuộc.", author: "Jack Ma" },
+
+  // Câu động viên, khuyến khích
+  { text: "Bạn đã làm rất tốt! Mỗi task hoàn thành là một bước tiến gần hơn đến phiên bản tốt nhất của mình.", author: "Rabbit Habits" },
+  { text: "Thói quen nhỏ, thay đổi lớn. Bạn đang xây dựng tương lai của mình từng ngày.", author: "Rabbit Habits" },
+  { text: "Không ai có thể quay ngược thời gian để bắt đầu lại. Nhưng ai cũng có thể bắt đầu từ hôm nay.", author: "Rabbit Habits" },
+  { text: "Bạn mạnh hơn bạn nghĩ, giỏi hơn bạn tin, và được yêu thương nhiều hơn bạn biết.", author: "A.A. Milne" },
+  { text: "Đừng so sánh mình với người khác. Hãy so sánh mình hôm nay với mình hôm qua.", author: "Jordan Peterson" },
+  { text: "Thành công không đến từ những gì bạn làm thỉnh thoảng. Nó đến từ những gì bạn làm mỗi ngày.", author: "Marie Forleo" },
+  { text: "Điều quan trọng không phải là tốc độ, mà là hướng đi. Bạn đang đi đúng hướng rồi!", author: "Rabbit Habits" },
+  { text: "Hôm nay bạn đã chọn hành động thay vì trì hoãn. Đó chính là chiến thắng lớn nhất.", author: "Rabbit Habits" },
+  { text: "Mỗi buổi sáng bạn có hai lựa chọn: tiếp tục nằm mơ, hoặc thức dậy theo đuổi giấc mơ.", author: "Carmelo Anthony" },
+  { text: "Khó khăn không tạo nên tính cách, nó bộc lộ tính cách.", author: "James Lane Allen" },
+  { text: "Bạn không cần nhìn thấy cả cầu thang. Chỉ cần bước lên bước đầu tiên.", author: "Martin Luther King Jr." },
+  { text: "Sự khác biệt giữa thường và phi thường chỉ là chút \"extra\" nỗ lực hơn.", author: "Jimmy Johnson" },
+  { text: "Hành động là liều thuốc giải cho sự lo lắng. Bạn vừa hành động — tuyệt vời!", author: "Will Smith" },
+  { text: "Kiên nhẫn, kiên trì và nỗ lực. Ba thứ đó tạo nên sự kết hợp bất bại cho thành công.", author: "Napoleon Hill" },
+  { text: "Vinh quang lớn nhất không phải là không bao giờ vấp ngã, mà là đứng dậy mỗi khi vấp ngã.", author: "Khổng Tử" },
+  { text: "Đừng đợi cơ hội. Hãy tạo ra nó.", author: "George Bernard Shaw" },
+  { text: "Thành công là tổng của những nỗ lực nhỏ, được lặp đi lặp lại ngày này qua ngày khác.", author: "Robert Collier" },
+  { text: "Bạn là tác giả của cuộc đời mình. Hãy viết nên một câu chuyện đáng tự hào.", author: "Rabbit Habits" },
+  { text: "Con đường dài nhất bắt đầu bằng một bước chân. Bạn đã bước rồi — tiếp tục thôi!", author: "Lão Tử" },
+  { text: "Ngày mai bạn sẽ cảm ơn bản thân hôm nay đã không bỏ cuộc.", author: "Rabbit Habits" },
+];
+
+// Goal-specific motivations
 const MOTIVATIONS = {
   start: [
     "🚀 Hành trình vạn dặm bắt đầu từ một bước chân!",
@@ -1560,6 +1726,8 @@ const MOTIVATIONS = {
     "🌱 Mỗi chuyên gia từng là người mới bắt đầu. Hôm nay là ngày 1 của bạn!",
     "💫 Không cần hoàn hảo, chỉ cần bắt đầu thôi!",
     "🐰 Thỏ nhỏ cũng leo được núi cao, từng bước một thôi!",
+    "🌅 Bình minh của sự thay đổi bắt đầu từ hôm nay!",
+    "💪 Bắt đầu là phần khó nhất — và bạn đã làm được rồi!",
   ],
   middle: [
     "💪 Bạn đã đi được nửa đường rồi — đừng dừng lại bây giờ!",
@@ -1569,6 +1737,8 @@ const MOTIVATIONS = {
     "🎯 Bạn đang đi đúng hướng rồi, chỉ cần giữ nhịp thôi!",
     "🏃 Không cần nhanh, chỉ cần không dừng lại!",
     "💎 Kim cương cũng cần áp lực để tỏa sáng — bạn đang làm được!",
+    "🌟 Nửa đường rồi! Phía trước là ánh sáng!",
+    "🐇 Kiên trì như chú thỏ — chậm mà chắc!",
   ],
   nearEnd: [
     "🎊 Sắp về đích rồi! Cố lên một chút nữa thôi!",
@@ -1576,12 +1746,14 @@ const MOTIVATIONS = {
     "⚡ Giai đoạn cuối luôn khó nhất, nhưng bạn gần xong rồi!",
     "🌅 Bình minh luôn đến sau đêm dài — bạn sắp thấy kết quả rồi!",
     "💪 Vài ngày nữa thôi! Bạn đã làm được nhiều thứ hơn bạn nghĩ đấy!",
+    "🏁 Vạch đích đang chờ bạn — chạy nốt đoạn cuối này!",
   ],
   done: [
     "🎉 TUYỆT VỜI! Bạn đã hoàn thành mục tiêu! Tự hào về bản thân đi!",
     "🏆 100%! Bạn làm được rồi! Đây là minh chứng cho sự kiên trì của bạn!",
     "✨ Xong rồi! Hôm nay bạn là phiên bản tốt hơn của chính mình hôm qua!",
     "🌟 Bạn đã chứng minh rằng mình có thể làm được — đây chỉ là khởi đầu!",
+    "👑 Hoàn thành xuất sắc! Bạn xứng đáng với mọi lời khen!",
   ],
   missed: [
     "😌 Không sao cả! Một ngày nghỉ không phá hủy cả hành trình đâu.",
@@ -1589,6 +1761,7 @@ const MOTIVATIONS = {
     "💙 Hãy nhẹ nhàng với bản thân — hôm qua qua rồi, hôm nay là cơ hội mới.",
     "🐰 Thỏ cũng có lúc mệt, nhưng không bỏ cuộc! Tiếp tục nào!",
     "⭐ Bỏ lỡ một ngày không có nghĩa là thất bại — quay lại ngay hôm nay đi!",
+    "🌈 Sau cơn mưa trời lại sáng — ngày mai sẽ tốt hơn!",
   ],
   daily: [
     "☀️ Chào buổi sáng! Hôm nay là ngày để tiến gần hơn đến mục tiêu của bạn!",
@@ -1600,6 +1773,26 @@ const MOTIVATIONS = {
     "🌊 Từng giọt nước tạo nên đại dương. Hành động nhỏ hôm nay tạo nên thành tích lớn!",
   ]
 };
+
+// Show motivational quote overlay on task completion
+function showMotivationOverlay() {
+  const overlay = document.getElementById('motivation-overlay');
+  if (!overlay) return;
+  const quote = TASK_QUOTES[Math.floor(Math.random() * TASK_QUOTES.length)];
+  const emojis = ['🌟','✨','💫','🎯','💪','🔥','🌸','🏆','💎','🌈','⭐','🐰','🎉','🌻','🌺'];
+  document.getElementById('motivation-emoji').textContent = emojis[Math.floor(Math.random() * emojis.length)];
+  document.getElementById('motivation-text').textContent = '"' + quote.text + '"';
+  document.getElementById('motivation-author').textContent = '— ' + quote.author;
+  overlay.classList.add('show');
+
+  // Auto-dismiss after 4.5 seconds or on click
+  const dismiss = () => {
+    overlay.classList.remove('show');
+    overlay.removeEventListener('click', dismiss);
+  };
+  overlay.addEventListener('click', dismiss);
+  setTimeout(dismiss, 4500);
+}
 
 function getMotivation(goal){
   const done = goal.days.filter(d=>d.done).length;
@@ -2028,7 +2221,7 @@ const apiShop = {
 };
 
 let _shopInited = false;
-let _shopData = { points:0, food:0, water:0, fertilizer:0, streakFreezes:0, badges:[] };
+let _shopData = { points:0, food:0, meat:0, fish:0, seed:0, treat:0, water:0, fertilizer:0, streakFreezes:0, badges:[] };
 
 // Update points display everywhere
 function updatePointsUI(pts) {
@@ -2040,14 +2233,41 @@ function updatePointsUI(pts) {
 }
 
 function updateInventoryUI() {
-  const f = document.getElementById('inv-food');
-  const w = document.getElementById('inv-water');
-  const fe = document.getElementById('inv-fert');
-  const fr = document.getElementById('inv-freeze');
-  if (f) f.textContent = _shopData.food;
-  if (w) w.textContent = _shopData.water;
-  if (fe) fe.textContent = _shopData.fertilizer;
-  if (fr) fr.textContent = _shopData.streakFreezes;
+  const ids = { food:'inv-food', meat:'inv-meat', fish:'inv-fish', seed:'inv-seed', treat:'inv-treat', water:'inv-water', fertilizer:'inv-fert', streakFreezes:'inv-freeze' };
+  for (const [key, id] of Object.entries(ids)) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = _shopData[key] || 0;
+  }
+  // Freeze badge in header
+  updateFreezeBadge();
+}
+
+function updateFreezeBadge() {
+  const badge = document.getElementById('header-freeze-badge');
+  if (!badge) return;
+  if (_shopData.freezeActive && _shopData.freezeActiveUntil) {
+    badge.style.display = 'flex';
+    const updateTimer = () => {
+      const now = new Date();
+      const until = new Date(_shopData.freezeActiveUntil);
+      const diff = until - now;
+      if (diff <= 0) {
+        badge.style.display = 'none';
+        _shopData.freezeActive = false;
+        clearInterval(badge._timerInterval);
+        return;
+      }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      document.getElementById('header-freeze-timer').textContent = `${h}h${m}m`;
+      badge.title = `Freeze: còn ${h} giờ ${m} phút`;
+    };
+    updateTimer();
+    clearInterval(badge._timerInterval);
+    badge._timerInterval = setInterval(updateTimer, 60000);
+  } else {
+    badge.style.display = 'none';
+  }
 }
 
 // ── Points toast (floating +X) ──
@@ -2137,13 +2357,35 @@ async function loadShopData() {
   } catch(e) { console.error('loadShopData:', e); }
 }
 
+// Also load freeze info on initial points load
+
+
+// Pet/plant feature descriptions for shop
+const SHOP_FEATURES = {
+  rabbit:  '🐰 Thỏ Bông sẽ nhảy nhót trên màn hình. Cho ăn cà rốt, thịt, hoặc bánh. Nhấn vào để nghe thỏ nói chuyện dễ thương!',
+  cat:     '🐱 Mèo Mướp sẽ đi loanh quanh. Cho ăn cá, thịt. Nhấn vào để nghe meo meo nũng nịu!',
+  dog:     '🐶 Cún Con chạy nhảy vui vẻ. Cho ăn thịt, bánh. Nhấn vào để chơi cùng cún!',
+  hamster: '🐹 Hamster tròn lăn chạy khắp nơi. Cho ăn hạt giống, bánh. Nhấn để xem má phúng phính!',
+  bird:    '🐦 Chim Non bay lượn trên màn hình. Cho ăn hạt, bánh. Nhấn để nghe chim hót!',
+  tree:    '🌲 Cây Kim Tiền hút tài lộc. Nhấn vào để thấy tiền vàng rụng xuống! Tưới nước & bón phân hàng ngày.',
+  kim_ngan:'🌳 Cây Kim Ngân tượng trưng giàu có. Nhấn vào thấy vàng bạc rơi! Tưới nước & bón phân.',
+  ngoc_bich:'💎 Cây Ngọc Bích mang lại hòa hợp. Nhấn thấy ngọc quý rụng! Tưới nước & bón phân.',
+  flower:  '🎋 Cây Phát Tài chiêu phú quý. Nhấn thấy may mắn tỏa sáng! Tưới nước & bón phân.',
+  van_loc: '🌺 Cây Vạn Lộc mang thịnh vượng. Nhấn thấy hoa may mắn rơi! Tưới nước & bón phân.',
+  tree2:   '🌵 Cây Sen Đá cho sức khỏe. Nhấn thấy trái tim & sức khỏe rụng! Tưới nước & bón phân.',
+  flower2: '🌼 Hoa Mai mang may mắn cả năm. Nhấn thấy cánh mai vàng rơi! Tưới nước & bón phân.',
+  flower3: '🌺 Hoa Lan thanh cao sang trọng. Nhấn thấy cánh lan & vương miện rơi! Tưới nước & bón phân.',
+};
+
 function makeStoreCard(p) {
   const card = document.createElement('div');
   card.className = 'store-card';
+  const feature = SHOP_FEATURES[p.type] || '';
   card.innerHTML = `
     <div class="store-emoji">${p.emoji}</div>
     <div class="store-name">${p.name}</div>
     <div class="store-desc">${p.desc}</div>
+    ${feature ? `<div class="store-detail"><div class="store-how">${feature}</div></div>` : ''}
     <button class="store-price" data-type="${p.type}">⭐ ${p.price} điểm</button>
   `;
   card.querySelector('.store-price').addEventListener('click', async () => {
@@ -2179,7 +2421,7 @@ async function loadStoreCatalog() {
       plGrid.appendChild(makeStoreCard(p));
     });
 
-    // Items
+    // Items with detail descriptions
     const iGrid = document.getElementById('store-items-grid');
     iGrid.innerHTML = '';
     items.forEach(it => {
@@ -2189,6 +2431,7 @@ async function loadStoreCatalog() {
         <div class="store-emoji">${it.emoji}</div>
         <div class="store-name">${it.name}</div>
         <div class="store-desc">${it.desc}</div>
+        ${it.detail ? `<div class="store-detail"><div class="store-how">${it.detail}</div></div>` : ''}
         <button class="store-price" data-item="${it.id}">⭐ ${it.price} điểm</button>
       `;
       card.querySelector('.store-price').addEventListener('click', async () => {
@@ -2212,6 +2455,7 @@ async function loadStoreCatalog() {
       <div class="store-emoji">❄️</div>
       <div class="store-name">Streak Freeze</div>
       <div class="store-desc">Bảo vệ streak & thú cưng 24h khi bạn không thể dùng app</div>
+      <div class="store-detail"><div class="store-how">Mua thẻ freeze rồi kích hoạt khi cần. Khi hoạt động, streak sẽ không bị mất và thú cưng sẽ không bị coi là bị bỏ rơi trong 24h. Icon ❄️ sẽ hiện trên thanh menu.</div></div>
       <button class="store-price">⭐ ${streakFreezePrice} điểm</button>
     `;
     fCard.querySelector('.store-price').addEventListener('click', async () => {
@@ -2225,27 +2469,172 @@ async function loadStoreCatalog() {
     });
     sGrid.appendChild(fCard);
 
-    // Activate freeze card
+    // Activate freeze card - only show if user has freeze cards
+    const hasFreeze = (_shopData.streakFreezes || 0) > 0;
+    const freezeActive = _shopData.freezeActive;
     const aCard = document.createElement('div');
     aCard.className = 'store-card';
     aCard.innerHTML = `
-      <div class="store-emoji">🛡️</div>
-      <div class="store-name">Kích hoạt Freeze</div>
-      <div class="store-desc">Dùng 1 thẻ freeze để bảo vệ streak và thú cưng trong 24h</div>
-      <button class="store-price" style="background:linear-gradient(135deg,#5ee8f0,#3ddbb8)">❄️ Kích hoạt</button>
+      <div class="store-emoji">${freezeActive ? '🛡️✅' : '🛡️'}</div>
+      <div class="store-name">${freezeActive ? 'Freeze đang hoạt động' : 'Kích hoạt Freeze'}</div>
+      <div class="store-desc">${freezeActive ? 'Streak & thú cưng đang được bảo vệ!' : hasFreeze ? `Bạn có ${_shopData.streakFreezes} thẻ. Dùng 1 thẻ để bảo vệ 24h.` : 'Chưa có thẻ freeze. Mua ở trên trước!'}</div>
+      <button class="store-price" style="background:${freezeActive ? 'linear-gradient(135deg,#5ef0a0,#3ddbb8)' : hasFreeze ? 'linear-gradient(135deg,#5ee8f0,#3ddbb8)' : 'var(--bg4)'}" ${!hasFreeze || freezeActive ? 'disabled' : ''}>
+        ${freezeActive ? '✅ Đang hoạt động' : hasFreeze ? '❄️ Kích hoạt' : '🔒 Cần mua trước'}
+      </button>
     `;
-    aCard.querySelector('.store-price').addEventListener('click', async () => {
-      try {
-        const res = await apiShop.activateFreeze();
-        _shopData.streakFreezes = res.streakFreezes;
-        updateInventoryUI();
-        toast('❄️ Freeze đã kích hoạt! Bảo vệ 24h');
-        launchConfetti('low');
-      } catch(e) { toast('❌ ' + (e.message || 'Không có thẻ freeze!')); }
-    });
+    if (hasFreeze && !freezeActive) {
+      aCard.querySelector('.store-price').addEventListener('click', async () => {
+        try {
+          const res = await apiShop.activateFreeze();
+          _shopData.streakFreezes = res.streakFreezes;
+          _shopData.freezeActive = true;
+          _shopData.freezeActiveUntil = res.freezeActiveUntil;
+          updateInventoryUI();
+          toast('❄️ Freeze đã kích hoạt! Bảo vệ 24h');
+          launchConfetti('low');
+          await loadStoreCatalog(); // Refresh to update button state
+        } catch(e) { toast('❌ ' + (e.message || 'Không có thẻ freeze!')); }
+      });
+    }
     sGrid.appendChild(aCard);
 
   } catch(e) { console.error('loadStoreCatalog:', e); }
+}
+
+// ── PET DIALOGUE SYSTEM ──
+const PET_DIALOGUES = {
+  rabbit: {
+    idle: ['Chủ nhân ơi~ 🥺','Cho con ăn cà rốt đi~','Con yêu chủ nhân lắm!','Nhảy nhảy~ 🐇','Chủ nhân hôm nay đẹp quá!','Con đói bụng rồi~','Chủ nhân làm task chưa?','*nhảy lên nhảy xuống*','Con nhớ chủ nhân quá!','Hôm nay vui không chủ nhân?','Ôm con đi~ 💕','*giật giật tai*','Con thích ở bên chủ nhân!','Chủ nhân giỏi quá!','*nằm lăn ra sàn*','Con muốn được vuốt ve~','Chủ nhân cố lên nha!','Hehe~ con dễ thương không?'],
+    feed: ['Ngon quá chủ nhân!','Yummy~ 🥕','Con thích lắm!','Cảm ơn chủ nhân~','No bụng rồi nè!','*nhai nhai* Giòn quá!','Chủ nhân tuyệt nhất!','Con ăn hết sạch luôn~','*hạnh phúc* Ngon lắm!','Cà rốt của chủ nhân ngon nhất!'],
+    water: ['Khát nước quá~','Mát quá chủ nhân!','Uống ngon lắm~','Cảm ơn nha!','*uống ừng ực*','Sảng khoái~','Nước mát quá!','Con khỏe lại rồi!']
+  },
+  cat: {
+    idle: ['Meow~ chủ nhân 🐱','Con muốn được vuốt ve~','Meo meo~ ngủ thôi~','Chủ nhân đâu rồi?','*cuộn tròn nằm ngủ*','Con lười quá hà~','*cào cào đồ vật*','Purr purr~ 💤','Chủ nhân có nhớ con không?','*vươn vai ngáp*','Con muốn chơi cuộn len!','Meo~ gãi cằm cho con~','*nằm phơi nắng*','Chủ nhân ơi vuốt con đi~','*đuổi theo bóng*','Meo~ con buồn ngủ~','Chủ nhân làm việc giỏi quá!','*kêu ré ré đòi ăn*'],
+    feed: ['Nyam nyam~ 😺','Cá ngon quá!','Chủ nhân tuyệt vời!','Meo~ thêm nữa đi~','Purr purr~','*ăn ngon lành*','Con no rồi~ purr~','Chủ nhân nấu ăn giỏi quá!','*liếm mép*','Meo yêu chủ nhân!'],
+    water: ['Sữa ngon~','Lap lap~ 💧','Mát rồi~','Meow cảm ơn!','*uống từ từ*','Sữa tươi! Yummy~','Con thích lắm~','Purr~ mát quá!']
+  },
+  dog: {
+    idle: ['Gâu gâu! Chủ nhân! 🐕','Con vui quá! *vẫy đuôi*','Đi chơi không chủ nhân?','Woof woof~!','Con nhớ chủ nhân!','*liếm tay chủ nhân*','Chủ nhân về rồi! *nhảy cẫng*','*ngoáy đuôi điên cuồng*','Con muốn đi dạo!','Chủ nhân ném bóng cho con~','*nằm lăn ra đòi xoa bụng*','Gâu! Yêu chủ nhân!','*chạy vòng vòng*','Chủ nhân là nhất! Woof!','*đặt chân lên tay chủ nhân*','Con trung thành lắm!','Gâu gâu~ chơi với con đi!','*cọ đầu vào chân chủ nhân*'],
+    feed: ['Gâu! Ngon quá! 🦴','*ăn ngấu nghiến*','Con yêu chủ nhân nhất!','Woof! Thêm nữa~','Ngon tuyệt vời!','*vẫy đuôi lia lịa*','Xương ngon quá!','Con hạnh phúc quá!','*ăn sạch sành sanh*','Gâu! Chủ nhân là chef giỏi nhất!'],
+    water: ['*uống ừng ực*','Sảng khoái! 💧','Gâu! Mát quá!','Cảm ơn chủ nhân!','*liếm nước tung tóe*','Woof! Đã khát!','Mát lắm chủ nhân!','*vẫy đuôi uống nước*']
+  },
+  hamster: {
+    idle: ['Chít chít~ 🐹','*nhét hạt vào má*','Con tròn không chủ nhân?','Chạy vòng vòng~','Chủ nhân ôm con đi!','*má phúng phính*','*chạy trên bánh xe*','Con đang tập thể dục!','Chủ nhân cho con hạt đi~','*ngồi rửa mặt*','Con nhỏ nhưng ăn nhiều!','*nằm cuộn tròn ngủ*','Chít! Chủ nhân dễ thương!','*leo lên vai chủ nhân*','Hạt hướng dương đâu~?','Con muốn chui vào túi!','*phồng má nhìn chủ nhân*','Chít chít! Yêu chủ nhân!'],
+    feed: ['Hạt ngon quá! 🌻','*nhét thêm vào má*','Con ăn hết rồi~','Chít chít! Ngon!','Cảm ơn chủ nhân!','*má căng phồng*','Giòn giòn! Yummy!','Con để dành ăn sau~','*nhai nhanh nhai nhanh*','Chủ nhân tốt quá!'],
+    water: ['Uống tí nước~','Mát quá!','Chít~ ngon!','Cảm ơn nha!','*uống từng ngụm nhỏ*','Sảng khoái!','Con khỏe rồi!','Nước trong quá!']
+  },
+  bird: {
+    idle: ['Chiêm chiếp~ 🐦','*vỗ cánh*','Hót cho chủ nhân nghe nè!','Chip chip~!','Con muốn bay!','*nghiêng đầu nhìn*','*đậu trên vai chủ nhân*','Chiếp! Hôm nay đẹp trời!','Con hát bài gì cho chủ nhân?','*nhảy nhảy trên cành*','Chủ nhân nghe con hót nè~','*rỉa lông*','Chip! Yêu chủ nhân!','*bay vòng vòng quanh đầu*','Con muốn ra ngoài chơi!','Chiếp chiếp! Vui quá!','*đứng một chân nhìn xa*','Chủ nhân cố gắng lên nha!'],
+    feed: ['Chiếp! Ngon! 🌾','*mổ mổ ăn*','Con thích hạt này!','Chip chip! Yummy~','Cảm ơn chủ nhân!','*ăn từng hạt một*','Ngon lắm ngon lắm!','Con no rồi~ chiếp!','*sung sướng vỗ cánh*','Chủ nhân là nhất!'],
+    water: ['Chip~ uống nước!','*tắm nước*','Mát quá!','Chiếp chiếp!','*vẩy nước tung tóe*','Sạch sẽ rồi!','Con thích tắm!','*rũ lông phơi khô*']
+  }
+};
+
+// ── PLANT DROP EFFECTS ──
+// Kim Tiền: hút tài lộc → rụng tiền vàng
+// Kim Ngân: giàu có → rụng tiền, vàng
+// Ngọc Bích: tiền bạc & hòa hợp → rụng ngọc, đá quý
+// Phát Tài: may mắn, phú quý → rụng vàng, may mắn
+// Vạn Lộc: may mắn, thịnh vượng → rụng hoa, sao may mắn
+// Sen Đá: sức khỏe, bình an → rụng trái tim, sức khỏe
+// Hoa Mai: may mắn cả năm → rụng cánh mai vàng
+// Hoa Lan: thanh cao, sang trọng → rụng cánh lan, vương miện
+const PLANT_DROP_CONFIG = {
+  tree:      { items: ['💰','🪙','💵','💴','🤑','✨'], name: 'Kim Tiền — Tài Lộc', special: '💰' },
+  kim_ngan:  { items: ['💰','💵','💴','🪙','🏆','💎'], name: 'Kim Ngân — Giàu Có', special: '💵' },
+  ngoc_bich: { items: ['💎','💚','🔮','✨','🌿','💠'], name: 'Ngọc Bích — Hòa Hợp', special: '💎' },
+  flower:    { items: ['🏅','🎖️','⭐','✨','💫','🌟'], name: 'Phát Tài — Phú Quý', special: '🏅' },
+  van_loc:   { items: ['🌟','⭐','🍀','🎊','🎉','✨'], name: 'Vạn Lộc — Thịnh Vượng', special: '🍀' },
+  tree2:     { items: ['❤️','💪','🧘','💚','🌿','✨'], name: 'Sen Đá — Sức Khỏe', special: '❤️' },
+  flower2:   { items: ['🌼','⭐','🎊','🧧','✨','🌟'], name: 'Hoa Mai — May Mắn', special: '🧧' },
+  flower3:   { items: ['👑','🎓','📚','🏛️','✨','💜'], name: 'Hoa Lan — Thanh Cao', special: '👑' },
+};
+
+function createDropParticles(container, plantType) {
+  const config = PLANT_DROP_CONFIG[plantType] || { items: ['🍃','🌿'], special: '🍃' };
+  const particleContainer = document.createElement('div');
+  particleContainer.className = 'drop-particles';
+  container.style.position = 'relative';
+  container.appendChild(particleContainer);
+
+  const count = 8 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < count; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'drop-particle';
+    const isSpecial = Math.random() < 0.3;
+    particle.textContent = isSpecial ? config.special : config.items[Math.floor(Math.random() * config.items.length)];
+    const dx = (Math.random() - 0.5) * 120;
+    const rot = (Math.random() - 0.5) * 720;
+    particle.style.setProperty('--dx', dx + 'px');
+    particle.style.setProperty('--rot', rot + 'deg');
+    particle.style.animationDelay = (Math.random() * 0.3) + 's';
+    particle.style.fontSize = isSpecial ? '20px' : (12 + Math.random() * 8) + 'px';
+    particleContainer.appendChild(particle);
+  }
+
+  setTimeout(() => particleContainer.remove(), 2000);
+}
+
+function createFeedHearts(container) {
+  const heartContainer = document.createElement('div');
+  heartContainer.className = 'feed-hearts';
+  container.style.position = 'relative';
+  container.appendChild(heartContainer);
+
+  const hearts = ['❤️','💕','💖','💗','🩷','✨'];
+  for (let i = 0; i < 6; i++) {
+    const heart = document.createElement('div');
+    heart.className = 'feed-heart';
+    heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+    heart.style.setProperty('--hx', ((Math.random() - 0.5) * 80) + 'px');
+    heart.style.animationDelay = (Math.random() * 0.4) + 's';
+    heartContainer.appendChild(heart);
+  }
+
+  setTimeout(() => heartContainer.remove(), 1600);
+}
+
+// Pet mood expressions - change emoji based on interaction
+const PET_MOODS = {
+  rabbit: { happy:'🐇', love:'🥰', eating:'😋', sleepy:'😴', excited:'🤩', default:'🐰' },
+  cat:    { happy:'😺', love:'😻', eating:'😋', sleepy:'😴', excited:'🙀', default:'🐱' },
+  dog:    { happy:'🐕', love:'🥰', eating:'😋', sleepy:'😴', excited:'🤩', default:'🐶' },
+  hamster:{ happy:'🐹', love:'🥰', eating:'😋', sleepy:'😴', excited:'🤩', default:'🐹' },
+  bird:   { happy:'🐦', love:'🥰', eating:'😋', sleepy:'😴', excited:'🤩', default:'🐤' },
+};
+
+function setPetMood(card, petType, mood) {
+  const moods = PET_MOODS[petType];
+  if (!moods) return;
+  const emojiEl = card.querySelector('.pet-emoji');
+  if (!emojiEl) return;
+  const moodEmoji = moods[mood] || moods.default;
+  emojiEl.textContent = moodEmoji;
+  // Reset to default after 4 seconds
+  clearTimeout(emojiEl._moodTimer);
+  if (mood !== 'default') {
+    emojiEl._moodTimer = setTimeout(() => {
+      emojiEl.textContent = moods.default;
+    }, 4000);
+  }
+}
+
+function showPetDialogue(card, petType, context = 'idle') {
+  const dialogues = PET_DIALOGUES[petType];
+  if (!dialogues) return;
+  const msgs = dialogues[context] || dialogues.idle;
+  const msg = msgs[Math.floor(Math.random() * msgs.length)];
+
+  let bubble = card.querySelector('.pet-dialogue');
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.className = 'pet-dialogue';
+    card.appendChild(bubble);
+  }
+  bubble.textContent = msg;
+  bubble.classList.add('show');
+  clearTimeout(bubble._hideTimer);
+  bubble._hideTimer = setTimeout(() => bubble.classList.remove('show'), 3000);
 }
 
 // ── MY PETS ──
@@ -2261,34 +2650,87 @@ async function loadMyPets() {
     if (!pets.length) { if (empty) empty.style.display = ''; return; }
     if (empty) empty.style.display = 'none';
 
-    const isAnimal = t => ['rabbit','cat','dog'].includes(t);
-    const TYPE_LABELS = { rabbit:'Thỏ', cat:'Mèo', dog:'Chó', tree:'Cây Bonsai', flower:'Hoa Anh Đào' };
+    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+    const TYPE_LABELS = {
+      rabbit:'Thỏ', cat:'Mèo', dog:'Chó', hamster:'Hamster', bird:'Chim',
+      tree:'Cây Kim Tiền', kim_ngan:'Cây Kim Ngân', ngoc_bich:'Cây Ngọc Bích',
+      flower:'Cây Phát Tài', van_loc:'Cây Vạn Lộc',
+      tree2:'Cây Sen Đá', flower2:'Hoa Mai', flower3:'Hoa Lan'
+    };
+
+    const hiddenPetIds = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
 
     pets.forEach(pet => {
+      const isHidden = hiddenPetIds.includes(pet._id);
+      const category = isAnimal(pet.type) ? 'animal' : 'plant';
       const card = document.createElement('div');
-      card.className = 'pet-card' + (!pet.alive ? ' pet-dead' : '') + (pet.warning ? ' pet-warning' : '');
+      card.className = 'pet-card' + (!pet.alive ? ' pet-dead' : '') + (pet.warning ? ' pet-warning' : '') + (isHidden ? ' pet-hidden' : '');
+      card.setAttribute('data-category', category);
+      card.setAttribute('data-pet-type', pet.type);
+      card.setAttribute('data-pet-id', pet._id);
 
       const ptsInLevel = pet.totalPoints % 50;
       const pctLevel = Math.min(100, Math.round((ptsInLevel / 50) * 100));
 
+      const healthStatus = !pet.alive ? 'dead' : pet.warning ? 'warning' : 'healthy';
+      const healthLabel = !pet.alive ? 'Đã mất' : pet.warning ? 'Cần chăm sóc' : 'Khỏe mạnh';
+
       card.innerHTML = `
+        <button class="pet-visibility-btn" title="${isHidden ? 'Hiện' : 'Ẩn'} pet này">${isHidden ? '👁️‍🗨️' : '👁️'}</button>
         ${pet.warning ? '<div class="pet-warning-badge">⚠️ Cần chăm sóc!</div>' : ''}
         <div class="pet-emoji">${pet.emoji}</div>
         <div class="pet-name">${esc(pet.name)}</div>
         <div class="pet-type-label">${TYPE_LABELS[pet.type] || pet.type} · Lv.${pet.level}</div>
+        <div class="pet-health-status"><span class="pet-health-dot ${healthStatus}"></span> ${healthLabel}</div>
         <div class="pet-level-bar"><div class="pet-level-fill" style="width:${pet.level >= 10 ? 100 : pctLevel}%"></div></div>
         <div class="pet-level-text">${pet.totalPoints} pts${pet.level >= 10 ? ' · MAX' : ` · ${50 - ptsInLevel} pts đến Lv.${pet.level + 1}`}</div>
         <div class="pet-care-btns">
           ${isAnimal(pet.type) ? `
-            <button class="pet-care-btn" data-action="food" ${!pet.alive ? 'disabled' : ''}>🥕 Cho ăn</button>
-            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''}>💧 Cho uống</button>
+            <button class="pet-care-btn" data-action="food" ${!pet.alive ? 'disabled' : ''} title="Cà rốt +10pts">🥕</button>
+            <button class="pet-care-btn" data-action="meat" ${!pet.alive ? 'disabled' : ''} title="Thịt +18pts">🥩</button>
+            <button class="pet-care-btn" data-action="fish" ${!pet.alive ? 'disabled' : ''} title="Cá +15pts">🐟</button>
+            <button class="pet-care-btn" data-action="seed" ${!pet.alive ? 'disabled' : ''} title="Hạt +12pts">🌻</button>
+            <button class="pet-care-btn" data-action="treat" ${!pet.alive ? 'disabled' : ''} title="Bánh +20pts">🍪</button>
+            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''} title="Nước +8pts">💧</button>
           ` : `
-            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''}>💧 Tưới nước</button>
-            <button class="pet-care-btn" data-action="fertilizer" ${!pet.alive ? 'disabled' : ''}>🌿 Bón phân</button>
+            <button class="pet-care-btn" data-action="water" ${!pet.alive ? 'disabled' : ''} title="Tưới nước +8pts">💧 Tưới</button>
+            <button class="pet-care-btn" data-action="fertilizer" ${!pet.alive ? 'disabled' : ''} title="Bón phân +15pts">🌿 Bón</button>
           `}
         </div>
         ${!pet.alive ? `<div class="pet-dead-overlay"><div style="font-size:36px">😢</div><div class="pet-dead-text">Đã mất do không được chăm sóc</div></div>` : ''}
       `;
+
+      // Click on emoji for interactions
+      const emojiEl = card.querySelector('.pet-emoji');
+      emojiEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!pet.alive) return;
+
+        if (category === 'plant') {
+          // Plants: drop particles
+          createDropParticles(emojiEl, pet.type);
+        } else {
+          // Animals: show dialogue + mood change
+          const moods = ['happy','love','excited'];
+          setPetMood(card, pet.type, moods[Math.floor(Math.random() * moods.length)]);
+          showPetDialogue(card, pet.type, 'idle');
+        }
+      });
+
+      // Visibility toggle handler
+      card.querySelector('.pet-visibility-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentHidden = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
+        const idx = currentHidden.indexOf(pet._id);
+        if (idx > -1) {
+          currentHidden.splice(idx, 1);
+        } else {
+          currentHidden.push(pet._id);
+        }
+        localStorage.setItem('hiddenPetIds', JSON.stringify(currentHidden));
+        loadMyPets();
+        refreshFloatingPets();
+      });
 
       // Care button handlers
       card.querySelectorAll('.pet-care-btn').forEach(btn => {
@@ -2296,19 +2738,43 @@ async function loadMyPets() {
           const action = btn.dataset.action;
           try {
             const res = await apiShop.care(pet._id, action);
-            _shopData.food = res.inventory.food;
-            _shopData.water = res.inventory.water;
-            _shopData.fertilizer = res.inventory.fertilizer;
+            Object.assign(_shopData, res.inventory);
             updateInventoryUI();
-            const actionNames = { food:'Đã cho ăn', water:'Đã cho uống', fertilizer:'Đã bón phân' };
+
+            const FOOD_ACTIONS = ['food','meat','fish','seed','treat'];
+            // Feeding animation
+            if (category === 'animal') {
+              card.classList.add('pet-feeding');
+              createFeedHearts(emojiEl);
+              setPetMood(card, pet.type, 'eating');
+              showPetDialogue(card, pet.type, FOOD_ACTIONS.includes(action) ? 'feed' : 'water');
+              setTimeout(() => card.classList.remove('pet-feeding'), 1500);
+            } else {
+              // Plant care: drop effect
+              createDropParticles(emojiEl, pet.type);
+            }
+
+            const actionNames = { food:'Đã cho ăn 🥕', meat:'Đã cho ăn thịt 🥩', fish:'Đã cho ăn cá 🐟', seed:'Đã cho ăn hạt 🌻', treat:'Đã cho bánh 🍪', water:'Đã cho uống 💧', fertilizer:'Đã bón phân 🌿' };
             toast(`${actionNames[action]} (+${res.pointsGain} pts cho pet)`);
-            await loadMyPets();
+            setTimeout(() => loadMyPets(), 1800);
           } catch(e) { toast('❌ ' + (e.message || 'Hết vật phẩm!')); }
         });
       });
 
       grid.appendChild(card);
     });
+
+    // Random idle dialogues for animals
+    if (!window._petDialogueInterval) {
+      window._petDialogueInterval = setInterval(() => {
+        const animalCards = document.querySelectorAll('.pet-card[data-category="animal"]:not(.pet-dead)');
+        if (animalCards.length > 0) {
+          const randomCard = animalCards[Math.floor(Math.random() * animalCards.length)];
+          const petType = randomCard.getAttribute('data-pet-type');
+          showPetDialogue(randomCard, petType, 'idle');
+        }
+      }, 8000);
+    }
   } catch(e) { console.error('loadMyPets:', e); }
 }
 
@@ -2380,7 +2846,160 @@ async function loadInitialPoints() {
     const data = await apiShop.points();
     _shopData = { ...data };
     updatePointsUI(data.points);
+    updateInventoryUI();
   } catch(e) {}
+}
+
+// ═══════════════════════════════════════════
+// FLOATING PETS SYSTEM (visible on all pages)
+// ═══════════════════════════════════════════
+
+let _floatingPetsLoaded = false;
+const _floatingPetPositions = {};
+
+async function loadFloatingPets() {
+  const container = document.getElementById('floating-pets-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  try {
+    const pets = await apiShop.pets();
+    const hiddenIds = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
+    const visiblePets = pets.filter(p => p.alive && !hiddenIds.includes(p._id));
+
+    if (!visiblePets.length) return;
+
+    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+
+    visiblePets.forEach((pet, i) => {
+      const el = document.createElement('div');
+      const category = isAnimal(pet.type) ? 'animal' : 'plant';
+      el.className = 'floating-pet';
+      el.setAttribute('data-category', category);
+      el.setAttribute('data-pet-type', pet.type);
+      el.setAttribute('data-pet-id', pet._id);
+      el.textContent = pet.emoji;
+
+      // Restore saved position or set default
+      const savedPos = _floatingPetPositions[pet._id];
+      if (savedPos) {
+        el.style.left = savedPos.x + 'px';
+        el.style.top = savedPos.y + 'px';
+      } else {
+        const margin = 60;
+        const maxX = window.innerWidth - margin;
+        const maxY = window.innerHeight - margin;
+        el.style.left = (margin + Math.random() * (maxX - margin)) + 'px';
+        el.style.top = (maxY - 100 - Math.random() * 200) + 'px';
+      }
+
+      // Stagger animations
+      el.style.animationDelay = (i * 0.3) + 's';
+
+      // Animals walk randomly, plants stay put (user can drag plants)
+      if (category === 'animal') {
+        let walkInterval;
+        const startWalking = () => {
+          walkInterval = setInterval(() => {
+            if (el._isDragging) return;
+            const margin = 50;
+            const newX = margin + Math.random() * (window.innerWidth - margin * 2);
+            const newY = (window.innerHeight * 0.5) + Math.random() * (window.innerHeight * 0.4);
+            // Determine direction
+            const curX = el.offsetLeft;
+            if (newX < curX) el.classList.add('walking-left');
+            else el.classList.remove('walking-left');
+            el.classList.add('walking');
+            el.style.left = newX + 'px';
+            el.style.top = newY + 'px';
+            setTimeout(() => el.classList.remove('walking'), 3000);
+          }, 5000 + Math.random() * 5000);
+        };
+        startWalking();
+        el._walkInterval = walkInterval;
+      }
+
+      // Drag to reposition
+      let isDragging = false, dragX, dragY, startX, startY;
+      el.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        el._isDragging = true;
+        dragX = e.clientX - el.offsetLeft;
+        dragY = e.clientY - el.offsetTop;
+        startX = e.clientX;
+        startY = e.clientY;
+        el.style.animation = 'none';
+        el.style.transition = 'none';
+        el.style.zIndex = '60';
+        el.classList.remove('walking');
+        el.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const x = Math.max(0, Math.min(window.innerWidth - 40, e.clientX - dragX));
+        const y = Math.max(0, Math.min(window.innerHeight - 40, e.clientY - dragY));
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+      });
+      el.addEventListener('pointerup', (e) => {
+        if (!isDragging) return;
+        isDragging = false;
+        el._isDragging = false;
+        el.style.zIndex = '';
+        el.style.animation = '';
+        el.style.transition = category === 'animal' ? 'left 3s linear, top 3s linear' : '';
+        // Save position
+        _floatingPetPositions[pet._id] = { x: el.offsetLeft, y: el.offsetTop };
+
+        // If barely moved = click
+        const dist = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
+        if (dist < 8) {
+          if (category === 'plant') {
+            // Drop particles from plant
+            const config = PLANT_DROP_CONFIG[pet.type] || { items: ['🍃','🌿'], special: '🍃' };
+            for (let j = 0; j < 6; j++) {
+              const p = document.createElement('div');
+              p.className = 'floating-drop';
+              p.textContent = Math.random() < 0.3 ? config.special : config.items[Math.floor(Math.random() * config.items.length)];
+              p.style.left = el.offsetLeft + 'px';
+              p.style.top = el.offsetTop + 'px';
+              p.style.setProperty('--dx', ((Math.random() - 0.5) * 80) + 'px');
+              p.style.setProperty('--rot', ((Math.random() - 0.5) * 600) + 'deg');
+              p.style.animationDelay = (Math.random() * 0.2) + 's';
+              container.appendChild(p);
+              setTimeout(() => p.remove(), 1500);
+            }
+          } else {
+            // Show dialogue for animals
+            let bubble = el.querySelector('.floating-dialogue');
+            if (!bubble) {
+              bubble = document.createElement('div');
+              bubble.className = 'floating-dialogue';
+              el.appendChild(bubble);
+            }
+            const dialogues = PET_DIALOGUES[pet.type];
+            if (dialogues) {
+              const msgs = dialogues.idle;
+              bubble.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+              bubble.classList.add('show');
+              clearTimeout(bubble._timer);
+              bubble._timer = setTimeout(() => bubble.classList.remove('show'), 3000);
+            }
+          }
+        }
+      });
+
+      container.appendChild(el);
+    });
+
+    _floatingPetsLoaded = true;
+  } catch(e) { /* not logged in yet */ }
+}
+
+// Reload floating pets when visibility changes
+function refreshFloatingPets() {
+  loadFloatingPets();
 }
 
 // ── Hook into navigateTo for shop/profile pages ──

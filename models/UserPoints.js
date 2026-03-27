@@ -9,6 +9,10 @@ const userPointsSchema = new mongoose.Schema({
   freezeActiveUntil: { type: Date, default: null },   // current freeze expiry
   // Inventory items
   food:       { type: Number, default: 0 },
+  meat:       { type: Number, default: 0 },
+  fish:       { type: Number, default: 0 },
+  seed:       { type: Number, default: 0 },
+  treat:      { type: Number, default: 0 },
   water:      { type: Number, default: 0 },
   fertilizer: { type: Number, default: 0 },
   // Badges earned

@@ -26,6 +26,9 @@
   </nav>
 
   <div class="header-right">
+    <div class="header-freeze-badge" id="header-freeze-badge" style="display:none" title="Streak Freeze đang hoạt động">
+      <span>❄️</span><span id="header-freeze-timer"></span>
+    </div>
     <div class="header-points-badge" id="header-points-badge" title="Điểm của bạn">
       <span>⭐</span><span id="header-points-val">0</span>
     </div>
@@ -244,9 +247,27 @@
       <div id="heatmap-grid"></div>
     </div>
 
+    <!-- Monthly task chart -->
+    <div class="charts-row" style="margin-top:14px">
+      <div class="chart-panel">
+        <div class="chart-panel-header"><div class="chart-panel-title">📅 Thống kê tháng này</div><div class="chart-panel-sub" id="chart-month-label"></div></div>
+        <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-monthly"></canvas></div>
+      </div>
+      <div class="chart-panel">
+        <div class="chart-panel-header"><div class="chart-panel-title">📅 Tháng trước</div><div class="chart-panel-sub" id="chart-prevmonth-label"></div></div>
+        <div class="chart-canvas-wrap" style="height:200px"><canvas id="chart-prevmonthly"></canvas></div>
+      </div>
+    </div>
+
     <div class="top-tasks-panel">
       <div class="top-tasks-header"><div class="top-tasks-header-title">🏆 Công việc xuất hiện nhiều nhất</div></div>
       <div id="top-tasks-body"></div>
+    </div>
+
+    <!-- Weekly emotion stats -->
+    <div class="chart-panel" style="margin-top:14px">
+      <div class="chart-panel-header"><div class="chart-panel-title">💭 Cảm xúc tuần qua</div><div class="chart-panel-sub">Từ nhật ký của bạn</div></div>
+      <div id="emotion-week-wrap" style="padding:16px 20px;min-height:80px;"></div>
     </div>
 
     <!-- Habits stats -->
@@ -310,7 +331,11 @@
           <span class="spb-label">điểm</span>
         </div>
         <div class="shop-inventory-pills">
-          <span class="inv-pill" title="Thức ăn">🥕 <b id="inv-food">0</b></span>
+          <span class="inv-pill" title="Cà rốt">🥕 <b id="inv-food">0</b></span>
+          <span class="inv-pill" title="Thịt tươi">🥩 <b id="inv-meat">0</b></span>
+          <span class="inv-pill" title="Cá hồi">🐟 <b id="inv-fish">0</b></span>
+          <span class="inv-pill" title="Hạt giống">🌻 <b id="inv-seed">0</b></span>
+          <span class="inv-pill" title="Bánh thưởng">🍪 <b id="inv-treat">0</b></span>
           <span class="inv-pill" title="Nước">💧 <b id="inv-water">0</b></span>
           <span class="inv-pill" title="Phân bón">🌿 <b id="inv-fert">0</b></span>
           <span class="inv-pill" title="Streak Freeze">❄️ <b id="inv-freeze">0</b></span>
@@ -393,6 +418,7 @@
     <!-- My Pets -->
     <div class="profile-section-block">
       <div class="psb-title">🐾 Thú cưng & Cây cối của tôi</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Nhấn vào thú cưng để nghe chúng nói · Nhấn vào cây để thấy hiệu ứng rụng · Nhấn 👁️ để ẩn/hiện</div>
       <div class="my-pets-grid" id="my-pets-grid">
         <div class="my-pets-empty" id="my-pets-empty">
           <div style="font-size:32px;margin-bottom:8px">🐾</div>
@@ -540,6 +566,18 @@
       <button class="ahf-cancel" id="ahf-cancel">Huỷ</button>
       <button class="ahf-save" id="ahf-save">Lưu</button>
     </div>
+  </div>
+</div>
+
+<!-- Floating pets container (visible on all pages) -->
+<div id="floating-pets-container"></div>
+
+<!-- Motivational quote overlay -->
+<div class="motivation-overlay" id="motivation-overlay">
+  <div class="motivation-card">
+    <div class="motivation-emoji" id="motivation-emoji"></div>
+    <div class="motivation-text" id="motivation-text"></div>
+    <div class="motivation-author" id="motivation-author"></div>
   </div>
 </div>
 
