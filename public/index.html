@@ -270,6 +270,13 @@
       <div id="emotion-week-wrap" style="padding:16px 20px;min-height:80px;"></div>
     </div>
 
+    <!-- Monthly emotion chart -->
+    <div class="chart-panel" style="margin-top:14px">
+      <div class="chart-panel-header"><div class="chart-panel-title">💖 Cảm xúc tháng qua</div><div class="chart-panel-sub" id="emotion-month-label">30 ngày gần nhất</div></div>
+      <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-emotion-month"></canvas></div>
+      <div id="emotion-month-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
+    </div>
+
     <!-- Habits stats -->
     <div style="margin-top:28px">
       <div class="section-header" style="margin-bottom:14px">
@@ -415,6 +422,12 @@
       </div>
     </div>
 
+    <!-- Streak Freeze -->
+    <div class="profile-section-block">
+      <div class="psb-title">❄️ Streak Freeze</div>
+      <div id="profile-freeze-wrap" style="padding:4px 0;"></div>
+    </div>
+
     <!-- My Pets -->
     <div class="profile-section-block">
       <div class="psb-title">🐾 Thú cưng & Cây cối của tôi</div>
@@ -453,6 +466,13 @@
         <button class="modal-close" id="goal-modal-close">✕</button>
       </div>
       <div class="modal-body">
+        <!-- Template picker -->
+        <div class="gts-section">
+          <div class="gts-label">⚡ Chọn nhanh mục tiêu mẫu</div>
+          <div class="gts-grid" id="goal-templates-grid"></div>
+        </div>
+        <div class="gts-divider"><span>hoặc tự tạo</span></div>
+
         <div class="modal-field">
           <label class="modal-label">Tên mục tiêu</label>
           <input class="modal-input" id="goal-title" placeholder="VD: Học TOEIC 30 ngày..." maxlength="60"/>
@@ -571,6 +591,18 @@
 
 <!-- Floating pets container (visible on all pages) -->
 <div id="floating-pets-container"></div>
+
+<!-- Global inventory shelf (drag-and-drop feed) -->
+<div id="inv-shelf-wrap">
+  <div id="inv-shelf-panel">
+    <div class="isf-header">
+      <span class="isf-title">🎒 Kho vật phẩm</span>
+      <span class="isf-hint">Nhấn chọn rồi nhấn vào thú cưng để cho ăn</span>
+    </div>
+    <div id="inv-shelf-items" class="isf-grid"></div>
+  </div>
+  <button id="inv-shelf-btn" title="Kho vật phẩm">🎒</button>
+</div>
 
 <!-- Motivational quote overlay -->
 <div class="motivation-overlay" id="motivation-overlay">

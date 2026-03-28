@@ -14,6 +14,15 @@ async function awardPts(userId, amount) {
   return up.points;
 }
 
+async function deductPts(userId, amount) {
+  let up = await UserPoints.findOne({ userId });
+  if (!up) return 0;
+  up.points = Math.max(0, up.points - amount);
+  up.updatedAt = new Date();
+  await up.save();
+  return up.points;
+}
+
 // GET all active goals
 router.get('/', async (req, res) => {
   try {
@@ -94,12 +103,15 @@ router.patch('/:id/day/:dayIndex/toggle', async (req, res) => {
     day.done = !day.done;
     if(day.done) day.missedAt = null;
     await goal.save();
-    let pointsAwarded = 0;
+    let pointsAwarded = 0, pointsDeducted = 0;
     if (day.done) {
       await awardPts(req.userId, 8);
       pointsAwarded = 8;
+    } else {
+      await deductPts(req.userId, 8);
+      pointsDeducted = 8;
     }
-    res.json({ ...goal.toObject(), pointsAwarded });
+    res.json({ ...goal.toObject(), pointsAwarded, pointsDeducted });
   } catch(e){ res.status(400).json({ error: e.message }); }
 });
 

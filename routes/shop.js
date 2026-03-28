@@ -15,7 +15,7 @@ const SHOP_PETS = [
   { type:'bird',     name:'Chim Non',         emoji:'🐦', price:45,  category:'animal', desc:'Chim nhỏ hót vang, mang niềm vui mỗi ngày' },
   { type:'tree',     name:'Cây Kim Tiền',     emoji:'🌲', price:40,  category:'plant',  desc:'Hút tài lộc mạnh nhất, lá xanh dày thịnh vượng' },
   { type:'kim_ngan', name:'Cây Kim Ngân',     emoji:'🌳', price:50,  category:'plant',  desc:'Tượng trưng sự giàu có, đặt bàn làm việc chiêu tài' },
-  { type:'ngoc_bich',name:'Cây Ngọc Bích',    emoji:'💎', price:55,  category:'plant',  desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
+  { type:'ngoc_bich',name:'Cây Ngọc Bích',    emoji:'🪴', price:55,  category:'plant',  desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
   { type:'flower',   name:'Cây Phát Tài',     emoji:'🎋', price:45,  category:'plant',  desc:'Biểu tượng may mắn, phú quý, phát đạt' },
   { type:'van_loc',  name:'Cây Vạn Lộc',      emoji:'🌺', price:60,  category:'plant',  desc:'Lá hồng đỏ nổi bật, mang may mắn và thịnh vượng' },
   { type:'tree2',    name:'Cây Sen Đá',       emoji:'🌵', price:35,  category:'plant',  desc:'Sức khỏe dồi dào, bình an và trường thọ' },
@@ -44,7 +44,7 @@ const GROWTH_STAGES = {
   bird:     ['🥚','🐣','🐤','🐤','🐦','🐦','🐦','🐦','🐦','🐦'],
   tree:     ['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'],
   kim_ngan: ['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'],
-  ngoc_bich:['🌱','🌱','🌿','🌿','💎','💎','💎','💎','💎','💎'],
+  ngoc_bich:['🌱','🌱','🌿','🌿','🪴','🪴','🪴','🪴','🪴','🪴'],
   flower:   ['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'],
   van_loc:  ['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'],
   tree2:    ['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'],
@@ -229,9 +229,16 @@ router.post('/care', async (req, res) => {
     up[action] -= 1;
     await up.save();
 
-    // Apply care
+    // Apply care — favorite food gives +8 bonus pts
+    const FAVORITE_FOOD = {
+      rabbit:'food', cat:'fish', dog:'meat', hamster:'seed', bird:'seed',
+      tree:'fertilizer', kim_ngan:'fertilizer', ngoc_bich:'fertilizer',
+      flower:'fertilizer', van_loc:'fertilizer', tree2:'fertilizer',
+      flower2:'fertilizer', flower3:'fertilizer',
+    };
     const POINTS = { food:10, meat:18, fish:15, seed:12, treat:20, water:8, fertilizer:15 };
-    const pointsGain = POINTS[action] || 10;
+    const isFavorite = FAVORITE_FOOD[pet.type] === action;
+    const pointsGain = (POINTS[action] || 10) + (isFavorite ? 8 : 0);
     pet.totalPoints += pointsGain;
     pet.calcLevel();
     const now = new Date();
@@ -254,7 +261,7 @@ router.post('/care', async (req, res) => {
     res.json({
       pet: { ...pet.toObject(), emoji: stageEmoji },
       inventory: { food: up.food, meat: up.meat||0, fish: up.fish||0, seed: up.seed||0, treat: up.treat||0, water: up.water, fertilizer: up.fertilizer },
-      pointsGain
+      pointsGain, isFavorite
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });

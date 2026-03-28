@@ -14,6 +14,15 @@ async function awardPts(userId, amount) {
   return up.points;
 }
 
+async function deductPts(userId, amount) {
+  let up = await UserPoints.findOne({ userId });
+  if (!up) return 0;
+  up.points = Math.max(0, up.points - amount);
+  up.updatedAt = new Date();
+  await up.save();
+  return up.points;
+}
+
 router.get('/', async (req, res) => {
   try {
     const { startDate, endDate, date } = req.query;
@@ -40,14 +49,16 @@ router.patch('/:id/toggle', async (req, res) => {
     task.completed   = !task.completed;
     task.completedAt = task.completed ? new Date() : null;
     await task.save();
-    let pointsAwarded = 0;
+    const pts = [5, 5, 8, 12][task.priority] || 5;
+    let pointsAwarded = 0, pointsDeducted = 0;
     if (task.completed) {
-      // Points based on priority: 0=5, 1=5, 2=8, 3=12
-      const pts = [5, 5, 8, 12][task.priority] || 5;
       await awardPts(req.userId, pts);
       pointsAwarded = pts;
+    } else {
+      await deductPts(req.userId, pts);
+      pointsDeducted = pts;
     }
-    res.json({ ...task.toObject(), pointsAwarded });
+    res.json({ ...task.toObject(), pointsAwarded, pointsDeducted });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 

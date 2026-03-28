@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /c/Users/Admin/Downloads/Rabbit-Habbits/.claude/worktrees/happy-visvesvaraya -type f -name *view* -o -name *views*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(netstat -ano)",
+      "Bash(tasklist /FI 'PID eq 16848')",
+      "Bash(wmic process:*)",
+      "Bash(node -e \"require\\(''''./routes/shop.js''''\\)\")",
+      "Bash(node -c public/js/app.js)",
+      "Bash(node -c routes/shop.js)",
+      "Bash(node -c routes/tasks.js)",
+      "Bash(node -c routes/habits.js)",
+      "Bash(node -c models/Pet.js)",
+      "Bash(node -c models/UserPoints.js)",
+      "Bash(gh pr:*)"
+    ]
+  }
+}
