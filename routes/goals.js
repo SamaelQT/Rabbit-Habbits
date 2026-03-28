@@ -55,9 +55,10 @@ router.post('/', async (req, res) => {
     const totalDays  = parseInt(req.body.totalDays);
     const startDate  = String(req.body.startDate||'');
 
-    if(!title)                       return res.status(400).json({ error: 'Thiếu tên mục tiêu' });
-    if(!totalDays || totalDays < 1)  return res.status(400).json({ error: 'Số ngày không hợp lệ' });
-    if(!startDate)                   return res.status(400).json({ error: 'Thiếu ngày bắt đầu' });
+    if(!title)                              return res.status(400).json({ error: 'Thiếu tên mục tiêu' });
+    if(!totalDays || totalDays < 1)         return res.status(400).json({ error: 'Số ngày không hợp lệ' });
+    if(totalDays > 365)                     return res.status(400).json({ error: 'Mục tiêu tối đa 365 ngày' });
+    if(!startDate)                          return res.status(400).json({ error: 'Thiếu ngày bắt đầu' });
 
     // Generate day slots
     const dayTasksArr = Array.isArray(req.body.dayTasks) ? req.body.dayTasks : [];

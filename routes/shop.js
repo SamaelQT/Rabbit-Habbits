@@ -15,7 +15,7 @@ const SHOP_PETS = [
   { type:'bird',     name:'Chim Non',         emoji:'🐦', price:45,  category:'animal', desc:'Chim nhỏ hót vang, mang niềm vui mỗi ngày' },
   { type:'tree',     name:'Cây Kim Tiền',     emoji:'🌲', price:40,  category:'plant',  desc:'Hút tài lộc mạnh nhất, lá xanh dày thịnh vượng' },
   { type:'kim_ngan', name:'Cây Kim Ngân',     emoji:'🌳', price:50,  category:'plant',  desc:'Tượng trưng sự giàu có, đặt bàn làm việc chiêu tài' },
-  { type:'ngoc_bich',name:'Cây Ngọc Bích',    emoji:'🪴', price:55,  category:'plant',  desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
+  { type:'ngoc_bich',name:'Cây Ngọc Bích',    emoji:'🎍', price:55,  category:'plant',  desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
   { type:'flower',   name:'Cây Phát Tài',     emoji:'🎋', price:45,  category:'plant',  desc:'Biểu tượng may mắn, phú quý, phát đạt' },
   { type:'van_loc',  name:'Cây Vạn Lộc',      emoji:'🌺', price:60,  category:'plant',  desc:'Lá hồng đỏ nổi bật, mang may mắn và thịnh vượng' },
   { type:'tree2',    name:'Cây Sen Đá',       emoji:'🌵', price:35,  category:'plant',  desc:'Sức khỏe dồi dào, bình an và trường thọ' },
@@ -44,7 +44,7 @@ const GROWTH_STAGES = {
   bird:     ['🥚','🐣','🐤','🐤','🐦','🐦','🐦','🐦','🐦','🐦'],
   tree:     ['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'],
   kim_ngan: ['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'],
-  ngoc_bich:['🌱','🌱','🌿','🌿','🪴','🪴','🪴','🪴','🪴','🪴'],
+  ngoc_bich:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'],
   flower:   ['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'],
   van_loc:  ['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'],
   tree2:    ['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'],
@@ -120,7 +120,9 @@ router.post('/buy-pet', async (req, res) => {
 // POST /api/shop/buy-item  { itemId, qty }
 router.post('/buy-item', async (req, res) => {
   try {
-    const { itemId, qty = 1 } = req.body;
+    const { itemId } = req.body;
+    const qty = parseInt(req.body.qty) || 1;
+    if (qty < 1 || qty > 99) return res.status(400).json({ error: 'Số lượng không hợp lệ' });
     const catalog = SHOP_ITEMS.find(i => i.id === itemId);
     if (!catalog) return res.status(400).json({ error: 'Vật phẩm không hợp lệ' });
 

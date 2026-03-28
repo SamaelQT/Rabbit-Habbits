@@ -13,7 +13,8 @@
       "Bash(node -c routes/habits.js)",
       "Bash(node -c models/Pet.js)",
       "Bash(node -c models/UserPoints.js)",
-      "Bash(gh pr:*)"
+      "Bash(gh pr:*)",
+      "Bash(grep -n \"if\\(.*length\\\\s*==\\\\s*0\\\\|if\\(.*===.*0\\\\|if\\(.*empty\" /c/xampp/htdocs/Rabbit-Habbits/routes/*.js)"
     ]
   }
 }

@@ -469,6 +469,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .hms-item b{color:var(--text);font-weight:700;}
 .hms-sep{color:var(--border);}
 .hms-rate b{font-weight:700;}
+.hms-empty{color:var(--text3);font-style:italic;width:100%;text-align:center;}
 
 /* ─── TOP TASKS — card layout ─── */
 .top-tasks-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:6px;}
@@ -568,6 +569,32 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* Remove old grid-based streak styles */
 .streak-bar-wrap,.streak-bar-track,.streak-bar-fill,.streak-num{display:none;}
+
+/* Streak flame animations */
+.streak-flame-hot{
+  display:inline-block;
+  animation:flameWiggle 0.8s ease-in-out infinite alternate;
+}
+.streak-flame-epic{
+  display:inline-block;
+  animation:flameWiggle 0.5s ease-in-out infinite alternate, flamePulse 1s ease-in-out infinite;
+}
+@keyframes flameWiggle{
+  0%{transform:rotate(-4deg) scale(1);}
+  100%{transform:rotate(4deg) scale(1.08);}
+}
+@keyframes flamePulse{
+  0%,100%{filter:brightness(1.2) drop-shadow(0 0 4px rgba(255,120,0,.5));}
+  50%{filter:brightness(1.6) drop-shadow(0 0 10px rgba(255,60,0,.8));}
+}
+.streak-milestone{
+  display:inline-block;margin-left:4px;
+  font-size:10px;font-weight:700;
+  padding:1px 5px;border-radius:6px;
+  background:rgba(255,150,0,.15);color:#ffaa44;
+  border:1px solid rgba(255,150,0,.3);
+  vertical-align:middle;
+}
 
 /* ─── HABITS STATS CHARTS ─── */
 .habits-charts-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
@@ -917,13 +944,22 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* Empty state */
 .goals-empty{
-  text-align:center;padding:40px 20px;
-  background:var(--bg2);border:1px dashed var(--border2);
-  border-radius:var(--radius);
+  text-align:center;padding:48px 24px;
+  background:linear-gradient(135deg,var(--bg2),var(--bg3));
+  border:1.5px dashed var(--border2);border-radius:var(--radius);
+  animation:goalEmptyPulse 3s ease-in-out infinite;
 }
-.goals-empty-icon{font-size:36px;margin-bottom:10px;}
-.goals-empty-text{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:4px;}
-.goals-empty-sub{font-size:12px;color:var(--text3);}
+@keyframes goalEmptyPulse{
+  0%,100%{border-color:var(--border2);}
+  50%{border-color:var(--accent);}
+}
+.goals-empty-icon{font-size:48px;margin-bottom:12px;display:block;animation:goalEmptyBounce 2s ease-in-out infinite;}
+@keyframes goalEmptyBounce{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-6px);}
+}
+.goals-empty-text{font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.goals-empty-sub{font-size:13px;color:var(--text3);line-height:1.5;}
 
 /* Modal overlay */
 .modal-overlay{
@@ -1360,6 +1396,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   cursor:pointer;transition:all .2s;
 }
 .header-points-badge:hover{background:rgba(255,207,92,.2);transform:scale(1.05);}
+.header-points-badge.pts-bump{animation:ptsBump .4s cubic-bezier(.36,.07,.19,.97);}
+@keyframes ptsBump{
+  0%{transform:scale(1);}
+  30%{transform:scale(1.22);}
+  60%{transform:scale(.95);}
+  100%{transform:scale(1);}
+}
 
 /* ═══ SHOP PAGE ═══ */
 .shop-points-bar{
@@ -1789,7 +1832,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 ═══════════════════════════════════════════ */
 #inv-shelf-wrap{
   position:fixed;bottom:20px;left:20px;z-index:200;
-  display:flex;flex-direction:column;align-items:flex-start;gap:10px;
+  /* Only sized to the button — panel is absolute so it doesn't block layout */
+  pointer-events:none;
 }
 #inv-shelf-btn{
   width:56px;height:56px;border-radius:50%;
@@ -1797,13 +1841,16 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   color:#fff;font-size:26px;border:none;cursor:pointer;
   box-shadow:0 4px 18px rgba(176,127,255,.55),0 2px 6px rgba(0,0,0,.2);
   transition:transform .22s,box-shadow .22s;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:auto;position:relative;z-index:1;
 }
 #inv-shelf-btn:hover{transform:scale(1.12);box-shadow:0 6px 22px rgba(176,127,255,.65);}
 #inv-shelf-btn.open{background:linear-gradient(135deg,#ff6b8a,#b07fff);transform:scale(1.06) rotate(12deg);}
 #inv-shelf-panel{
   background:var(--bg2);border:1.5px solid var(--border);border-radius:18px;
   padding:14px 16px;min-width:290px;max-width:340px;
+  /* Absolute so it floats above content without blocking clicks when closed */
+  position:absolute;bottom:calc(100% + 10px);left:0;
   transform:scale(.82) translateY(14px);transform-origin:bottom left;
   opacity:0;pointer-events:none;
   transition:all .3s cubic-bezier(.34,1.56,.64,1);

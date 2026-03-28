@@ -439,7 +439,11 @@ function mkTaskItem(task){
 
 async function addTask(ds,inp,prio=0){
   const title=inp.value.trim(); if(!title) return;
+  if(inp.dataset.busy) return; inp.dataset.busy='1';
   inp.value='';
+  const btn=inp.closest('.add-task-area')?.querySelector('.add-task-btn');
+  if(btn){ btn.disabled=true; btn.style.opacity='.5'; }
+  try {
   const task=await apiTasks.add(title,ds,prio);
   if(!state.tasks[ds]) state.tasks[ds]=[];
   state.tasks[ds].push(task);
@@ -449,6 +453,10 @@ async function addTask(ds,inp,prio=0){
   list.querySelector('.empty-state')?.remove();
   list.innerHTML=''; state.tasks[ds].forEach(t=>list.appendChild(mkTaskItem(t)));
   refreshDonut(ds); renderCalendar(); toast('✓ Đã thêm task');
+  } finally {
+    delete inp.dataset.busy;
+    if(btn){ btn.disabled=false; btn.style.opacity=''; }
+  }
 }
 async function toggleTask(id,itemEl){
   const task=await apiTasks.toggle(id);
@@ -760,7 +768,9 @@ function streakFlames(n) {
   // 1-3: 🔥, 4-7: 🔥🔥, 8-14: 🔥🔥🔥, 15-21: 🔥🔥🔥🔥, 22-30: 🔥🔥🔥🔥🔥, 31: 🔥🔥🔥🔥🔥🔥
   const flames = n >= 31 ? 6 : n >= 22 ? 5 : n >= 15 ? 4 : n >= 8 ? 3 : n >= 4 ? 2 : 1;
   const size = Math.min(20, 12 + Math.floor(n / 5) * 2);
-  return `<span style="font-size:${size}px;filter:brightness(${1 + n/40})" title="${n} ngày streak">${'🔥'.repeat(flames)}</span>`;
+  const animClass = n >= 30 ? 'streak-flame-epic' : n >= 7 ? 'streak-flame-hot' : '';
+  const badge = n >= 30 ? ` <span class="streak-milestone">🏆 ${n} ngày!</span>` : n >= 7 ? ` <span class="streak-milestone">${n}🔥</span>` : '';
+  return `<span class="${animClass}" style="font-size:${size}px;filter:brightness(${1 + n/40})" title="${n} ngày streak">${'🔥'.repeat(flames)}</span>${badge}`;
 }
 
 // Build the big horizontal fire streak bar
@@ -1073,15 +1083,19 @@ async function _buildHeatmap(){
   const rate = totalTasks > 0 ? Math.round(totalDone / totalTasks * 100) : 0;
   const summary = document.createElement('div');
   summary.className = 'hm-summary';
-  summary.innerHTML = `
-    <span class="hms-item">📅 <b>${WEEKS * 7}</b> ngày</span>
-    <span class="hms-sep">·</span>
-    <span class="hms-item">⚡ <b>${activeDays}</b> ngày hoạt động</span>
-    <span class="hms-sep">·</span>
-    <span class="hms-item">✅ <b>${totalDone}</b>/<b>${totalTasks}</b> tasks</span>
-    <span class="hms-sep">·</span>
-    <span class="hms-item hms-rate" style="color:${rate>=80?'var(--green)':rate>=50?'var(--accent)':'var(--text3)'}"><b>${rate}%</b> hoàn thành</span>
-  `;
+  if(totalTasks === 0){
+    summary.innerHTML = `<span class="hms-item hms-empty">🌱 Chưa có task nào trong 3 tháng qua — hãy bắt đầu ngay hôm nay!</span>`;
+  } else {
+    summary.innerHTML = `
+      <span class="hms-item">📅 <b>${WEEKS * 7}</b> ngày</span>
+      <span class="hms-sep">·</span>
+      <span class="hms-item">⚡ <b>${activeDays}</b> ngày hoạt động</span>
+      <span class="hms-sep">·</span>
+      <span class="hms-item">✅ <b>${totalDone}</b>/<b>${totalTasks}</b> tasks</span>
+      <span class="hms-sep">·</span>
+      <span class="hms-item hms-rate" style="color:${rate>=80?'var(--green)':rate>=50?'var(--accent)':'var(--text3)'}"><b>${rate}%</b> hoàn thành</span>
+    `;
+  }
   frag.appendChild(summary);
 
   // Single DOM write
@@ -1429,13 +1443,20 @@ async function initJournal(){
   });
 
   // Save
-  document.getElementById('jp-save-btn').addEventListener('click', async()=>{
+  document.getElementById('jp-save-btn').addEventListener('click', async(e)=>{
+    const btn = e.currentTarget;
+    if(btn.dataset.busy) return;
     const mood    = document.querySelector('.jp-mood-btn.active')?.dataset.mood||'';
     const content = document.getElementById('jp-textarea').value.trim();
     if(!mood){ toast('Chọn tâm trạng trước nhé!'); return; }
-    await apiJournal.save(dateStr, mood, content);
-    showJournalSaved(mood, content);
-    toast('✍️ Đã lưu nhật ký!');
+    btn.dataset.busy='1'; btn.disabled=true; btn.textContent='Đang lưu...';
+    try {
+      await apiJournal.save(dateStr, mood, content);
+      showJournalSaved(mood, content);
+      toast('✍️ Đã lưu nhật ký!');
+    } finally {
+      delete btn.dataset.busy; btn.disabled=false; btn.textContent='Lưu ✓';
+    }
   });
 
   // Edit
@@ -2459,12 +2480,22 @@ const apiShop = {
 let _shopInited = false;
 let _shopData = { points:0, food:0, meat:0, fish:0, seed:0, treat:0, water:0, fertilizer:0, streakFreezes:0, badges:[] };
 
-// Update points display everywhere
+// Update points display everywhere — animates the badge on change
 function updatePointsUI(pts) {
   if (pts !== undefined) _shopData.points = pts;
   const hdr = document.getElementById('header-points-val');
   const shop = document.getElementById('shop-points-value');
-  if (hdr) hdr.textContent = _shopData.points;
+  if (hdr) {
+    if (hdr.textContent !== String(_shopData.points)) {
+      hdr.textContent = _shopData.points;
+      const badge = document.getElementById('header-points-badge');
+      if (badge) {
+        badge.classList.remove('pts-bump');
+        void badge.offsetWidth; // reflow to restart animation
+        badge.classList.add('pts-bump');
+      }
+    }
+  }
   if (shop) shop.textContent = _shopData.points;
 }
 
@@ -2607,7 +2638,7 @@ const SHOP_FEATURES = {
   bird:    '🐦 Chim Non bay lượn trên màn hình. Cho ăn hạt, bánh. Nhấn để nghe chim hót!',
   tree:    '🌲 Cây Kim Tiền hút tài lộc. Nhấn vào để thấy tiền vàng rụng xuống! Tưới nước & bón phân hàng ngày.',
   kim_ngan:'🌳 Cây Kim Ngân tượng trưng giàu có. Nhấn vào thấy vàng bạc rơi! Tưới nước & bón phân.',
-  ngoc_bich:'🪴 Cây Ngọc Bích mang lại hòa hợp. Nhấn thấy ngọc quý rụng! Tưới nước & bón phân.',
+  ngoc_bich:'🎍 Cây Ngọc Bích mang lại hòa hợp. Nhấn thấy ngọc quý rụng! Tưới nước & bón phân.',
   flower:  '🎋 Cây Phát Tài chiêu phú quý. Nhấn thấy may mắn tỏa sáng! Tưới nước & bón phân.',
   van_loc: '🌺 Cây Vạn Lộc mang thịnh vượng. Nhấn thấy hoa may mắn rơi! Tưới nước & bón phân.',
   tree2:   '🌵 Cây Sen Đá cho sức khỏe. Nhấn thấy trái tim & sức khỏe rụng! Tưới nước & bón phân.',
