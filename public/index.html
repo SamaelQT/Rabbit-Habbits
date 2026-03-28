@@ -127,16 +127,6 @@
       </div>
     </div>
 
-    <div class="jp-overlay" id="jp-overlay" style="display:none">
-      <div class="jp-overlay-card">
-        <button class="jp-overlay-close" id="jp-overlay-close">✕</button>
-        <div class="jp-overlay-mood" id="jp-overlay-mood"></div>
-        <div class="jp-overlay-date" id="jp-overlay-date"></div>
-        <div class="jp-overlay-content" id="jp-overlay-content"></div>
-        <div class="jp-overlay-meta" id="jp-overlay-meta"></div>
-      </div>
-    </div>
-
     </div><!-- /sidebar-scroll-inner -->
   </aside>
 
@@ -215,6 +205,17 @@
   </main>
 </div><!-- /app-wrapper -->
 </div><!-- /page-home -->
+
+<!-- Journal day overlay — must be OUTSIDE any transform ancestor -->
+<div class="jp-overlay" id="jp-overlay" style="display:none">
+  <div class="jp-overlay-card">
+    <button class="jp-overlay-close" id="jp-overlay-close">✕</button>
+    <div class="jp-overlay-mood" id="jp-overlay-mood"></div>
+    <div class="jp-overlay-date" id="jp-overlay-date"></div>
+    <div class="jp-overlay-content" id="jp-overlay-content"></div>
+    <div class="jp-overlay-meta" id="jp-overlay-meta"></div>
+  </div>
+</div>
 
 <!-- ──────────────────────────────────
      PAGE: STATS
