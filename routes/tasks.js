@@ -9,9 +9,9 @@ router.use(requireAuth);
 async function awardPts(userId, amount) {
   let up = await UserPoints.findOne({ userId });
   if (!up) up = new UserPoints({ userId });
-  up.addPoints(amount);
+  const levelResult = up.addPoints(amount);
   await up.save();
-  return up.points;
+  return { points: up.points, level: up.level, levelResult };
 }
 
 async function deductPts(userId, amount) {
@@ -50,15 +50,20 @@ router.patch('/:id/toggle', async (req, res) => {
     task.completedAt = task.completed ? new Date() : null;
     await task.save();
     const pts = [5, 5, 8, 12][task.priority] || 5;
-    let pointsAwarded = 0, pointsDeducted = 0;
+    let pointsAwarded = 0, pointsDeducted = 0, leveledUp = false, oldLevel = 0, newLevel = 0;
     if (task.completed) {
-      await awardPts(req.userId, pts);
+      const result = await awardPts(req.userId, pts);
       pointsAwarded = pts;
+      if (result.levelResult) {
+        leveledUp = result.levelResult.leveledUp;
+        oldLevel = result.levelResult.oldLevel;
+        newLevel = result.levelResult.newLevel;
+      }
     } else {
       await deductPts(req.userId, pts);
       pointsDeducted = pts;
     }
-    res.json({ ...task.toObject(), pointsAwarded, pointsDeducted });
+    res.json({ ...task.toObject(), pointsAwarded, pointsDeducted, leveledUp, oldLevel, newLevel });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 
@@ -164,6 +169,75 @@ router.get('/heatmap', async (req, res) => {
       if(t.completed) byDate[t.date].completed++;
     });
     res.json(byDate);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Weekly/monthly report summary
+router.get('/report', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const tasks = await Task.find({ userId: req.userId, date: { $gte: startDate, $lte: endDate } });
+    const total = tasks.length;
+    const completed = tasks.filter(t => t.completed).length;
+    const rate = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    // Streak within this period
+    const completedDates = [...new Set(tasks.filter(t => t.completed).map(t => t.date))].sort();
+    let maxStreak = 0, curStreak = 0;
+    for (let i = 0; i < completedDates.length; i++) {
+      if (i === 0) { curStreak = 1; }
+      else {
+        const prev = new Date(completedDates[i-1] + 'T00:00:00');
+        const curr = new Date(completedDates[i] + 'T00:00:00');
+        if (Math.round((curr - prev) / 86400000) === 1) curStreak++;
+        else curStreak = 1;
+      }
+      maxStreak = Math.max(maxStreak, curStreak);
+    }
+
+    // Points earned in period
+    const pointsEarned = tasks.filter(t => t.completed).reduce((sum, t) => {
+      return sum + ([5, 5, 8, 12][t.priority] || 5);
+    }, 0);
+
+    // By priority breakdown
+    const byPriority = [0, 0, 0, 0];
+    const byPriorityDone = [0, 0, 0, 0];
+    tasks.forEach(t => {
+      byPriority[t.priority || 0]++;
+      if (t.completed) byPriorityDone[t.priority || 0]++;
+    });
+
+    // Active days (days with at least 1 completed task)
+    const activeDays = completedDates.length;
+    // Total days in range
+    const rangeStart = new Date(startDate + 'T00:00:00');
+    const rangeEnd = new Date(endDate + 'T00:00:00');
+    const totalDays = Math.round((rangeEnd - rangeStart) / 86400000) + 1;
+
+    res.json({ total, completed, rate, maxStreak, pointsEarned, byPriority, byPriorityDone, activeDays, totalDays });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// Productive hours analysis — which hour of day user completes most tasks
+router.get('/productive-hours', async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const query = { userId: req.userId, completed: true, completedAt: { $ne: null } };
+    if (startDate && endDate) query.date = { $gte: startDate, $lte: endDate };
+    const tasks = await Task.find(query);
+    const byHour = new Array(24).fill(0);
+    tasks.forEach(t => {
+      if (t.completedAt) {
+        const h = new Date(t.completedAt).getHours();
+        byHour[h]++;
+      }
+    });
+    // Find peak hours (top 3)
+    const indexed = byHour.map((count, hour) => ({ hour, count }));
+    const sorted = [...indexed].sort((a, b) => b.count - a.count);
+    const peakHours = sorted.filter(h => h.count > 0).slice(0, 3);
+    res.json({ byHour, peakHours, totalCompleted: tasks.length });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

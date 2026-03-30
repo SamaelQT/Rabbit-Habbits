@@ -35,22 +35,209 @@ const SHOP_ITEMS = [
 
 const STREAK_FREEZE_PRICE = 100;
 
-// Pet growth stages
-const GROWTH_STAGES = {
-  rabbit:   ['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'],
-  cat:      ['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'],
-  dog:      ['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'],
-  hamster:  ['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'],
-  bird:     ['🥚','🐣','🐤','🐤','🐦','🐦','🐦','🐦','🐦','🐦'],
-  tree:     ['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'],
-  kim_ngan: ['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'],
-  ngoc_bich:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'],
-  flower:   ['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'],
-  van_loc:  ['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'],
-  tree2:    ['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'],
-  flower2:  ['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'],
-  flower3:  ['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'],
+// ── PET VARIANTS: 10 variants per species ──
+// Animals: each variant has unique name + emoji evolution chain
+// Plants: same emoji chain but different CSS hue-rotate tint
+const PET_VARIANTS = {
+  rabbit: [
+    { vname:'Thỏ Trắng Bông',     stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Nâu Sô-cô-la',   stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Xám Bạc',        stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Hồng Sakura',    stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Đốm Caramel',    stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Vàng Mật Ong',   stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Đen Huyền Bí',   stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Kem Vani',       stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Cam Sunset',     stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+    { vname:'Thỏ Tím Lavender',   stages:['🥚','🐣','🐰','🐰','🐇','🐇','🐇','🐇','🐇','🐇'] },
+  ],
+  cat: [
+    { vname:'Mèo Mướp Vàng',      stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Tam Thể',        stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Anh Lông Ngắn',  stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Ba Tư Trắng',    stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Xiêm Xanh',      stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Scottish Fold',   stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Ragdoll',        stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Munchkin',       stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Bengal Đốm',     stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+    { vname:'Mèo Maine Coon',     stages:['🥚','🐣','🐱','🐱','😺','😺','😸','😸','😸','😸'] },
+  ],
+  dog: [
+    { vname:'Cún Corgi',           stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Shiba Inu',       stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Husky',           stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Poodle',          stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Golden',          stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Pomeranian',      stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Dachshund',       stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Beagle',          stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Chihuahua',       stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+    { vname:'Cún Labrador',        stages:['🥚','🐣','🐶','🐶','🐕','🐕','🐕','🐕','🐕','🐕'] },
+  ],
+  hamster: [
+    { vname:'Hamster Vàng Mật',    stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Trắng Tuyết', stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Nâu Đậu',    stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Xám Bạc',    stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Cam Đào',     stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Kem Sữa',    stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Hồng Phấn',  stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Đốm Bò Sữa',stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Sọc Dưa',    stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+    { vname:'Hamster Tím Khoai',   stages:['🥚','🐣','🐹','🐹','🐹','🐹','🐹','🐹','🐹','🐹'] },
+  ],
+  bird: [
+    { vname:'Chim Sẻ Nâu',        stages:['🥚','🐣','🐤','🐤','🐦','🐦','🐦','🐦','🐦','🐦'] },
+    { vname:'Chim Vàng Anh',       stages:['🥚','🐣','🐤','🐤','🐦','🐦','🐦','🐦','🐦','🐦'] },
+    { vname:'Vẹt Xanh Lá',        stages:['🥚','🐣','🐤','🐤','🦜','🦜','🦜','🦜','🦜','🦜'] },
+    { vname:'Chim Cánh Cụt Mini',  stages:['🥚','🐣','🐤','🐤','🐧','🐧','🐧','🐧','🐧','🐧'] },
+    { vname:'Chim Cú Mèo',        stages:['🥚','🐣','🐤','🐤','🦉','🦉','🦉','🦉','🦉','🦉'] },
+    { vname:'Đại Bàng Con',       stages:['🥚','🐣','🐤','🐤','🦅','🦅','🦅','🦅','🦅','🦅'] },
+    { vname:'Thiên Nga Trắng',     stages:['🥚','🐣','🐤','🐤','🦢','🦢','🦢','🦢','🦢','🦢'] },
+    { vname:'Chim Hồng Hạc',      stages:['🥚','🐣','🐤','🐤','🦩','🦩','🦩','🦩','🦩','🦩'] },
+    { vname:'Vẹt Đuôi Dài',       stages:['🥚','🐣','🐤','🐤','🦜','🦜','🦜','🦜','🦜','🦜'] },
+    { vname:'Chim Bồ Câu',        stages:['🥚','🐣','🐤','🐤','🕊️','🕊️','🕊️','🕊️','🕊️','🕊️'] },
+  ],
+  // Plants: same emoji stages, differentiated by CSS hue-rotate tint
+  tree:     [
+    { vname:'Kim Tiền Xanh Lục',  stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Xanh Ngọc', stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Xanh Biển', stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Vàng Chanh',stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Xanh Mint', stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Hồng Nhạt', stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Cam Đào',   stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Tím Oải Hương',stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Xanh Olive',stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+    { vname:'Kim Tiền Vàng Nắng', stages:['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'] },
+  ],
+  kim_ngan: [
+    { vname:'Kim Ngân Xanh Lá',   stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Xanh Ngọc', stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Vàng Rực',  stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Hồng Phấn', stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Cam Ánh',   stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Tím Nhạt',  stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Xanh Mint', stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Vàng Chanh',stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Đỏ Hồng',  stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+    { vname:'Kim Ngân Xanh Biển', stages:['🌱','🌱','🌿','🌿','🌳','🌳','🌳','🌳','🌳','🌳'] },
+  ],
+  ngoc_bich: [
+    { vname:'Ngọc Bích Xanh Lá',  stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Xanh Ngọc',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Vàng Ánh', stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Hồng Nhạt',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Tím Oải',  stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Cam Đào',  stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Xanh Mint',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Vàng Chanh',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Đỏ San Hô',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+    { vname:'Ngọc Bích Xanh Biển',stages:['🌱','🌱','🌿','🌿','🎍','🎍','🎍','🎍','🎍','🎍'] },
+  ],
+  flower: [
+    { vname:'Phát Tài Xanh Lục',  stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Vàng Kim',   stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Hồng Phấn', stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Xanh Ngọc', stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Cam Sáng',  stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Tím Nhạt',  stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Xanh Mint', stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Vàng Chanh',stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Đỏ Hồng',  stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+    { vname:'Phát Tài Xanh Biển', stages:['🌱','🌱','🌿','🌿','🎋','🎋','🎋','🎋','🎋','🎋'] },
+  ],
+  van_loc: [
+    { vname:'Vạn Lộc Hồng Đỏ',   stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Cam Rực',    stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Vàng Nắng',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Hồng Phấn',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Tím Oải Hương',stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Xanh Ngọc',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Xanh Mint',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Đỏ San Hô',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Vàng Chanh',  stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Vạn Lộc Cam Đào',    stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+  ],
+  tree2: [
+    { vname:'Sen Đá Xanh Lá',     stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Hồng Phấn',   stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Tím Nhạt',    stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Xanh Ngọc',   stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Cam Đào',     stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Vàng Nắng',   stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Xanh Mint',   stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Hồng Đậm',    stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Vàng Chanh',  stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+    { vname:'Sen Đá Xanh Biển',   stages:['🌱','🌱','🌿','🌿','🌵','🌵','🌵','🌵','🌵','🌵'] },
+  ],
+  flower2: [
+    { vname:'Hoa Mai Vàng Rực',    stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Trắng',       stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Hồng',        stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Cam',          stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Đào',         stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Xanh Ngọc',   stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Tím Oải',     stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Vàng Chanh',  stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Đỏ Thắm',    stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+    { vname:'Hoa Mai Cam Sáng',    stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+  ],
+  flower3: [
+    { vname:'Hoa Lan Tím',         stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Hoa Lan Trắng Ngọc',  stages:['🌱','🌱','🌿','🌿','🌸','🌸','🌸','🌸','🌸','🌸'] },
+    { vname:'Hoa Lan Hồng Phấn',  stages:['🌱','🌱','🌿','🌿','🌷','🌷','🌷','🌷','🌷','🌷'] },
+    { vname:'Hoa Lan Vàng Kim',    stages:['🌱','🌱','🌿','🌿','🌻','🌻','🌻','🌻','🌻','🌻'] },
+    { vname:'Hoa Lan Đỏ Thắm',    stages:['🌱','🌱','🌿','🌿','🌹','🌹','🌹','🌹','🌹','🌹'] },
+    { vname:'Hoa Lan Xanh Ngọc',   stages:['🌱','🌱','🌿','🌿','💮','💮','💮','💮','💮','💮'] },
+    { vname:'Hoa Lan Cam Ánh',     stages:['🌱','🌱','🌿','🌿','🏵️','🏵️','🏵️','🏵️','🏵️','🏵️'] },
+    { vname:'Hoa Lan Hồng Đậm',   stages:['🌱','🌱','🌿','🌿','🌺','🌺','🌺','🌺','🌺','🌺'] },
+    { vname:'Hoa Lan Tím Oải',     stages:['🌱','🌱','🌿','🌿','🌸','🌸','🌸','🌸','🌸','🌸'] },
+    { vname:'Hoa Lan Vàng Chanh',  stages:['🌱','🌱','🌿','🌿','🌼','🌼','🌼','🌼','🌼','🌼'] },
+  ],
 };
+
+// CSS hue-rotate tints for plants (bright, cheerful colors only — no dark/brown)
+const PLANT_TINTS = {
+  tree:      [0, 140, 200, 60, 160, 320, 30, 270, 90, 45],
+  kim_ngan:  [0, 140, 45, 320, 30, 270, 160, 60, 340, 200],
+  ngoc_bich: [0, 140, 45, 320, 270, 30, 160, 60, 340, 200],
+  flower:    [0, 45, 320, 140, 30, 270, 160, 60, 340, 200],
+  van_loc:   [0, 30, 45, 320, 270, 140, 160, 340, 60, 25],
+  tree2:     [0, 320, 270, 140, 30, 45, 160, 340, 60, 200],
+  flower2:   [0, 0, 320, 30, 340, 140, 270, 60, 350, 25],
+  flower3:   [0, 0, 320, 45, 340, 140, 30, 0, 270, 60],
+};
+
+// Helper: get growth stages for a specific type+variant
+function getVariantStages(type, variant) {
+  const variants = PET_VARIANTS[type];
+  if (!variants) return ['🌱','🌱','🌿','🌿','🌲','🌲','🌲','🌲','🌲','🌲'];
+  const v = variants[variant] || variants[0];
+  return v.stages;
+}
+
+// Helper: get variant display name
+function getVariantName(type, variant) {
+  const variants = PET_VARIANTS[type];
+  if (!variants) return type;
+  const v = variants[variant] || variants[0];
+  return v.vname;
+}
+
+// Helper: get plant CSS hue tint (returns degrees or null for animals)
+function getPlantTint(type, variant) {
+  const tints = PLANT_TINTS[type];
+  if (!tints) return null;
+  return tints[variant] || 0;
+}
+
+// Legacy compat — used in places that don't pass variant yet
+const GROWTH_STAGES = {};
+Object.keys(PET_VARIANTS).forEach(type => {
+  GROWTH_STAGES[type] = PET_VARIANTS[type][0].stages;
+});
 
 // ── Get or create user points ──
 async function getUP(userId) {
@@ -65,9 +252,14 @@ async function getUP(userId) {
 router.get('/points', async (req, res) => {
   try {
     const up = await getUP(req.userId);
+    // Ensure level is calculated
+    up.calcLevel();
+    await up.save();
+
     res.json({
       points: up.points,
       totalEarned: up.totalEarned,
+      level: up.level || 1,
       food: up.food,
       meat: up.meat || 0,
       fish: up.fish || 0,
@@ -92,26 +284,46 @@ router.get('/catalog', (req, res) => {
 
 // ═══ BUY PET ═══
 
-// POST /api/shop/buy-pet  { type }
+// POST /api/shop/buy-pet  { type, name? }
 router.post('/buy-pet', async (req, res) => {
   try {
-    const { type } = req.body;
+    const { type, name } = req.body;
     const catalog = SHOP_PETS.find(p => p.type === type);
     if (!catalog) return res.status(400).json({ error: 'Loại pet không hợp lệ' });
+
+    // Find which variants the user already owns for this type
+    const ownedPets = await Pet.find({ userId: req.userId, type });
+    const ownedVariants = new Set(ownedPets.map(p => p.variant || 0));
+
+    // Build pool of unowned variants (0-9)
+    const available = [];
+    for (let v = 0; v < 10; v++) {
+      if (!ownedVariants.has(v)) available.push(v);
+    }
+
+    if (available.length === 0) {
+      return res.status(400).json({ error: 'Bạn đã sở hữu tất cả biến thể của loài này! Hãy chờ đợt cập nhật sau nhé 🐰' });
+    }
 
     const up = await getUP(req.userId);
     if (!up.spendPoints(catalog.price)) return res.status(400).json({ error: 'Không đủ điểm!' });
 
+    // Random pick from unowned pool
+    const variant = available[Math.floor(Math.random() * available.length)];
+    const stages = getVariantStages(type, variant);
+    const variantName = getVariantName(type, variant);
+
     const pet = new Pet({
       userId: req.userId,
       type: catalog.type,
-      name: catalog.name,
-      emoji: GROWTH_STAGES[type][0]
+      variant,
+      name: name || variantName,
+      emoji: stages[0]
     });
     await pet.save();
     await up.save();
 
-    res.json({ pet, points: up.points });
+    res.json({ pet, variantName, variant, points: up.points, remaining: available.length - 1 });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -183,17 +395,24 @@ router.get('/pets', async (req, res) => {
       if (health.alive !== pet.alive || pet.isModified()) {
         await pet.save();
       }
-      const stage = GROWTH_STAGES[pet.type] || [];
+      const variant = pet.variant || 0;
+      const stage = getVariantStages(pet.type, variant);
       const stageEmoji = stage[Math.min(pet.level - 1, stage.length - 1)] || pet.emoji;
+      const tint = getPlantTint(pet.type, variant);
+      const variantName = getVariantName(pet.type, variant);
       result.push({
         _id: pet._id,
         type: pet.type,
+        variant,
+        variantName,
         name: pet.name,
         emoji: stageEmoji,
         totalPoints: pet.totalPoints,
         level: pet.level,
         alive: pet.alive,
+        hidden: pet.hidden || false,
         warning: health.warning,
+        colorTint: tint,
         lastFedAt: pet.lastFedAt,
         lastWateredAt: pet.lastWateredAt,
         lastFertilized: pet.lastFertilized,
@@ -265,6 +484,19 @@ router.post('/care', async (req, res) => {
       inventory: { food: up.food, meat: up.meat||0, fish: up.fish||0, seed: up.seed||0, treat: up.treat||0, water: up.water, fertilizer: up.fertilizer },
       pointsGain, isFavorite
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ PET VISIBILITY ═══
+
+// PATCH /api/shop/pet/:id/visibility  { hidden: true|false }
+router.patch('/pet/:id/visibility', async (req, res) => {
+  try {
+    const pet = await Pet.findOne({ _id: req.params.id, userId: req.userId });
+    if (!pet) return res.status(404).json({ error: 'Không tìm thấy pet' });
+    pet.hidden = !!req.body.hidden;
+    await pet.save();
+    res.json({ ok: true, hidden: pet.hidden });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -408,9 +640,9 @@ router.post('/add-points', async (req, res) => {
 // Exported for use by task/habit/goal routes
 router.awardPoints = async function(userId, amount) {
   const up = await getUP(userId);
-  up.addPoints(amount);
+  const levelResult = up.addPoints(amount);
   await up.save();
-  return up.points;
+  return { points: up.points, level: up.level, levelResult };
 };
 
 module.exports = router;

@@ -22,12 +22,16 @@
     <button class="tnav-btn active" data-page="home">🏠 Trang chủ</button>
     <button class="tnav-btn" data-page="stats">📊 Thống kê</button>
     <button class="tnav-btn" data-page="shop">🛒 Cửa hàng</button>
+    <button class="tnav-btn" data-page="gamification">🎮 Game</button>
     <button class="tnav-btn" data-page="profile">👤 Hồ sơ</button>
   </nav>
 
   <div class="header-right">
     <div class="header-freeze-badge" id="header-freeze-badge" style="display:none" title="Streak Freeze đang hoạt động">
       <span>❄️</span><span id="header-freeze-timer"></span>
+    </div>
+    <div class="header-level-badge" id="header-level-badge" title="Cấp độ">
+      <span id="header-level-emoji">🌱</span><span id="header-level-val">Lv1</span>
     </div>
     <div class="header-points-badge" id="header-points-badge" title="Điểm của bạn">
       <span>⭐</span><span id="header-points-val">0</span>
@@ -278,6 +282,43 @@
       <div id="emotion-month-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
     </div>
 
+    <!-- WEEKLY REPORT CARD -->
+    <div class="report-card" id="weekly-report-card" style="margin-top:18px">
+      <div class="report-card-header">
+        <div class="report-card-title">📋 Báo cáo tuần này</div>
+        <div class="report-card-sub" id="report-week-label"></div>
+      </div>
+      <div class="report-card-body" id="report-week-body"></div>
+    </div>
+
+    <!-- WEEK vs WEEK COMPARISON -->
+    <div class="report-card" id="week-comparison-card" style="margin-top:14px">
+      <div class="report-card-header">
+        <div class="report-card-title">⚡ So sánh tuần này vs tuần trước</div>
+      </div>
+      <div class="report-card-body" id="week-comparison-body"></div>
+    </div>
+
+    <!-- MOOD LINE CHART 30 DAYS -->
+    <div class="chart-panel" style="margin-top:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">📈 Xu hướng cảm xúc 30 ngày</div>
+        <div class="chart-panel-sub">Biểu đồ đường + phát hiện xu hướng</div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:240px"><canvas id="chart-mood-line"></canvas></div>
+      <div id="mood-trend-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
+    </div>
+
+    <!-- PRODUCTIVE HOURS -->
+    <div class="chart-panel" style="margin-top:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">⏰ Giờ làm việc hiệu quả</div>
+        <div class="chart-panel-sub">Phân tích thời gian bạn hoàn thành task nhiều nhất</div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-productive-hours"></canvas></div>
+      <div id="productive-hours-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
+    </div>
+
     <!-- Habits stats -->
     <div style="margin-top:28px">
       <div class="section-header" style="margin-bottom:14px">
@@ -367,6 +408,85 @@
     <div class="store-section">
       <div class="store-section-title">❄️ Đặc biệt</div>
       <div class="store-grid" id="store-special-grid"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ──────────────────────────────────
+     PAGE: GAMIFICATION
+────────────────────────────────── -->
+<div class="page-content" id="page-gamification" style="display:none">
+  <div class="page-inner">
+
+    <!-- Level Card -->
+    <div class="gf-level-card" id="gf-level-card">
+      <div class="gf-level-top">
+        <div class="gf-level-emoji" id="gf-level-emoji">🌱</div>
+        <div class="gf-level-info">
+          <div class="gf-level-label">Level <span id="gf-level-num">1</span></div>
+          <div class="gf-level-name" id="gf-level-name">Tân binh</div>
+        </div>
+        <div class="gf-level-points" id="gf-level-points">0 điểm</div>
+      </div>
+      <div class="gf-level-bar-wrap">
+        <div class="gf-level-bar" id="gf-level-bar" style="width:0%"></div>
+      </div>
+      <div class="gf-level-progress-text" id="gf-level-progress-text">0 / 50 điểm đến Level 2</div>
+    </div>
+
+    <!-- Level Roadmap -->
+    <div class="gf-section">
+      <div class="gf-section-title">🗺️ Lộ trình cấp độ</div>
+      <div class="gf-level-roadmap" id="gf-level-roadmap"></div>
+    </div>
+
+    <!-- Weekly Challenges -->
+    <div class="gf-section">
+      <div class="gf-section-header">
+        <div class="gf-section-title">🎯 Thách thức tuần này</div>
+        <div class="gf-week-label" id="gf-week-label"></div>
+      </div>
+      <div class="gf-challenges" id="gf-challenges">
+        <div class="gf-loading">Đang tải...</div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="gf-section">
+      <div class="gf-section-header">
+        <div class="gf-section-title">🏆 Bảng xếp hạng</div>
+      </div>
+      <div class="gf-leaderboard" id="gf-leaderboard">
+        <div class="gf-loading">Đang tải...</div>
+      </div>
+    </div>
+
+    <!-- Friends -->
+    <div class="gf-section">
+      <div class="gf-section-header">
+        <div class="gf-section-title">👥 Bạn bè</div>
+      </div>
+      <div class="gf-friend-code-row" id="gf-friend-code-row">
+        <div class="gf-fc-label">Mã bạn bè của bạn:</div>
+        <div class="gf-fc-code" id="gf-fc-code">...</div>
+        <button class="gf-fc-copy" id="gf-fc-copy" title="Sao chép">📋</button>
+      </div>
+      <div class="gf-friend-add-row">
+        <input class="gf-friend-input" id="gf-friend-input" placeholder="Nhập mã bạn bè..." maxlength="20"/>
+        <button class="gf-friend-add-btn" id="gf-friend-add-btn">Kết bạn</button>
+      </div>
+      <div class="gf-friend-requests" id="gf-friend-requests"></div>
+      <div class="gf-friends-list" id="gf-friends-list"></div>
+    </div>
+
+    <!-- Achievements (full page) -->
+    <div class="gf-section">
+      <div class="gf-section-header">
+        <div class="gf-section-title">🏅 Thành tựu</div>
+        <div class="gf-badge-count" id="gf-badge-count">0/0</div>
+      </div>
+      <div class="gf-achievement-categories" id="gf-achievement-cats"></div>
     </div>
 
   </div>

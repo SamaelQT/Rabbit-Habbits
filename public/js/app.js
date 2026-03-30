@@ -57,6 +57,8 @@ const apiTasks={
   streak:(t)=>API.g(`/api/tasks/streak?title=${encodeURIComponent(t)}`),
   globalStreak:()=>API.g('/api/tasks/global-streak'),
   heatmap:(s,e)=>API.g(`/api/tasks/heatmap?startDate=${s}&endDate=${e}`),
+  report:(s,e)=>API.g(`/api/tasks/report?startDate=${s}&endDate=${e}`),
+  productiveHours:(s,e)=>API.g(`/api/tasks/productive-hours?startDate=${s}&endDate=${e}`),
 };
 const apiJournal={
   get:(date)=>API.g(`/api/journal/${date}`),
@@ -473,6 +475,7 @@ async function toggleTask(id,itemEl){
     launchConfetti(intensity);
     setTimeout(() => showMotivationOverlay(), 600);
     checkAndAwardBadges();
+    if (task.leveledUp) setTimeout(() => showLevelUpAnimation(task.oldLevel, task.newLevel), 800);
   } else {
     const pts = task.pointsDeducted || 5;
     toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
@@ -514,6 +517,11 @@ async function loadStats(){
   loadEmotionStats();
   // Monthly emotion chart
   loadMonthlyEmotionChart();
+  // New stats panels
+  loadWeeklyReport();
+  loadWeekComparison();
+  loadMoodLineChart();
+  loadProductiveHours();
 }
 
 async function loadMonthlyCharts() {
@@ -700,6 +708,303 @@ async function loadMonthlyEmotionChart() {
       }
     }
   } catch(e) { console.error('loadMonthlyEmotionChart:', e); }
+}
+
+// ─── WEEKLY REPORT CARD ──────────────────────────────────
+async function loadWeeklyReport() {
+  try {
+    const card = document.getElementById('weekly-report-card');
+    if (!card) return;
+    const weekDates = getWeekDates(0);
+    const ws = tds(weekDates[0]), we = tds(weekDates[6]);
+    document.getElementById('report-week-label').textContent = `${ws.split('-').reverse().join('/')} – ${we.split('-').reverse().join('/')}`;
+
+    const [report, journalEntries, globalStreak] = await Promise.all([
+      apiTasks.report(ws, we),
+      apiJournal.range(ws, we),
+      apiTasks.globalStreak()
+    ]);
+
+    // Dominant mood
+    const moodCounts = {};
+    const MOOD_INFO = {
+      '🌸': 'Tuyệt vời', '😊': 'Vui vẻ', '😌': 'Bình thường',
+      '😴': 'Mệt mỏi', '😤': 'Căng thẳng', '😢': 'Buồn',
+    };
+    (journalEntries || []).forEach(e => { if (e.mood) moodCounts[e.mood] = (moodCounts[e.mood] || 0) + 1; });
+    const topMoodEntry = Object.entries(moodCounts).sort((a,b) => b[1] - a[1])[0];
+    const topMood = topMoodEntry ? `${topMoodEntry[0]} ${MOOD_INFO[topMoodEntry[0]] || ''}` : '—';
+    const journalDays = (journalEntries || []).filter(e => e.mood).length;
+
+    const body = document.getElementById('report-week-body');
+    const rateColor = report.rate >= 80 ? 'var(--green)' : report.rate >= 50 ? 'var(--amber)' : 'var(--red)';
+    body.innerHTML = `
+      <div class="report-grid">
+        <div class="report-stat">
+          <div class="report-stat-value" style="color:${rateColor}">${report.completed}/${report.total}</div>
+          <div class="report-stat-label">Tasks hoàn thành</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-value" style="color:${rateColor}">${report.rate}%</div>
+          <div class="report-stat-label">Tỉ lệ</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-value">🔥 ${report.maxStreak}</div>
+          <div class="report-stat-label">Streak cao nhất</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-value">${report.activeDays}/${report.totalDays}</div>
+          <div class="report-stat-label">Ngày hoạt động</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-value">+${report.pointsEarned}</div>
+          <div class="report-stat-label">Điểm kiếm được</div>
+        </div>
+        <div class="report-stat">
+          <div class="report-stat-value">${topMood}</div>
+          <div class="report-stat-label">Mood chủ đạo</div>
+        </div>
+      </div>
+      <div class="report-summary">
+        Tuần này bạn hoàn thành <b>${report.completed}/${report.total}</b> tasks, streak <b>${report.maxStreak} ngày</b>, viết nhật ký <b>${journalDays}/7</b> ngày${topMoodEntry ? `, mood chủ đạo: ${topMoodEntry[0]}` : ''}.
+        ${report.rate >= 80 ? ' Tuyệt vời! 🎉' : report.rate >= 50 ? ' Khá tốt, cố lên! 💪' : ' Hãy cố gắng hơn nhé! 🐰'}
+      </div>
+    `;
+  } catch(e) { console.error('loadWeeklyReport:', e); }
+}
+
+// ─── WEEK vs WEEK COMPARISON ─────────────────────────────
+async function loadWeekComparison() {
+  try {
+    const body = document.getElementById('week-comparison-body');
+    if (!body) return;
+    const thisWeek = getWeekDates(0);
+    const lastWeek = getWeekDates(-1);
+    const [thisReport, lastReport] = await Promise.all([
+      apiTasks.report(tds(thisWeek[0]), tds(thisWeek[6])),
+      apiTasks.report(tds(lastWeek[0]), tds(lastWeek[6]))
+    ]);
+
+    function pctChange(curr, prev) {
+      if (prev === 0 && curr === 0) return { val: 0, text: '—', cls: 'neutral' };
+      if (prev === 0) return { val: 100, text: '+100%', cls: 'up' };
+      const p = Math.round(((curr - prev) / prev) * 100);
+      return { val: p, text: (p >= 0 ? '+' : '') + p + '%', cls: p > 0 ? 'up' : p < 0 ? 'down' : 'neutral' };
+    }
+
+    const metrics = [
+      { label: 'Tasks hoàn thành', curr: thisReport.completed, prev: lastReport.completed },
+      { label: 'Tỉ lệ hoàn thành', curr: thisReport.rate, prev: lastReport.rate, suffix: '%' },
+      { label: 'Streak cao nhất', curr: thisReport.maxStreak, prev: lastReport.maxStreak },
+      { label: 'Ngày hoạt động', curr: thisReport.activeDays, prev: lastReport.activeDays },
+      { label: 'Điểm kiếm được', curr: thisReport.pointsEarned, prev: lastReport.pointsEarned },
+    ];
+
+    body.innerHTML = `<div class="comparison-grid">
+      ${metrics.map(m => {
+        const chg = pctChange(m.curr, m.prev);
+        const arrow = chg.cls === 'up' ? '↑' : chg.cls === 'down' ? '↓' : '→';
+        return `<div class="comparison-item">
+          <div class="comparison-label">${m.label}</div>
+          <div class="comparison-values">
+            <span class="comparison-prev">${m.prev}${m.suffix || ''}</span>
+            <span class="comparison-arrow comparison-${chg.cls}">${arrow}</span>
+            <span class="comparison-curr">${m.curr}${m.suffix || ''}</span>
+          </div>
+          <div class="comparison-change comparison-${chg.cls}">${chg.text} so với tuần trước</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) { console.error('loadWeekComparison:', e); }
+}
+
+// ─── MOOD LINE CHART 30 DAYS ─────────────────────────────
+async function loadMoodLineChart() {
+  try {
+    const end = tds(state.today);
+    const start = tds(addDays(state.today, -29));
+    const entries = await apiJournal.range(start, end);
+
+    const MOOD_SCORE = { '🌸': 5, '😊': 4, '😌': 3, '😴': 2, '😤': 1, '😢': 0 };
+    const MOOD_LABELS = { 5: '🌸', 4: '😊', 3: '😌', 2: '😴', 1: '😤', 0: '😢' };
+    const MOOD_COLORS = { '🌸': '#ff85c8', '😊': '#ffcf5c', '😌': '#b07fff', '😴': '#5ee8f0', '😤': '#ff9900', '😢': '#7cb9ff' };
+
+    const moodByDate = {};
+    if (entries?.length) {
+      entries.forEach(e => { if (e.mood && e.date) moodByDate[e.date.slice(0,10)] = e.mood; });
+    }
+
+    const labels = [], data = [], pointColors = [], dayOfWeekScores = {};
+    for (let i = 0; i < 30; i++) {
+      const d = addDays(state.today, -29 + i);
+      const ds = tds(d);
+      labels.push(d.getDate() + '/' + (d.getMonth()+1));
+      const mood = moodByDate[ds];
+      if (mood && MOOD_SCORE[mood] !== undefined) {
+        data.push(MOOD_SCORE[mood]);
+        pointColors.push(MOOD_COLORS[mood] || '#b07fff');
+        const dow = d.getDay();
+        if (!dayOfWeekScores[dow]) dayOfWeekScores[dow] = [];
+        dayOfWeekScores[dow].push(MOOD_SCORE[mood]);
+      } else {
+        data.push(null);
+        pointColors.push('transparent');
+      }
+    }
+
+    const ctx = document.getElementById('chart-mood-line')?.getContext('2d');
+    if (!ctx) return;
+    if (state.charts['mood-line']) state.charts['mood-line'].destroy();
+    const c = chartColors();
+
+    state.charts['mood-line'] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Cảm xúc',
+          data,
+          borderColor: '#b07fff',
+          backgroundColor: 'rgba(176,127,255,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 6,
+          pointBackgroundColor: pointColors,
+          pointBorderColor: pointColors,
+          spanGaps: true,
+          pointHoverRadius: 9,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1f2030', borderColor: '#2e3150', borderWidth: 1,
+            titleColor: '#ecedf5', bodyColor: '#8b8fa8',
+            callbacks: {
+              label: ct => {
+                const score = ct.parsed.y;
+                return score !== null ? ` ${MOOD_LABELS[score] || ''} (${score}/5)` : ' Không có dữ liệu';
+              }
+            }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: c.tick, font: { size: 9 }, maxRotation: 45 } },
+          y: {
+            min: -0.5, max: 5.5,
+            grid: { color: c.grid },
+            ticks: {
+              color: c.tick, font: { size: 12 }, stepSize: 1,
+              callback: v => MOOD_LABELS[v] || ''
+            }
+          }
+        }
+      }
+    });
+
+    // Trend summary — find worst day of week
+    const summary = document.getElementById('mood-trend-summary');
+    if (summary) {
+      const DOW_NAMES = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+      const dowAvg = {};
+      Object.entries(dayOfWeekScores).forEach(([dow, scores]) => {
+        dowAvg[dow] = scores.reduce((a,b) => a+b, 0) / scores.length;
+      });
+      const sorted = Object.entries(dowAvg).sort((a,b) => a[1] - b[1]);
+      const validEntries = data.filter(d => d !== null).length;
+
+      if (sorted.length >= 2) {
+        const worst = sorted[0], best = sorted[sorted.length - 1];
+        const worstMood = MOOD_LABELS[Math.round(worst[1])] || '';
+        const bestMood = MOOD_LABELS[Math.round(best[1])] || '';
+        summary.innerHTML = `📊 ${validEntries}/30 ngày có dữ liệu · Bạn thường vui nhất vào <b>${DOW_NAMES[best[0]]}</b> ${bestMood} · Thấp nhất vào <b>${DOW_NAMES[worst[0]]}</b> ${worstMood}`;
+      } else if (validEntries > 0) {
+        summary.textContent = `📊 ${validEntries}/30 ngày có dữ liệu. Viết nhật ký thường xuyên hơn để thấy xu hướng!`;
+      } else {
+        summary.textContent = 'Chưa có dữ liệu cảm xúc. Hãy viết nhật ký mỗi ngày nhé!';
+      }
+    }
+  } catch(e) { console.error('loadMoodLineChart:', e); }
+}
+
+// ─── PRODUCTIVE HOURS CHART ──────────────────────────────
+async function loadProductiveHours() {
+  try {
+    const end = tds(state.today);
+    const start = tds(addDays(state.today, -29));
+    const data = await apiTasks.productiveHours(start, end);
+
+    const ctx = document.getElementById('chart-productive-hours')?.getContext('2d');
+    if (!ctx) return;
+    if (state.charts['productive-hours']) state.charts['productive-hours'].destroy();
+    const c = chartColors();
+
+    const labels = [];
+    const barColors = [];
+    const maxCount = Math.max(...data.byHour, 1);
+    for (let h = 0; h < 24; h++) {
+      labels.push(h + 'h');
+      // Gradient: low = dim purple, high = bright green
+      const intensity = data.byHour[h] / maxCount;
+      if (data.peakHours.length > 0 && data.peakHours[0].hour === h) {
+        barColors.push('#5ef0a0'); // Peak hour = green
+      } else if (intensity > 0.6) {
+        barColors.push('#3ddbb8');
+      } else if (intensity > 0.3) {
+        barColors.push('#b07fff');
+      } else if (data.byHour[h] > 0) {
+        barColors.push('rgba(176,127,255,0.5)');
+      } else {
+        barColors.push('rgba(176,127,255,0.15)');
+      }
+    }
+
+    state.charts['productive-hours'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Tasks hoàn thành',
+          data: data.byHour,
+          backgroundColor: barColors,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#1f2030', borderColor: '#2e3150', borderWidth: 1,
+            titleColor: '#ecedf5', bodyColor: '#8b8fa8',
+            callbacks: { label: ct => ` ${ct.parsed.y} task${ct.parsed.y !== 1 ? 's' : ''}` }
+          }
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: c.tick, font: { size: 9 } } },
+          y: { grid: { color: c.grid }, ticks: { color: c.tick, font: { size: 10 }, stepSize: 1 }, beginAtZero: true }
+        }
+      }
+    });
+
+    // Summary
+    const summary = document.getElementById('productive-hours-summary');
+    if (summary) {
+      if (data.totalCompleted === 0) {
+        summary.textContent = 'Chưa có dữ liệu. Hoàn thành tasks để thấy phân tích!';
+      } else if (data.peakHours.length > 0) {
+        const peakLabels = data.peakHours.map(p => {
+          const h = p.hour;
+          const period = h < 6 ? '🌙 Đêm' : h < 12 ? '🌅 Sáng' : h < 18 ? '☀️ Chiều' : '🌆 Tối';
+          return `<b>${h}:00-${h}:59</b> (${p.count} tasks, ${period})`;
+        });
+        summary.innerHTML = `⏰ Giờ hiệu quả nhất: ${peakLabels.join(' · ')} — Tổng ${data.totalCompleted} tasks trong 30 ngày`;
+      }
+    }
+  } catch(e) { console.error('loadProductiveHours:', e); }
 }
 
 async function renderStats(stats,s,e,globalStreak){
@@ -1210,6 +1515,7 @@ function renderHabitsPanel(wd){
           updatePointsUI((_shopData.points||0) + pts);
           launchConfetti('low');
           setTimeout(() => showMotivationOverlay(), 600);
+          if (log.leveledUp) setTimeout(() => showLevelUpAnimation(log.oldLevel, log.newLevel), 800);
         } else {
           const pts = log.pointsDeducted || 5;
           toast(`${h.emoji} Đã bỏ tích — trừ ${pts}⭐`);
@@ -1756,6 +2062,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // Theme toggle (header)
   document.getElementById('theme-btn')?.addEventListener('click',toggleTheme);
 
+  // Level badge click → go to gamification page
+  document.getElementById('header-level-badge')?.addEventListener('click', () => navigateTo('gamification'));
+
   // Top nav
   initTopNav();
 
@@ -2126,6 +2435,7 @@ function createGoalCard(g){
       launchConfetti('medium');
       setTimeout(() => showMotivationOverlay(), 600);
       checkAndAwardBadges();
+      if (res.leveledUp) setTimeout(() => showLevelUpAnimation(res.oldLevel, res.newLevel), 800);
     } else {
       const pts = res.pointsDeducted || 8;
       toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
@@ -2211,6 +2521,7 @@ function buildDayCard(d, g, todayStr, color){
         launchConfetti('medium');
         setTimeout(() => showMotivationOverlay(), 600);
         checkAndAwardBadges();
+        if (res.leveledUp) setTimeout(() => showLevelUpAnimation(res.oldLevel, res.newLevel), 800);
       } else {
         const pts = res.pointsDeducted || 8;
         toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
@@ -2472,6 +2783,7 @@ const apiShop = {
   activateFreeze: ()    => API.p('/api/shop/activate-freeze', {}),
   pets:        ()       => API.g('/api/shop/pets'),
   care:        (petId, action) => API.p('/api/shop/care', { petId, action }),
+  setPetVisibility: (id, hidden) => API.pa(`/api/shop/pet/${id}/visibility`, { hidden }),
   badgesCatalog: ()     => API.g('/api/shop/badges-catalog'),
   checkBadges: (stats)  => API.p('/api/shop/check-badges', { stats }),
   addPoints:   (amt)    => API.p('/api/shop/add-points', { amount: amt }),
@@ -2987,10 +3299,8 @@ async function loadMyPets() {
       tree2:'Cây Sen Đá', flower2:'Hoa Mai', flower3:'Hoa Lan'
     };
 
-    const hiddenPetIds = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
-
     pets.forEach(pet => {
-      const isHidden = hiddenPetIds.includes(pet._id);
+      const isHidden = pet.hidden;
       const category = isAnimal(pet.type) ? 'animal' : 'plant';
       const card = document.createElement('div');
       card.className = 'pet-card' + (!pet.alive ? ' pet-dead' : '') + (pet.warning ? ' pet-warning' : '') + (isHidden ? ' pet-hidden' : '');
@@ -3029,16 +3339,25 @@ async function loadMyPets() {
         }
       });
 
-      // Visibility toggle
-      card.querySelector('.pet-visibility-btn').addEventListener('click', (e) => {
+      // Visibility toggle — persists to server
+      card.querySelector('.pet-visibility-btn').addEventListener('click', async (e) => {
         e.stopPropagation();
-        const currentHidden = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
-        const idx = currentHidden.indexOf(pet._id);
-        if (idx > -1) currentHidden.splice(idx, 1);
-        else currentHidden.push(pet._id);
-        localStorage.setItem('hiddenPetIds', JSON.stringify(currentHidden));
-        loadMyPets();
-        refreshFloatingPets();
+        const newHidden = !pet.hidden;
+        try {
+          const res = await apiShop.setPetVisibility(pet._id, newHidden);
+          if (!res.ok) throw new Error(res.error || 'Server error');
+          pet.hidden = newHidden;
+          // Also update localStorage for immediate floating pets sync
+          const currentHidden = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
+          if (newHidden && !currentHidden.includes(pet._id)) currentHidden.push(pet._id);
+          else if (!newHidden) {
+            const idx = currentHidden.indexOf(pet._id);
+            if (idx > -1) currentHidden.splice(idx, 1);
+          }
+          localStorage.setItem('hiddenPetIds', JSON.stringify(currentHidden));
+          loadMyPets();
+          refreshFloatingPets();
+        } catch(err) { toast('❌ Lỗi: ' + (err.message || 'Không thể thay đổi!')); }
       });
 
 
@@ -3180,7 +3499,16 @@ async function loadInitialPoints() {
     _shopData = { ...data };
     updatePointsUI(data.points);
     updateInventoryUI();
+    updateHeaderLevel(data.level || 1);
   } catch(e) {}
+}
+
+function updateHeaderLevel(lvl) {
+  const LEVEL_EMOJIS = ['🌱','🌿','🍀','🌸','⚔️','🛡️','🦸','🏆','👑','💎','🌟','⚡','🐉','🔮','🌌','🏛️','🦅','💫','🌈','🐰'];
+  const el = document.getElementById('header-level-val');
+  const emojiEl = document.getElementById('header-level-emoji');
+  if (el) el.textContent = 'Lv' + lvl;
+  if (emojiEl) emojiEl.textContent = LEVEL_EMOJIS[Math.min(lvl - 1, LEVEL_EMOJIS.length - 1)] || '🌱';
 }
 
 // ═══════════════════════════════════════════
@@ -3346,6 +3674,8 @@ async function handleFloatingPetFeed(petEl, action) {
         petEl.appendChild(bubble);
       }
       bubble.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+      const dir = getComputedStyle(petEl).getPropertyValue('--dir').trim() || '1';
+      bubble.style.setProperty('--counter-dir', dir);
       bubble.classList.add('show');
       clearTimeout(bubble._timer);
       bubble._timer = setTimeout(() => bubble.classList.remove('show'), 3000);
@@ -3400,8 +3730,10 @@ async function loadFloatingPets() {
 
   try {
     const pets = await apiShop.pets();
-    const hiddenIds = JSON.parse(localStorage.getItem('hiddenPetIds') || '[]');
-    const visiblePets = pets.filter(p => p.alive && !hiddenIds.includes(p._id));
+    // Use server-side hidden flag, sync to localStorage for offline reference
+    const hiddenIds = pets.filter(p => p.hidden).map(p => p._id);
+    localStorage.setItem('hiddenPetIds', JSON.stringify(hiddenIds));
+    const visiblePets = pets.filter(p => p.alive && !p.hidden);
 
     if (!visiblePets.length) return;
 
@@ -3515,6 +3847,9 @@ async function loadFloatingPets() {
             if (dialogues) {
               const msgs = dialogues.idle;
               bubble.textContent = msgs[Math.floor(Math.random() * msgs.length)];
+              // Counter-flip text so it's always readable regardless of pet direction
+              const dir = getComputedStyle(el).getPropertyValue('--dir').trim() || '1';
+              bubble.style.setProperty('--counter-dir', dir);
               bubble.classList.add('show');
               clearTimeout(bubble._timer);
               bubble._timer = setTimeout(() => bubble.classList.remove('show'), 3000);
@@ -3547,8 +3882,8 @@ async function loadFloatingPets() {
     _floatingPetsLoaded = true;
 
     // Warn about hidden pets that are sick or close to death
-    const hiddenSick = pets.filter(p => hiddenIds.includes(p._id) && p.alive && p.warning);
-    const hiddenDead = pets.filter(p => hiddenIds.includes(p._id) && !p.alive);
+    const hiddenSick = pets.filter(p => p.hidden && p.alive && p.warning);
+    const hiddenDead = pets.filter(p => p.hidden && !p.alive);
     if (hiddenDead.length > 0) {
       toast(`😢 ${hiddenDead.length} thú cưng/cây đang ẩn đã mất vì không được chăm sóc!`);
     } else if (hiddenSick.length > 0) {
@@ -3598,7 +3933,388 @@ function renderProfileFreeze() {
   }
 }
 
-// ── Hook into navigateTo for shop/profile pages ──
+// ═══════════════════════════════════════════
+// GAMIFICATION PAGE
+// ═══════════════════════════════════════════
+
+const apiGamification = {
+  level:          () => API.g('/api/gamification/level'),
+  weekly:         () => API.g('/api/gamification/weekly'),
+  claimWeekly:    (id) => API.p('/api/gamification/weekly/claim', { challengeId: id }),
+  friendCode:     () => API.g('/api/gamification/friend-code'),
+  sendRequest:    (code) => API.p('/api/gamification/friend-request', { friendCode: code }),
+  friendRequests: () => API.g('/api/gamification/friend-requests'),
+  acceptFriend:   (id) => API.p('/api/gamification/friend-accept', { userId: id }),
+  rejectFriend:   (id) => API.p('/api/gamification/friend-reject', { userId: id }),
+  removeFriend:   (id) => API.p('/api/gamification/friend-remove', { userId: id }),
+  leaderboard:    () => API.g('/api/gamification/leaderboard'),
+  friendsList:    () => API.g('/api/gamification/friends-list'),
+  achievementStats: () => API.g('/api/gamification/achievement-stats'),
+};
+
+let _gfInited = false;
+
+async function initGamification() {
+  if (_gfInited) { refreshGamification(); return; }
+  _gfInited = true;
+
+  // Friend add button
+  document.getElementById('gf-friend-add-btn')?.addEventListener('click', async () => {
+    const input = document.getElementById('gf-friend-input');
+    const code = input.value.trim();
+    if (!code) { toast('⚠ Nhập mã bạn bè!'); return; }
+    try {
+      const res = await apiGamification.sendRequest(code);
+      toast(res.accepted ? '🎉 Đã kết bạn!' : '✅ Đã gửi lời mời!');
+      input.value = '';
+      if (res.accepted) { loadLeaderboard(); loadFriendsList(); }
+      loadFriendRequests();
+    } catch(e) { toast('❌ ' + (e.error || e.message || 'Lỗi!')); }
+  });
+
+  // Copy friend code
+  document.getElementById('gf-fc-copy')?.addEventListener('click', () => {
+    const code = document.getElementById('gf-fc-code').textContent;
+    navigator.clipboard.writeText(code).then(() => toast('📋 Đã sao chép!')).catch(() => {});
+  });
+
+  refreshGamification();
+}
+
+async function refreshGamification() {
+  loadLevelCard();
+  loadWeeklyChallenges();
+  loadLeaderboard();
+  loadFriendCode();
+  loadFriendRequests();
+  loadFriendsList();
+  loadAchievements();
+}
+
+// ── LEVEL CARD ──
+async function loadLevelCard() {
+  try {
+    const data = await apiGamification.level();
+    const lvl = data.level || 1;
+    document.getElementById('gf-level-emoji').textContent = data.emoji || '🌱';
+    document.getElementById('gf-level-num').textContent = lvl;
+    document.getElementById('gf-level-name').textContent = data.name || 'Tân binh';
+    document.getElementById('gf-level-points').textContent = (data.totalEarned || 0) + ' điểm';
+
+    const cur = data.currentThreshold || 0;
+    const next = data.nextThreshold;
+    const bar = document.getElementById('gf-level-bar');
+    const progText = document.getElementById('gf-level-progress-text');
+
+    if (next) {
+      const pct = Math.min(100, ((data.totalEarned - cur) / (next - cur)) * 100);
+      bar.style.width = pct + '%';
+      progText.textContent = `${data.totalEarned} / ${next} điểm đến Level ${lvl + 1}`;
+    } else {
+      bar.style.width = '100%';
+      progText.textContent = 'MAX LEVEL! 🐰';
+    }
+
+    // Roadmap
+    renderLevelRoadmap(data);
+  } catch(e) { console.error('loadLevelCard:', e); }
+}
+
+function renderLevelRoadmap(data) {
+  const wrap = document.getElementById('gf-level-roadmap');
+  if (!wrap) return;
+  const thresholds = data.thresholds || [];
+  const names = data.names || [];
+  const emojis = data.emojis || [];
+  const currentLevel = data.level || 1;
+
+  wrap.innerHTML = '';
+  const maxShow = Math.min(thresholds.length, 20);
+  for (let i = 0; i < maxShow; i++) {
+    const lvl = i + 1;
+    const reached = currentLevel >= lvl;
+    const isCurrent = currentLevel === lvl;
+    const node = document.createElement('div');
+    node.className = 'gf-rm-node' + (reached ? ' reached' : '') + (isCurrent ? ' current' : '');
+    node.innerHTML = `
+      <div class="gf-rm-emoji">${emojis[i] || '?'}</div>
+      <div class="gf-rm-lvl">Lv${lvl}</div>
+      <div class="gf-rm-name">${names[i] || ''}</div>
+      <div class="gf-rm-pts">${thresholds[i]} pts</div>
+    `;
+    wrap.appendChild(node);
+  }
+}
+
+// ── WEEKLY CHALLENGES ──
+async function loadWeeklyChallenges() {
+  try {
+    const data = await apiGamification.weekly();
+    const wrap = document.getElementById('gf-challenges');
+    const weekLabel = document.getElementById('gf-week-label');
+    if (!wrap) return;
+
+    // Week label
+    if (weekLabel && data.weekStart) {
+      const ws = new Date(data.weekStart);
+      const we = new Date(ws); we.setDate(we.getDate() + 6);
+      weekLabel.textContent = `${ws.getDate()}/${ws.getMonth()+1} – ${we.getDate()}/${we.getMonth()+1}`;
+    }
+
+    wrap.innerHTML = '';
+    (data.challenges || []).forEach(c => {
+      const pct = Math.min(100, (c.progress / c.target) * 100);
+      const done = c.completed;
+      const claimed = !!c.claimedAt;
+
+      const card = document.createElement('div');
+      card.className = 'gf-challenge-card' + (done ? ' done' : '') + (claimed ? ' claimed' : '');
+      card.innerHTML = `
+        <div class="gf-ch-top">
+          <div class="gf-ch-emoji">${c.emoji}</div>
+          <div class="gf-ch-info">
+            <div class="gf-ch-title">${c.title}</div>
+            <div class="gf-ch-progress-text">${c.progress}/${c.target}</div>
+          </div>
+          <div class="gf-ch-reward">
+            ${claimed ? '<span class="gf-ch-claimed-tag">✅ Đã nhận</span>' :
+              done ? `<button class="gf-ch-claim-btn" data-id="${c.id}">🎁 Nhận ${c.reward} pts</button>` :
+              `<span class="gf-ch-reward-label">🎁 ${c.reward} pts</span>`}
+          </div>
+        </div>
+        <div class="gf-ch-bar-wrap">
+          <div class="gf-ch-bar" style="width:${pct}%;background:${done ? 'var(--accent)' : 'var(--primary)'}"></div>
+        </div>
+      `;
+
+      // Claim button
+      const claimBtn = card.querySelector('.gf-ch-claim-btn');
+      if (claimBtn) {
+        claimBtn.addEventListener('click', async () => {
+          try {
+            const res = await apiGamification.claimWeekly(c.id);
+            toast(`🎉 +${res.reward} điểm!`);
+            launchConfetti('medium');
+            updatePointsUI(res.points);
+            if (res.leveledUp) {
+              showLevelUpAnimation(res.oldLevel, res.newLevel);
+            }
+            loadWeeklyChallenges();
+            loadLevelCard();
+          } catch(e) { toast('❌ ' + (e.error || e.message || 'Lỗi!')); }
+        });
+      }
+      wrap.appendChild(card);
+    });
+  } catch(e) { console.error('loadWeeklyChallenges:', e); }
+}
+
+// ── LEVEL UP ANIMATION ──
+function showLevelUpAnimation(oldLvl, newLvl) {
+  updateHeaderLevel(newLvl);
+  const overlay = document.createElement('div');
+  overlay.className = 'gf-levelup-overlay';
+  overlay.innerHTML = `
+    <div class="gf-levelup-card">
+      <div class="gf-levelup-emoji">🎉</div>
+      <div class="gf-levelup-title">LEVEL UP!</div>
+      <div class="gf-levelup-levels">
+        <span class="gf-levelup-old">Lv${oldLvl}</span>
+        <span class="gf-levelup-arrow">→</span>
+        <span class="gf-levelup-new">Lv${newLvl}</span>
+      </div>
+      <div class="gf-levelup-sub">Tiếp tục phấn đấu nhé! 🐰</div>
+      <button class="gf-levelup-close">Tuyệt vời!</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  launchConfetti('high');
+  setTimeout(() => overlay.classList.add('show'), 10);
+  const close = () => { overlay.classList.remove('show'); setTimeout(() => overlay.remove(), 300); };
+  overlay.querySelector('.gf-levelup-close').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  setTimeout(close, 5000);
+}
+
+// ── LEADERBOARD ──
+async function loadLeaderboard() {
+  try {
+    const board = await apiGamification.leaderboard();
+    const wrap = document.getElementById('gf-leaderboard');
+    if (!wrap) return;
+
+    if (board.length === 0) {
+      wrap.innerHTML = '<div class="gf-empty">Kết bạn để xem bảng xếp hạng!</div>';
+      return;
+    }
+
+    const rankEmojis = ['🥇','🥈','🥉'];
+    wrap.innerHTML = board.map(b => `
+      <div class="gf-lb-row${b.isMe ? ' me' : ''}">
+        <div class="gf-lb-rank">${rankEmojis[b.rank-1] || '#'+b.rank}</div>
+        <div class="gf-lb-info">
+          <div class="gf-lb-name">${esc(b.displayName)}${b.isMe ? ' <span class="gf-lb-me-tag">(bạn)</span>' : ''}</div>
+          <div class="gf-lb-sub">Lv${b.level} · ${b.totalEarned} pts · ${b.badges} 🏅</div>
+        </div>
+        <div class="gf-lb-pts">${b.totalEarned}<span class="gf-lb-pts-label"> pts</span></div>
+      </div>
+    `).join('');
+  } catch(e) { console.error('loadLeaderboard:', e); }
+}
+
+// ── FRIEND CODE ──
+async function loadFriendCode() {
+  try {
+    const { friendCode } = await apiGamification.friendCode();
+    document.getElementById('gf-fc-code').textContent = friendCode;
+  } catch(e) {}
+}
+
+// ── FRIEND REQUESTS ──
+async function loadFriendRequests() {
+  try {
+    const reqs = await apiGamification.friendRequests();
+    const wrap = document.getElementById('gf-friend-requests');
+    if (!wrap) return;
+    if (!reqs || reqs.length === 0) { wrap.innerHTML = ''; return; }
+
+    wrap.innerHTML = '<div class="gf-fr-title">Lời mời kết bạn:</div>' +
+      reqs.map(r => `
+        <div class="gf-fr-row">
+          <div class="gf-fr-name">${esc(r.from?.displayName || r.from?.username || '?')}</div>
+          <div class="gf-fr-actions">
+            <button class="gf-fr-accept" data-id="${r.from?._id || r.from}">✅ Chấp nhận</button>
+            <button class="gf-fr-reject" data-id="${r.from?._id || r.from}">❌</button>
+          </div>
+        </div>
+      `).join('');
+
+    wrap.querySelectorAll('.gf-fr-accept').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await apiGamification.acceptFriend(btn.dataset.id);
+        toast('🎉 Đã kết bạn!');
+        loadFriendRequests(); loadLeaderboard(); loadFriendsList();
+      });
+    });
+    wrap.querySelectorAll('.gf-fr-reject').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        await apiGamification.rejectFriend(btn.dataset.id);
+        loadFriendRequests();
+      });
+    });
+  } catch(e) {}
+}
+
+// ── FRIENDS LIST ──
+async function loadFriendsList() {
+  try {
+    const friends = await apiGamification.friendsList();
+    const wrap = document.getElementById('gf-friends-list');
+    if (!wrap) return;
+    if (!friends || friends.length === 0) {
+      wrap.innerHTML = '<div class="gf-empty">Chưa có bạn bè. Chia sẻ mã bạn bè để kết nối!</div>';
+      return;
+    }
+    wrap.innerHTML = friends.map(f => `
+      <div class="gf-fl-row">
+        <div class="gf-fl-name">${esc(f.displayName || f.username)}</div>
+        <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
+      </div>
+    `).join('');
+    wrap.querySelectorAll('.gf-fl-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Huỷ kết bạn?')) return;
+        await apiGamification.removeFriend(btn.dataset.id);
+        toast('Đã huỷ kết bạn');
+        loadFriendsList(); loadLeaderboard();
+      });
+    });
+  } catch(e) {}
+}
+
+// ── ACHIEVEMENTS PAGE ──
+const BADGE_CATEGORIES = [
+  { key: 'tasks',        title: '✅ Tasks',         check: 'tasks' },
+  { key: 'streak',       title: '🔥 Streaks',       check: 'streak' },
+  { key: 'pets',         title: '🐾 Thú cưng',      check: 'pets' },
+  { key: 'points',       title: '⭐ Điểm',          check: 'points' },
+  { key: 'goals',        title: '🎯 Mục tiêu',      check: 'goals' },
+  { key: 'habit_streak', title: '🐇 Thói quen',     check: 'habit_streak' },
+  { key: 'care',         title: '💝 Chăm sóc',      check: 'care' },
+  { key: 'journal',      title: '📝 Nhật ký',       check: 'journal' },
+];
+
+async function loadAchievements() {
+  try {
+    const [catalog, stats] = await Promise.all([
+      apiShop.badgesCatalog(),
+      apiGamification.achievementStats()
+    ]);
+
+    const earnedIds = new Set(stats.totalBadges || []);
+    const totalBadges = catalog.length;
+    const earnedCount = earnedIds.size;
+
+    document.getElementById('gf-badge-count').textContent = `${earnedCount}/${totalBadges}`;
+
+    const catsWrap = document.getElementById('gf-achievement-cats');
+    if (!catsWrap) return;
+    catsWrap.innerHTML = '';
+
+    for (const cat of BADGE_CATEGORIES) {
+      const badges = catalog.filter(b => b.check === cat.check);
+      if (badges.length === 0) continue;
+
+      const catEarned = badges.filter(b => earnedIds.has(b.id)).length;
+      const currentVal = stats[cat.check] || 0;
+
+      const section = document.createElement('div');
+      section.className = 'gf-ach-cat';
+      section.innerHTML = `
+        <div class="gf-ach-cat-header" data-cat="${cat.key}">
+          <div class="gf-ach-cat-title">${cat.title}</div>
+          <div class="gf-ach-cat-count">${catEarned}/${badges.length}</div>
+          <div class="gf-ach-cat-arrow">▼</div>
+        </div>
+        <div class="gf-ach-cat-body" id="gf-ach-body-${cat.key}"></div>
+      `;
+
+      const body = section.querySelector('.gf-ach-cat-body');
+      badges.forEach(badge => {
+        const isEarned = earnedIds.has(badge.id);
+        const pct = Math.min(100, (currentVal / badge.threshold) * 100);
+        const card = document.createElement('div');
+        card.className = 'gf-ach-card' + (isEarned ? ' earned' : '');
+        card.innerHTML = `
+          <div class="gf-ach-left">
+            <div class="gf-ach-emoji">${isEarned ? badge.emoji : '🔒'}</div>
+          </div>
+          <div class="gf-ach-mid">
+            <div class="gf-ach-name">${badge.name}</div>
+            <div class="gf-ach-desc">${badge.desc}</div>
+            ${!isEarned ? `
+              <div class="gf-ach-bar-wrap">
+                <div class="gf-ach-bar" style="width:${pct}%"></div>
+              </div>
+              <div class="gf-ach-prog">${currentVal}/${badge.threshold}</div>
+            ` : '<div class="gf-ach-earned-tag">✅ Đã đạt</div>'}
+          </div>
+        `;
+        body.appendChild(card);
+      });
+
+      // Toggle collapse
+      section.querySelector('.gf-ach-cat-header').addEventListener('click', () => {
+        body.classList.toggle('collapsed');
+        section.querySelector('.gf-ach-cat-arrow').textContent = body.classList.contains('collapsed') ? '▶' : '▼';
+      });
+
+      catsWrap.appendChild(section);
+    }
+  } catch(e) { console.error('loadAchievements:', e); }
+}
+
+// ── Hook into navigateTo for shop/profile/gamification pages ──
 const _origNavigateTo = navigateTo;
 let _profilePetsInited = false;
 navigateTo = function(page) {
@@ -3613,5 +4329,8 @@ navigateTo = function(page) {
       loadMyPets();
       loadBadges();
     }
+  }
+  if (page === 'gamification') {
+    initGamification();
   }
 };

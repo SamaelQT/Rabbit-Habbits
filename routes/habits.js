@@ -9,9 +9,9 @@ router.use(requireAuth);
 async function awardPts(userId, amount) {
   let up = await UserPoints.findOne({ userId });
   if (!up) up = new UserPoints({ userId });
-  up.addPoints(amount);
+  const levelResult = up.addPoints(amount);
   await up.save();
-  return up.points;
+  return { points: up.points, level: up.level, levelResult };
 }
 
 async function deductPts(userId, amount) {
@@ -58,15 +58,20 @@ router.post('/logs/toggle', async (req, res) => {
     let log = await HabitLog.findOne({ userId: req.userId, habitId, date });
     if(log){ log.done = !log.done; await log.save(); }
     else { log = await HabitLog.create({ userId: req.userId, habitId, date, done: true }); }
-    let pointsAwarded = 0, pointsDeducted = 0;
+    let pointsAwarded = 0, pointsDeducted = 0, leveledUp = false, oldLevel = 0, newLevel = 0;
     if (log.done) {
-      await awardPts(req.userId, 5);
+      const result = await awardPts(req.userId, 5);
       pointsAwarded = 5;
+      if (result.levelResult) {
+        leveledUp = result.levelResult.leveledUp;
+        oldLevel = result.levelResult.oldLevel;
+        newLevel = result.levelResult.newLevel;
+      }
     } else {
       await deductPts(req.userId, 5);
       pointsDeducted = 5;
     }
-    res.json({ ...log.toObject(), pointsAwarded, pointsDeducted });
+    res.json({ ...log.toObject(), pointsAwarded, pointsDeducted, leveledUp, oldLevel, newLevel });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 

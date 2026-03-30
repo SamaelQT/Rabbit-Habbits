@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const petSchema = new mongoose.Schema({
   userId:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   type:      { type: String, required: true, enum: ['rabbit','cat','dog','hamster','bird','tree','flower','tree2','flower2','flower3','kim_ngan','ngoc_bich','van_loc'] },
+  variant:   { type: Number, default: 0, min: 0, max: 9 },  // 0-9: which variant of this species
   name:      { type: String, required: true, maxlength: 30 },
   emoji:     { type: String, default: '🐰' },
   // Growth & health
@@ -18,6 +19,7 @@ const petSchema = new mongoose.Schema({
   timesFertilized:{ type: Number, default: 0 },
   // State
   alive:     { type: Boolean, default: true },
+  hidden:    { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

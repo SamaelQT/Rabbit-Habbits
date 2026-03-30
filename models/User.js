@@ -6,6 +6,12 @@ const userSchema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true, trim: true, lowercase: true },
   password: { type: String, required: true, minlength: 6 },
   displayName: { type: String, default: '' },
+  friendCode: { type: String, unique: true, sparse: true },
+  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  friendRequests: [{
+    from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdAt: { type: Date, default: Date.now }
+  }],
   createdAt:   { type: Date, default: Date.now }
 });
 
