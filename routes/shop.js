@@ -31,6 +31,10 @@ const SHOP_ITEMS = [
   { id:'treat',      name:'Bánh thưởng',    emoji:'🍪', price:20, desc:'Đồ ăn vặt đặc biệt (+20 pts)', detail:'Phần thưởng khi thú cưng ngoan! Tăng nhiều điểm nhất.' },
   { id:'water',      name:'Nước sạch',      emoji:'💧', price:8,  desc:'Cho thú cưng & cây uống (+8 pts)', detail:'Nước sạch cho thú uống hoặc tưới cây. Cần thiết mỗi ngày.' },
   { id:'fertilizer', name:'Phân bón',       emoji:'🌿', price:15, desc:'Bón phân cho cây (+15 pts)', detail:'Phân bón hữu cơ giúp cây phát triển nhanh hơn.' },
+  { id:'coffee',    name:'Cà phê',          emoji:'☕', price:25, desc:'Tặng bạn bè năng lượng', detail:'Ly cà phê thơm ngon truyền năng lượng — dùng để tặng bạn bè!' },
+  { id:'rose',      name:'Hoa hồng',        emoji:'🌹', price:20, desc:'Tặng bạn bè tình cảm', detail:'Hoa hồng tươi thắm thể hiện sự trân trọng — tặng cho bạn bè yêu thích!' },
+  { id:'chocolate', name:'Socola',          emoji:'🍫', price:30, desc:'Tặng bạn bè niềm vui', detail:'Hộp socola sang trọng — món quà ngọt ngào dành tặng bạn bè!' },
+  { id:'star',      name:'Ngôi sao may mắn',emoji:'⭐', price:40, desc:'Tặng may mắn cho bạn bè', detail:'Ngôi sao may mắn đặc biệt — tặng để chúc bạn bè thành công!' },
 ];
 
 const STREAK_FREEZE_PRICE = 100;
@@ -267,6 +271,10 @@ router.get('/points', async (req, res) => {
       treat: up.treat || 0,
       water: up.water,
       fertilizer: up.fertilizer,
+      coffee: up.coffee || 0,
+      rose: up.rose || 0,
+      chocolate: up.chocolate || 0,
+      star: up.star || 0,
       streakFreezes: up.streakFreezes,
       freezeActive: up.isFreezeActive(),
       freezeActiveUntil: up.freezeActiveUntil,

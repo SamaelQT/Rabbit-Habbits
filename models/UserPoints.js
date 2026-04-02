@@ -17,6 +17,10 @@ const userPointsSchema = new mongoose.Schema({
   treat:      { type: Number, default: 0 },
   water:      { type: Number, default: 0 },
   fertilizer: { type: Number, default: 0 },
+  coffee:     { type: Number, default: 0 },
+  rose:       { type: Number, default: 0 },
+  chocolate:  { type: Number, default: 0 },
+  star:       { type: Number, default: 0 },
   // Badges earned
   badges: [{
     id:     String,

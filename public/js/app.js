@@ -2140,9 +2140,11 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   setTimeout(() => loadFloatingPets(), 1500);
   // Check fire/friend notifications on load
   setTimeout(() => checkFireNotifications(), 3000);
+  setTimeout(() => checkGiftNotifications(), 4000);
 
-  // Fire overlay buttons — init here so they work on ANY page
+  // Fire overlay buttons + gift modal — init here so they work on ANY page
   initFireOverlay();
+  initGiftModal();
 });
 
 // ═══════════════════════════════════════════
@@ -3957,6 +3959,9 @@ const apiGamification = {
   sendFire:       (id) => API.p('/api/gamification/send-fire', { toUserId: id }),
   getFires:       () => API.g('/api/gamification/fires'),
   markFiresSeen:  () => API.p('/api/gamification/fires/seen', {}),
+  giftItem:       (toUserId, itemId, qty) => API.p('/api/gamification/gift-item', { toUserId, itemId, qty }),
+  getGifts:       () => API.g('/api/gamification/gifts'),
+  markGiftsSeen:  () => API.p('/api/gamification/gifts/seen', {}),
   notifications:  () => API.g('/api/gamification/notifications'),
   achievementStats: () => API.g('/api/gamification/achievement-stats'),
 };
@@ -3976,15 +3981,19 @@ async function initGamification() {
     btn.disabled = true; btn.textContent = '...';
     try {
       const res = await apiGamification.sendRequest(code);
-      if (res.accepted) {
+      if (res.error) {
+        toast('❌ ' + res.error);
+      } else if (res.accepted) {
         toast('🎉 Đã kết bạn thành công!');
         launchConfetti('medium');
         loadLeaderboard(); loadFriendsList();
+        input.value = '';
+        loadFriendRequests();
       } else {
         toast('✅ Đã gửi lời mời kết bạn!');
+        input.value = '';
+        loadFriendRequests();
       }
-      input.value = '';
-      loadFriendRequests();
     } catch(e) { toast('❌ ' + (e.error || e.message || 'Lỗi!')); }
     finally { btn.disabled = false; btn.textContent = 'Kết bạn'; }
   });
@@ -4278,18 +4287,23 @@ async function loadFriendsList() {
         const name = esc(f.displayName || f.username);
         const initials = name.slice(0,2).toUpperCase();
         const sentToday = f.fireSentToday;
+        const online = f.isOnline;
         const fireBtn = sentToday
           ? `<button class="gf-fl-fire-btn sent-today" data-id="${f._id}" data-name="${name}" disabled title="Đã gửi lửa hôm nay">✅</button>`
           : `<button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>`;
         return `
         <div class="gf-fl-card" data-id="${f._id}">
-          <div class="gf-fl-avatar">${initials}</div>
+          <div class="gf-fl-avatar-wrap">
+            <div class="gf-fl-avatar">${initials}</div>
+            ${online ? '<span class="gf-online-dot"></span>' : ''}
+          </div>
           <div class="gf-fl-info">
-            <div class="gf-fl-name">${name}</div>
+            <div class="gf-fl-name">${name}${online ? ' <span class="gf-online-label">Đang hoạt động</span>' : ''}</div>
             <div class="gf-fl-sub">${sentToday ? '🔥 Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
           </div>
           <div class="gf-fl-actions">
             ${fireBtn}
+            <button class="gf-fl-gift-btn" data-id="${f._id}" data-name="${name}" title="Tặng quà cho ${name}">🎁</button>
             <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
           </div>
         </div>`;
@@ -4303,7 +4317,6 @@ async function loadFriendsList() {
         btn.textContent = '⏳';
         try {
           await apiGamification.sendFire(btn.dataset.id);
-          // Mark as sent today in UI
           setFireBtnSent(btn, btn.dataset.name);
           toast(`🔥 Đã truyền lửa cho ${btn.dataset.name}!`);
           showFireSentAnimation();
@@ -4313,6 +4326,11 @@ async function loadFriendsList() {
           toast('❌ ' + (e.error || e.message || 'Lỗi gửi lửa'));
         }
       });
+    });
+
+    // Gift buttons
+    wrap.querySelectorAll('.gf-fl-gift-btn').forEach(btn => {
+      btn.addEventListener('click', () => openGiftModal(btn.dataset.id, btn.dataset.name));
     });
 
     // Remove buttons
@@ -4489,6 +4507,155 @@ function showFireSentAnimation() {
     document.body.appendChild(p);
     setTimeout(() => p.remove(), 2000);
   }
+}
+
+// ── GIFT MODAL ──
+let _giftToId = null, _giftToName = '', _giftSelectedItem = null, _giftQty = 1, _giftInventory = {};
+
+function initGiftModal() {
+  const modal = document.getElementById('gift-modal');
+  if (!modal) return;
+  document.getElementById('gift-modal-close')?.addEventListener('click', closeGiftModal);
+  document.getElementById('gift-modal-backdrop')?.addEventListener('click', closeGiftModal);
+  document.getElementById('gift-qty-minus')?.addEventListener('click', () => {
+    if (_giftQty > 1) { _giftQty--; updateGiftQtyUI(); }
+  });
+  document.getElementById('gift-qty-plus')?.addEventListener('click', () => {
+    const max = _giftInventory[_giftSelectedItem] || 1;
+    if (_giftQty < Math.min(max, 20)) { _giftQty++; updateGiftQtyUI(); }
+  });
+  document.getElementById('gift-send-btn')?.addEventListener('click', sendGift);
+}
+
+function closeGiftModal() {
+  const modal = document.getElementById('gift-modal');
+  if (modal) modal.style.display = 'none';
+  _giftToId = null; _giftToName = ''; _giftSelectedItem = null; _giftQty = 1;
+}
+
+async function openGiftModal(friendId, friendName) {
+  _giftToId = friendId;
+  _giftToName = friendName;
+  _giftSelectedItem = null;
+  _giftQty = 1;
+
+  document.getElementById('gift-modal-name').textContent = friendName;
+  document.getElementById('gift-qty-row').style.display = 'none';
+  document.getElementById('gift-send-btn').disabled = true;
+
+  // Load player inventory
+  const modal = document.getElementById('gift-modal');
+  const grid = document.getElementById('gift-items-grid');
+  grid.innerHTML = '<div class="gift-loading">Đang tải kho...</div>';
+  modal.style.display = 'flex';
+
+  try {
+    const pts = await API.g('/api/shop/points');
+    const ALL_GIFT_ITEMS = [
+      { id:'food',       name:'Cà rốt',           emoji:'🥕' },
+      { id:'meat',       name:'Thịt tươi',         emoji:'🥩' },
+      { id:'fish',       name:'Cá hồi',            emoji:'🐟' },
+      { id:'seed',       name:'Hạt giống',         emoji:'🌻' },
+      { id:'treat',      name:'Bánh thưởng',       emoji:'🍪' },
+      { id:'water',      name:'Nước sạch',         emoji:'💧' },
+      { id:'fertilizer', name:'Phân bón',          emoji:'🌿' },
+      { id:'coffee',     name:'Cà phê',            emoji:'☕' },
+      { id:'rose',       name:'Hoa hồng',          emoji:'🌹' },
+      { id:'chocolate',  name:'Socola',            emoji:'🍫' },
+      { id:'star',       name:'Ngôi sao may mắn',  emoji:'⭐' },
+    ];
+    _giftInventory = {};
+    ALL_GIFT_ITEMS.forEach(it => { _giftInventory[it.id] = pts[it.id] || 0; });
+
+    const available = ALL_GIFT_ITEMS.filter(it => _giftInventory[it.id] > 0);
+    if (available.length === 0) {
+      grid.innerHTML = '<div class="gift-empty">Kho trống! Mua vật phẩm từ cửa hàng để tặng bạn bè.</div>';
+      return;
+    }
+
+    grid.innerHTML = available.map(it => `
+      <div class="gift-item-card" data-id="${it.id}">
+        <div class="gift-item-emoji">${it.emoji}</div>
+        <div class="gift-item-name">${it.name}</div>
+        <div class="gift-item-qty">Có: ${_giftInventory[it.id]}</div>
+      </div>`).join('');
+
+    grid.querySelectorAll('.gift-item-card').forEach(card => {
+      card.addEventListener('click', () => {
+        grid.querySelectorAll('.gift-item-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        _giftSelectedItem = card.dataset.id;
+        _giftQty = 1;
+        const max = _giftInventory[_giftSelectedItem] || 1;
+        document.getElementById('gift-qty-max').textContent = `(tối đa ${Math.min(max, 20)})`;
+        updateGiftQtyUI();
+        document.getElementById('gift-qty-row').style.display = 'flex';
+        document.getElementById('gift-send-btn').disabled = false;
+      });
+    });
+  } catch(e) {
+    grid.innerHTML = '<div class="gift-empty">Lỗi tải kho!</div>';
+  }
+}
+
+function updateGiftQtyUI() {
+  document.getElementById('gift-qty-val').textContent = _giftQty;
+  const max = _giftInventory[_giftSelectedItem] || 1;
+  document.getElementById('gift-qty-minus').disabled = _giftQty <= 1;
+  document.getElementById('gift-qty-plus').disabled = _giftQty >= Math.min(max, 20);
+}
+
+async function sendGift() {
+  if (!_giftToId || !_giftSelectedItem) return;
+  const btn = document.getElementById('gift-send-btn');
+  btn.disabled = true; btn.textContent = '⏳ Đang gửi...';
+  try {
+    const res = await apiGamification.giftItem(_giftToId, _giftSelectedItem, _giftQty);
+    if (res.error) { toast('❌ ' + res.error); btn.disabled = false; btn.textContent = 'Gửi quà 🎁'; return; }
+    toast(`🎁 Đã tặng quà cho ${_giftToName}!`);
+    showGiftSentAnimation();
+    closeGiftModal();
+  } catch(e) {
+    toast('❌ ' + (e.error || e.message || 'Lỗi gửi quà'));
+    btn.disabled = false; btn.textContent = 'Gửi quà 🎁';
+  }
+}
+
+function showGiftSentAnimation() {
+  const emojis = ['🎁','🎁','✨','⭐','🎊','🎉'];
+  for (let i = 0; i < 10; i++) {
+    const p = document.createElement('div');
+    p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.cssText = `
+      position:fixed;
+      left:${20 + Math.random() * 60}%;
+      top:${20 + Math.random() * 40}%;
+      font-size:${20 + Math.floor(Math.random() * 24)}px;
+      pointer-events:none;z-index:9990;
+      animation:fireSentFloat ${0.9 + Math.random() * 0.8}s ease-out forwards;
+      animation-delay:${Math.random() * 0.3}s;
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2000);
+  }
+}
+
+async function checkGiftNotifications() {
+  try {
+    const gifts = await apiGamification.getGifts();
+    if (!gifts || gifts.length === 0) return;
+    // Show toast for each unseen gift
+    const grouped = {};
+    gifts.forEach(g => {
+      const key = `${g.fromName}:${g.itemId}`;
+      if (!grouped[key]) grouped[key] = { ...g, totalQty: 0 };
+      grouped[key].totalQty += g.qty;
+    });
+    Object.values(grouped).forEach(g => {
+      toast(`🎁 ${g.fromName} tặng bạn ${g.totalQty}x ${g.itemEmoji} ${g.itemName}!`);
+    });
+    await apiGamification.markGiftsSeen();
+  } catch(e) {}
 }
 
 // ── TIME AGO (Vietnamese) ──

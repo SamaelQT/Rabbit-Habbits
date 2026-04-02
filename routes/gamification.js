@@ -415,17 +415,19 @@ router.get('/leaderboard', async (req, res) => {
 // GET /api/gamification/friends-list
 router.get('/friends-list', async (req, res) => {
   try {
-    const me = await User.findById(req.userId).populate('friends', 'username displayName');
+    const me = await User.findById(req.userId).populate('friends', 'username displayName lastSeen');
     const today = todayKey();
     // Which friends already got fire today
     const sentToday = (me.sentFires || [])
       .filter(s => s.sentAt.toISOString().slice(0, 10) === today)
       .map(s => s.to.toString());
+    const onlineThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes
     const friends = (me.friends || []).map(f => ({
       _id: f._id,
       username: f.username,
       displayName: f.displayName,
-      fireSentToday: sentToday.includes(f._id.toString())
+      fireSentToday: sentToday.includes(f._id.toString()),
+      isOnline: f.lastSeen && f.lastSeen > onlineThreshold
     }));
     res.json(friends);
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -559,10 +561,92 @@ router.post('/fires/seen', async (req, res) => {
 // GET /api/gamification/notifications — badge counts
 router.get('/notifications', async (req, res) => {
   try {
-    const me = await User.findById(req.userId).select('friendRequests receivedFires');
+    const me = await User.findById(req.userId).select('friendRequests receivedFires receivedGifts');
     const requestCount = (me.friendRequests || []).length;
     const fireCount = (me.receivedFires || []).filter(f => !f.seen).length;
-    res.json({ requestCount, fireCount, total: requestCount + fireCount });
+    const giftCount = (me.receivedGifts || []).filter(g => !g.seen).length;
+    res.json({ requestCount, fireCount, giftCount, total: requestCount + fireCount + giftCount });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ GIFT SYSTEM ═══
+
+// Catalog of giftable items (must match shop.js SHOP_ITEMS ids)
+const GIFT_ITEMS = [
+  { id:'food',      name:'Cà rốt',          emoji:'🥕' },
+  { id:'meat',      name:'Thịt tươi',        emoji:'🥩' },
+  { id:'fish',      name:'Cá hồi',           emoji:'🐟' },
+  { id:'seed',      name:'Hạt giống',        emoji:'🌻' },
+  { id:'treat',     name:'Bánh thưởng',      emoji:'🍪' },
+  { id:'water',     name:'Nước sạch',        emoji:'💧' },
+  { id:'fertilizer',name:'Phân bón',         emoji:'🌿' },
+  { id:'coffee',    name:'Cà phê',           emoji:'☕' },
+  { id:'rose',      name:'Hoa hồng',         emoji:'🌹' },
+  { id:'chocolate', name:'Socola',           emoji:'🍫' },
+  { id:'star',      name:'Ngôi sao may mắn', emoji:'⭐' },
+];
+
+// POST /api/gamification/gift-item  { toUserId, itemId, qty }
+router.post('/gift-item', async (req, res) => {
+  try {
+    const { toUserId, itemId, qty: rawQty } = req.body;
+    const qty = parseInt(rawQty) || 1;
+    if (!toUserId || !itemId) return res.status(400).json({ error: 'Thiếu thông tin quà tặng' });
+    if (qty < 1 || qty > 20) return res.status(400).json({ error: 'Số lượng phải từ 1 đến 20' });
+
+    const item = GIFT_ITEMS.find(i => i.id === itemId);
+    if (!item) return res.status(400).json({ error: 'Vật phẩm không hợp lệ' });
+
+    const me = await User.findById(req.userId).select('friends username displayName');
+    if (!me) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Must be friends
+    if (!me.friends.some(f => f.toString() === toUserId)) {
+      return res.status(400).json({ error: 'Chỉ bạn bè mới nhận được quà!' });
+    }
+
+    const recipient = await User.findById(toUserId);
+    if (!recipient) return res.status(404).json({ error: 'Không tìm thấy người nhận' });
+
+    // Deduct from sender's inventory
+    const senderUP = await UserPoints.findOne({ userId: req.userId });
+    if (!senderUP) return res.status(400).json({ error: 'Không có vật phẩm trong kho!' });
+    if ((senderUP[itemId] || 0) < qty) return res.status(400).json({ error: `Không đủ ${item.name} trong kho!` });
+    senderUP[itemId] -= qty;
+    await senderUP.save();
+
+    // Add to recipient's inventory
+    let recipientUP = await UserPoints.findOne({ userId: toUserId });
+    if (!recipientUP) recipientUP = await UserPoints.create({ userId: toUserId });
+    recipientUP[itemId] = (recipientUP[itemId] || 0) + qty;
+    await recipientUP.save();
+
+    // Record gift notification
+    const fromName = me.displayName || me.username;
+    recipient.receivedGifts = recipient.receivedGifts || [];
+    recipient.receivedGifts.push({ from: me._id, fromName, itemId: item.id, itemName: item.name, itemEmoji: item.emoji, qty });
+    await recipient.save();
+
+    res.json({ ok: true, [itemId]: senderUP[itemId] });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/gifts — unseen received gifts
+router.get('/gifts', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('receivedGifts');
+    const unseen = (me.receivedGifts || []).filter(g => !g.seen);
+    res.json(unseen);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gamification/gifts/seen
+router.post('/gifts/seen', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId);
+    (me.receivedGifts || []).forEach(g => { g.seen = true; });
+    await me.save();
+    res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

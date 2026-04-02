@@ -224,6 +224,33 @@
   </div>
 </div>
 
+<!-- Gift modal -->
+<div id="gift-modal" style="display:none">
+  <div class="gift-modal-backdrop" id="gift-modal-backdrop"></div>
+  <div class="gift-modal-card">
+    <div class="gift-modal-header">
+      <div class="gift-modal-title">🎁 Tặng quà cho <span id="gift-modal-name"></span></div>
+      <button class="gift-modal-close" id="gift-modal-close">✕</button>
+    </div>
+    <div class="gift-modal-body">
+      <div class="gift-modal-sub">Chọn vật phẩm từ kho của bạn</div>
+      <div class="gift-items-grid" id="gift-items-grid"></div>
+      <div class="gift-qty-row" id="gift-qty-row" style="display:none">
+        <div class="gift-qty-label">Số lượng:</div>
+        <div class="gift-qty-controls">
+          <button class="gift-qty-btn" id="gift-qty-minus">−</button>
+          <span class="gift-qty-val" id="gift-qty-val">1</span>
+          <button class="gift-qty-btn" id="gift-qty-plus">+</button>
+        </div>
+        <div class="gift-qty-max" id="gift-qty-max"></div>
+      </div>
+    </div>
+    <div class="gift-modal-footer">
+      <button class="gift-send-btn" id="gift-send-btn" disabled>Gửi quà 🎁</button>
+    </div>
+  </div>
+</div>
+
 <!-- Journal day overlay — must be OUTSIDE any transform ancestor -->
 <div class="jp-overlay" id="jp-overlay" style="display:none">
   <div class="jp-overlay-card">
