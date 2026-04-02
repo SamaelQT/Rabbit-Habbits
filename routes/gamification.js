@@ -420,6 +420,122 @@ router.get('/friends-list', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// ═══ FIRE SYSTEM ═══
+
+const FIRE_MESSAGES = [
+  'đã truyền lửa ý chí chiến đấu cho bạn! Hãy bùng cháy nào!',
+  'gửi đến bạn ngọn lửa bất diệt — tiến lên không dừng!',
+  'muốn nhắn với bạn: Bạn mạnh hơn mọi trở ngại! 💪',
+  'thấy bạn đang cố gắng và cảm thấy rất tự hào về bạn!',
+  'tin tưởng bạn sẽ chinh phục mọi thử thách hôm nay!',
+  'gửi năng lượng tích cực đến bạn — đừng bao giờ bỏ cuộc!',
+  'nhắn với bạn: Mỗi ngày nhỏ tích thành thành công lớn!',
+  'truyền cho bạn ý chí của người chiến binh — xông lên!',
+  'muốn bạn biết: Sự kiên trì của bạn thật đáng ngưỡng mộ!',
+  'thổi bùng ngọn lửa trong tim bạn — hôm nay là ngày của bạn!',
+  'gửi đến bạn: Khó khăn chỉ là bậc thang dẫn đến thành công!',
+  'tin rằng bạn đang trên đúng con đường — cứ tiếp tục đi!',
+  'chia sẻ với bạn: Người chiến thắng không bao giờ bỏ cuộc!',
+  'truyền lửa đam mê cho bạn — hãy làm điều bạn yêu thích!',
+  'nhắn với bạn: Streak của bạn không được phép tắt! 🔥',
+  'gửi năng lượng mặt trời cho bạn — rực rỡ lên nào!',
+  'muốn bạn nhớ: Từng bước nhỏ đều có giá trị!',
+  'truyền đến bạn tinh thần Rabbit Habits — kiên trì bền bỉ!',
+  'nhắn với bạn: Hôm nay dù khó, ngày mai sẽ tự hào!',
+  'gửi đến bạn: Thói quen tốt tạo nên cuộc đời tốt!',
+  'thấy bạn đang làm rất tốt — đừng để ngọn lửa tắt!',
+  'truyền cho bạn: Mỗi task hoàn thành là một chiến thắng!',
+  'nhắn với bạn: Ngay cả thỏ con cũng biết kiên trì! 🐰',
+  'gửi năng lượng vũ trụ cho bạn — phá vỡ giới hạn đi!',
+  'muốn bạn biết: Bạn đang truyền cảm hứng cho tôi!',
+  'truyền lửa hy vọng cho bạn — ánh sáng luôn ở phía trước!',
+  'nhắn với bạn: Sức mạnh thật sự đến từ sự kiên định!',
+  'gửi đến bạn: Đừng so sánh, hãy cạnh tranh với chính mình!',
+  'thấy bạn cần thêm lửa — đây, nhận hết đi! 🔥🔥🔥',
+  'truyền cho bạn: Kỷ luật hôm nay, tự do ngày mai!',
+  'nhắn với bạn: Streak dài nhất bắt đầu từ một ngày!',
+  'gửi năng lượng chiến binh cho bạn — không lùi bước!',
+  'muốn bạn nghe: Bạn đã xa hơn hôm qua rồi đó!',
+  'truyền lửa nhiệt huyết cho bạn — cháy hết mình đi!',
+  'nhắn với bạn: Thành công không ồn ào, cứ âm thầm mà tiến!',
+  'gửi đến bạn: Mọi chuyên gia đều từng là người mới bắt đầu!',
+  'thấy bạn xứng đáng được tiếp lửa — đây nhé! ✨',
+  'truyền cho bạn tinh thần không bao giờ bỏ cuộc!',
+  'nhắn với bạn: Hôm nay cố gắng, tương lai cảm ơn!',
+  'gửi năng lượng tích cực vô hạn cho bạn — hãy đón nhận!',
+  'muốn bạn biết: Tôi tin bạn làm được điều vĩ đại!',
+  'truyền lửa chiến đấu cho bạn — đây là ngày bạn tỏa sáng!',
+  'nhắn với bạn: Mỗi thói quen tốt là một viên gạch xây thành công!',
+  'gửi đến bạn: Đừng đếm ngày, hãy làm cho ngày có ý nghĩa!',
+  'thấy bạn đang chăm chỉ — xứng đáng được tiếp thêm lửa! 🏆',
+  'truyền cho bạn: Sóng to mới thấy lái giỏi — cứ tiến lên!',
+  'nhắn với bạn: Bạn không đơn độc, tôi luôn ở đây cổ vũ!',
+  'gửi năng lượng phượng hoàng cho bạn — vươn lên từ tro tàn!',
+  'muốn bạn nhớ: Mệt thì nghỉ nhưng đừng bỏ cuộc nhé!',
+  'truyền hết năng lượng của mình cho bạn — dùng đi nào! 💫',
+];
+
+// POST /api/gamification/send-fire  { toUserId }
+router.post('/send-fire', async (req, res) => {
+  try {
+    const { toUserId } = req.body;
+    if (!toUserId) return res.status(400).json({ error: 'Thiếu người nhận' });
+
+    const me = await User.findById(req.userId).select('username displayName friends');
+    if (!me) return res.status(401).json({ error: 'Unauthorized' });
+
+    // Must be friends
+    if (!me.friends.some(f => f.toString() === toUserId)) {
+      return res.status(400).json({ error: 'Chỉ bạn bè mới nhận được lửa!' });
+    }
+
+    const target = await User.findById(toUserId);
+    if (!target) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+
+    // Pick random message
+    const message = FIRE_MESSAGES[Math.floor(Math.random() * FIRE_MESSAGES.length)];
+    const fromName = me.displayName || me.username;
+
+    // Keep only last 20 fires per user
+    if (target.receivedFires.length >= 20) {
+      target.receivedFires = target.receivedFires.slice(-19);
+    }
+    target.receivedFires.push({ from: me._id, fromName, message });
+    await target.save();
+
+    res.json({ ok: true, message });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/fires — get my unseen fires
+router.get('/fires', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('receivedFires');
+    const fires = (me.receivedFires || []).filter(f => !f.seen);
+    res.json(fires);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gamification/fires/seen — mark all fires as seen
+router.post('/fires/seen', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId);
+    me.receivedFires.forEach(f => { f.seen = true; });
+    await me.save();
+    res.json({ ok: true });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/notifications — badge counts
+router.get('/notifications', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('friendRequests receivedFires');
+    const requestCount = (me.friendRequests || []).length;
+    const fireCount = (me.receivedFires || []).filter(f => !f.seen).length;
+    res.json({ requestCount, fireCount, total: requestCount + fireCount });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ ACHIEVEMENT STATS ═══
 // Returns detailed stats needed for the achievement page progress bars
 router.get('/achievement-stats', async (req, res) => {

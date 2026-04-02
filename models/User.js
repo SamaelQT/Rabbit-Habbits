@@ -12,6 +12,13 @@ const userSchema = new mongoose.Schema({
     from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     createdAt: { type: Date, default: Date.now }
   }],
+  receivedFires: [{
+    from:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fromName:  { type: String, default: '' },
+    message:   { type: String, default: '' },
+    createdAt: { type: Date, default: Date.now },
+    seen:      { type: Boolean, default: false }
+  }],
   createdAt:   { type: Date, default: Date.now }
 });
 

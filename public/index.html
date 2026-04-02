@@ -22,7 +22,7 @@
     <button class="tnav-btn active" data-page="home">🏠 Trang chủ</button>
     <button class="tnav-btn" data-page="stats">📊 Thống kê</button>
     <button class="tnav-btn" data-page="shop">🛒 Cửa hàng</button>
-    <button class="tnav-btn" data-page="gamification">🎮 Game</button>
+    <button class="tnav-btn" data-page="gamification" id="tnav-gamification">🎮 Game<span class="tnav-notif-dot" id="tnav-notif-dot" style="display:none"></span></button>
     <button class="tnav-btn" data-page="profile">👤 Hồ sơ</button>
   </nav>
 
@@ -209,6 +209,17 @@
   </main>
 </div><!-- /app-wrapper -->
 </div><!-- /page-home -->
+
+<!-- Fire received overlay — full-screen fire burst animation -->
+<div id="fire-overlay" style="display:none">
+  <div class="fire-overlay-particles" id="fire-overlay-particles"></div>
+  <div class="fire-overlay-card">
+    <div class="fire-overlay-icon">🔥</div>
+    <div class="fire-overlay-from" id="fire-overlay-from"></div>
+    <div class="fire-overlay-msg" id="fire-overlay-msg"></div>
+    <button class="fire-overlay-close" id="fire-overlay-close">Bùng cháy nào! 💪</button>
+  </div>
+</div>
 
 <!-- Journal day overlay — must be OUTSIDE any transform ancestor -->
 <div class="jp-overlay" id="jp-overlay" style="display:none">
@@ -463,21 +474,41 @@
     </div>
 
     <!-- Friends -->
-    <div class="gf-section">
+    <div class="gf-section gf-friends-section">
       <div class="gf-section-header">
         <div class="gf-section-title">👥 Bạn bè</div>
+        <div class="gf-notif-badge" id="gf-notif-badge" style="display:none">0</div>
       </div>
-      <div class="gf-friend-code-row" id="gf-friend-code-row">
-        <div class="gf-fc-label">Mã bạn bè của bạn:</div>
-        <div class="gf-fc-code" id="gf-fc-code">...</div>
-        <button class="gf-fc-copy" id="gf-fc-copy" title="Sao chép">📋</button>
+
+      <!-- Friend code card -->
+      <div class="gf-code-card">
+        <div class="gf-code-card-top">
+          <span class="gf-code-card-icon">🎫</span>
+          <div>
+            <div class="gf-code-card-label">Mã bạn bè của bạn</div>
+            <div class="gf-fc-code" id="gf-fc-code">...</div>
+          </div>
+        </div>
+        <div class="gf-code-card-btns">
+          <button class="gf-fc-copy" id="gf-fc-copy">📋 Sao chép</button>
+          <button class="gf-fc-share" id="gf-fc-share">📤 Chia sẻ</button>
+        </div>
       </div>
-      <div class="gf-friend-add-row">
-        <input class="gf-friend-input" id="gf-friend-input" placeholder="Nhập mã bạn bè..." maxlength="20"/>
-        <button class="gf-friend-add-btn" id="gf-friend-add-btn">Kết bạn</button>
+
+      <!-- Add friend card -->
+      <div class="gf-add-card">
+        <div class="gf-add-card-title">➕ Thêm bạn mới</div>
+        <div class="gf-friend-add-row">
+          <input class="gf-friend-input" id="gf-friend-input" placeholder="Nhập mã bạn bè..." maxlength="20"/>
+          <button class="gf-friend-add-btn" id="gf-friend-add-btn">Kết bạn</button>
+        </div>
       </div>
-      <div class="gf-friend-requests" id="gf-friend-requests"></div>
-      <div class="gf-friends-list" id="gf-friends-list"></div>
+
+      <!-- Pending requests -->
+      <div id="gf-friend-requests"></div>
+
+      <!-- Friends list -->
+      <div id="gf-friends-list"></div>
     </div>
 
     <!-- Achievements (full page) -->

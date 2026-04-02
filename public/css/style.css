@@ -2082,58 +2082,216 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .gf-lb-pts{font-size:16px;font-weight:800;color:var(--accent);white-space:nowrap;}
 .gf-lb-pts-label{font-size:10px;font-weight:500;color:var(--text3);}
 
-/* Friends */
-.gf-friend-code-row{
-  display:flex;align-items:center;gap:10px;padding:12px 16px;
-  background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius-sm);
-  margin-bottom:10px;
+/* ═══ FRIENDS SECTION (redesigned) ═══ */
+
+/* Tab notification dot */
+.tnav-btn{position:relative;}
+.tnav-notif-dot{
+  position:absolute;top:4px;right:4px;
+  width:8px;height:8px;border-radius:50%;
+  background:#ff4757;border:2px solid var(--bg);
+  animation:notifPulse 1.5s ease-in-out infinite;
 }
-.gf-fc-label{font-size:12px;color:var(--text2);}
+@keyframes notifPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.4);}}
+
+/* Section badge */
+.gf-notif-badge{
+  min-width:20px;height:20px;border-radius:10px;
+  background:#ff4757;color:#fff;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;padding:0 5px;
+  animation:notifPulse 1.5s ease-in-out infinite;
+}
+
+/* Friend code card */
+.gf-code-card{
+  background:linear-gradient(135deg,rgba(176,127,255,.12),rgba(255,133,200,.08));
+  border:1.5px solid rgba(176,127,255,.3);border-radius:16px;
+  padding:16px 18px;margin-bottom:12px;
+}
+.gf-code-card-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.gf-code-card-icon{font-size:28px;}
+.gf-code-card-label{font-size:11px;color:var(--text3);margin-bottom:2px;}
 .gf-fc-code{
-  font-size:16px;font-weight:800;color:var(--accent);letter-spacing:2px;
-  font-family:'JetBrains Mono',monospace;
+  font-size:22px;font-weight:900;color:var(--accent);
+  letter-spacing:3px;font-family:'JetBrains Mono',monospace;
 }
-.gf-fc-copy{
-  background:none;border:none;cursor:pointer;font-size:16px;padding:4px;
-  border-radius:6px;transition:background .2s;
+.gf-code-card-btns{display:flex;gap:8px;}
+.gf-fc-copy,.gf-fc-share{
+  flex:1;padding:8px 12px;border:1.5px solid var(--border2);border-radius:10px;
+  background:var(--bg3);color:var(--text);font-size:12px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:all .2s;
 }
-.gf-fc-copy:hover{background:var(--bg4);}
-.gf-friend-add-row{display:flex;gap:8px;margin-bottom:12px;}
+.gf-fc-copy:hover{border-color:var(--accent);background:rgba(176,127,255,.1);}
+.gf-fc-share:hover{border-color:var(--pink);background:rgba(255,133,200,.1);}
+
+/* Add friend card */
+.gf-add-card{
+  background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:14px 16px;margin-bottom:14px;
+}
+.gf-add-card-title{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:10px;}
+.gf-friend-add-row{display:flex;gap:8px;}
 .gf-friend-input{
-  flex:1;padding:8px 12px;border-radius:8px;border:1.5px solid var(--border);
-  background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;
-  text-transform:uppercase;letter-spacing:1px;
+  flex:1;padding:9px 13px;border-radius:10px;border:1.5px solid var(--border);
+  background:var(--bg3);color:var(--text);font-size:13px;font-family:'JetBrains Mono',monospace;
+  text-transform:uppercase;letter-spacing:2px;transition:border-color .2s;
 }
-.gf-friend-input:focus{border-color:var(--accent);outline:none;}
+.gf-friend-input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px rgba(176,127,255,.15);}
 .gf-friend-add-btn{
-  padding:8px 16px;border:none;border-radius:8px;cursor:pointer;
-  background:var(--accent);color:#fff;font-size:13px;font-weight:600;font-family:inherit;
+  padding:9px 18px;border:none;border-radius:10px;cursor:pointer;white-space:nowrap;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  color:#fff;font-size:13px;font-weight:700;font-family:inherit;
+  transition:all .2s;box-shadow:0 3px 12px rgba(176,127,255,.35);
 }
-.gf-fr-title{font-size:12px;color:var(--amber);font-weight:600;margin-bottom:8px;}
-.gf-fr-row{
-  display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
-  background:var(--bg3);border-radius:8px;margin-bottom:6px;
+.gf-friend-add-btn:hover{transform:translateY(-1px);box-shadow:0 5px 18px rgba(176,127,255,.5);}
+.gf-friend-add-btn:disabled{opacity:.5;cursor:default;transform:none;}
+
+/* Friend requests */
+.gf-req-header{
+  display:flex;align-items:center;gap:8px;margin-bottom:10px;
 }
+.gf-req-title{font-size:12px;font-weight:700;color:var(--amber);}
+.gf-req-count{
+  background:rgba(255,207,92,.15);color:var(--amber);border-radius:10px;
+  font-size:11px;font-weight:700;padding:1px 7px;
+}
+.gf-fr-card{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  background:linear-gradient(135deg,rgba(255,207,92,.06),var(--bg3));
+  border:1px solid rgba(255,207,92,.2);border-radius:12px;
+  margin-bottom:8px;transition:all .2s;
+}
+.gf-fr-card:hover{border-color:rgba(255,207,92,.4);}
+.gf-fr-avatar{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--pink));
+  color:#fff;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+.gf-fr-info{flex:1;min-width:0;}
 .gf-fr-name{font-size:13px;font-weight:600;color:var(--text);}
+.gf-fr-time{font-size:10px;color:var(--text3);margin-top:1px;}
 .gf-fr-actions{display:flex;gap:6px;}
-.gf-fr-accept,.gf-fr-reject{
-  background:none;border:none;cursor:pointer;font-size:14px;padding:4px 8px;border-radius:6px;
+.gf-fr-accept{
+  width:30px;height:30px;border:none;border-radius:8px;cursor:pointer;font-size:15px;
+  background:rgba(94,240,160,.15);transition:all .2s;
 }
-.gf-fr-accept:hover{background:rgba(94,240,160,.15);}
-.gf-fr-reject:hover{background:rgba(255,107,138,.15);}
-.gf-fl-row{
-  display:flex;align-items:center;justify-content:space-between;padding:8px 12px;
-  background:var(--bg2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;
+.gf-fr-accept:hover{background:rgba(94,240,160,.3);transform:scale(1.1);}
+.gf-fr-reject{
+  width:30px;height:30px;border:none;border-radius:8px;cursor:pointer;font-size:13px;
+  background:rgba(255,107,138,.1);color:var(--text3);transition:all .2s;
 }
-.gf-fl-name{font-size:13px;color:var(--text);}
+.gf-fr-reject:hover{background:rgba(255,107,138,.25);color:var(--red);transform:scale(1.1);}
+
+/* Friends list */
+.gf-fl-header{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px;margin-top:4px;}
+.gf-fl-card{
+  display:flex;align-items:center;gap:10px;padding:11px 13px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:13px;
+  margin-bottom:8px;transition:all .2s;
+}
+.gf-fl-card:hover{border-color:var(--border2);box-shadow:0 2px 10px rgba(0,0,0,.15);}
+.gf-fl-avatar{
+  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#5ef0a0,#3ddbb8);
+  color:#fff;font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+.gf-fl-info{flex:1;min-width:0;}
+.gf-fl-name{font-size:13px;font-weight:600;color:var(--text);}
+.gf-fl-sub{font-size:10px;color:var(--text3);margin-top:1px;}
+.gf-fl-actions{display:flex;gap:6px;align-items:center;}
+.gf-fl-fire-btn{
+  padding:5px 10px;border:none;border-radius:8px;cursor:pointer;font-size:16px;
+  background:linear-gradient(135deg,rgba(255,100,0,.15),rgba(255,200,0,.15));
+  border:1px solid rgba(255,150,0,.25);transition:all .2s;
+}
+.gf-fl-fire-btn:hover{
+  background:linear-gradient(135deg,rgba(255,100,0,.3),rgba(255,200,0,.25));
+  transform:scale(1.12);box-shadow:0 0 12px rgba(255,100,0,.4);
+}
 .gf-fl-remove{
-  background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);
-  padding:4px 8px;border-radius:6px;
+  width:28px;height:28px;border:none;border-radius:7px;cursor:pointer;
+  font-size:12px;color:var(--text3);background:transparent;transition:all .2s;
 }
 .gf-fl-remove:hover{color:var(--red);background:rgba(255,107,138,.1);}
+
+/* Friends empty state */
+.gf-friends-empty{
+  text-align:center;padding:28px 20px;
+  background:var(--bg2);border:1.5px dashed var(--border2);border-radius:14px;
+}
+.gf-fe-icon{font-size:36px;margin-bottom:8px;}
+.gf-fe-text{font-size:14px;font-weight:600;color:var(--text2);margin-bottom:4px;}
+.gf-fe-sub{font-size:12px;color:var(--text3);line-height:1.5;}
+
+/* Keep .gf-empty for leaderboard etc */
 .gf-empty{
   text-align:center;padding:20px;font-size:13px;color:var(--text3);
   background:var(--bg2);border-radius:var(--radius-sm);
+}
+
+/* ═══ FIRE OVERLAY ═══ */
+#fire-overlay{
+  position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,.85);backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;
+  padding:24px;
+}
+.fire-overlay-particles{
+  position:absolute;inset:0;overflow:hidden;pointer-events:none;
+}
+.fire-particle{
+  position:absolute;bottom:-20px;
+  animation:fireRise linear forwards;
+  opacity:.9;
+}
+@keyframes fireRise{
+  0%{transform:translateY(0) rotate(0deg);opacity:1;}
+  100%{transform:translateY(-110vh) rotate(360deg);opacity:0;}
+}
+.fire-overlay-card{
+  position:relative;z-index:1;
+  background:linear-gradient(135deg,rgba(40,20,0,.95),rgba(60,20,0,.9));
+  border:2px solid rgba(255,120,0,.5);border-radius:24px;
+  padding:36px 28px;max-width:360px;width:100%;text-align:center;
+  box-shadow:0 0 60px rgba(255,100,0,.4),0 20px 60px rgba(0,0,0,.6);
+  animation:fireCardIn .5s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes fireCardIn{
+  0%{transform:scale(.6);opacity:0;}
+  100%{transform:scale(1);opacity:1;}
+}
+.fire-overlay-icon{
+  font-size:64px;
+  animation:fireIconPulse .6s ease-in-out infinite alternate;
+  display:block;margin-bottom:16px;
+}
+@keyframes fireIconPulse{
+  0%{transform:scale(1);filter:brightness(1);}
+  100%{transform:scale(1.15);filter:brightness(1.4) drop-shadow(0 0 16px rgba(255,100,0,.8));}
+}
+.fire-overlay-from{
+  font-size:15px;font-weight:700;color:#fff;
+  line-height:1.5;margin-bottom:8px;
+}
+.fire-overlay-msg{
+  font-size:12px;color:rgba(255,200,100,.8);
+  margin-bottom:20px;
+}
+.fire-overlay-close{
+  padding:12px 28px;border:none;border-radius:50px;cursor:pointer;
+  background:linear-gradient(135deg,#ff6b00,#ffaa00);
+  color:#fff;font-size:14px;font-weight:700;font-family:inherit;
+  box-shadow:0 4px 20px rgba(255,100,0,.5);
+  transition:all .2s;
+}
+.fire-overlay-close:hover{transform:scale(1.05);box-shadow:0 6px 28px rgba(255,100,0,.7);}
+
+/* Fire sent floating animation */
+@keyframes fireSentFloat{
+  0%{transform:translateY(0) scale(1);opacity:1;}
+  100%{transform:translateY(-120px) scale(0);opacity:0;}
 }
 
 /* Achievements */

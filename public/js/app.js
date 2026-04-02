@@ -2138,6 +2138,8 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
   // Load floating pets after a short delay (let auth settle)
   setTimeout(() => loadFloatingPets(), 1500);
+  // Check fire/friend notifications on load
+  setTimeout(() => checkFireNotifications(), 3000);
 });
 
 // ═══════════════════════════════════════════
@@ -3949,6 +3951,10 @@ const apiGamification = {
   removeFriend:   (id) => API.p('/api/gamification/friend-remove', { userId: id }),
   leaderboard:    () => API.g('/api/gamification/leaderboard'),
   friendsList:    () => API.g('/api/gamification/friends-list'),
+  sendFire:       (id) => API.p('/api/gamification/send-fire', { toUserId: id }),
+  getFires:       () => API.g('/api/gamification/fires'),
+  markFiresSeen:  () => API.p('/api/gamification/fires/seen', {}),
+  notifications:  () => API.g('/api/gamification/notifications'),
   achievementStats: () => API.g('/api/gamification/achievement-stats'),
 };
 
@@ -3961,24 +3967,56 @@ async function initGamification() {
   // Friend add button
   document.getElementById('gf-friend-add-btn')?.addEventListener('click', async () => {
     const input = document.getElementById('gf-friend-input');
-    const code = input.value.trim();
+    const btn = document.getElementById('gf-friend-add-btn');
+    const code = input.value.trim().toUpperCase();
     if (!code) { toast('⚠ Nhập mã bạn bè!'); return; }
+    btn.disabled = true; btn.textContent = '...';
     try {
       const res = await apiGamification.sendRequest(code);
-      toast(res.accepted ? '🎉 Đã kết bạn!' : '✅ Đã gửi lời mời!');
+      if (res.accepted) {
+        toast('🎉 Đã kết bạn thành công!');
+        launchConfetti('medium');
+        loadLeaderboard(); loadFriendsList();
+      } else {
+        toast('✅ Đã gửi lời mời kết bạn!');
+      }
       input.value = '';
-      if (res.accepted) { loadLeaderboard(); loadFriendsList(); }
       loadFriendRequests();
     } catch(e) { toast('❌ ' + (e.error || e.message || 'Lỗi!')); }
+    finally { btn.disabled = false; btn.textContent = 'Kết bạn'; }
   });
 
   // Copy friend code
   document.getElementById('gf-fc-copy')?.addEventListener('click', () => {
     const code = document.getElementById('gf-fc-code').textContent;
-    navigator.clipboard.writeText(code).then(() => toast('📋 Đã sao chép!')).catch(() => {});
+    navigator.clipboard.writeText(code).then(() => {
+      toast('📋 Đã sao chép mã!');
+      const btn = document.getElementById('gf-fc-copy');
+      btn.textContent = '✅ Đã sao chép';
+      setTimeout(() => btn.textContent = '📋 Sao chép', 2000);
+    }).catch(() => {});
+  });
+
+  // Share friend code
+  document.getElementById('gf-fc-share')?.addEventListener('click', () => {
+    const code = document.getElementById('gf-fc-code').textContent;
+    const text = `🐰 Kết bạn với tôi trên Rabbit Habits!\nMã bạn bè: ${code}\nCùng nhau xây dựng thói quen tốt nhé! 🔥`;
+    if (navigator.share) {
+      navigator.share({ title: 'Rabbit Habits', text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => toast('📤 Đã sao chép link chia sẻ!')).catch(() => {});
+    }
+  });
+
+  // Fire overlay close
+  document.getElementById('fire-overlay-close')?.addEventListener('click', () => {
+    document.getElementById('fire-overlay').style.display = 'none';
+    apiGamification.markFiresSeen().catch(() => {});
   });
 
   refreshGamification();
+  // Check fires on init
+  setTimeout(checkFireNotifications, 1500);
 }
 
 async function refreshGamification() {
@@ -4176,28 +4214,46 @@ async function loadFriendRequests() {
     const reqs = await apiGamification.friendRequests();
     const wrap = document.getElementById('gf-friend-requests');
     if (!wrap) return;
+    // Update badge
+    updateFriendNotifBadge(reqs.length);
     if (!reqs || reqs.length === 0) { wrap.innerHTML = ''; return; }
 
-    wrap.innerHTML = '<div class="gf-fr-title">Lời mời kết bạn:</div>' +
-      reqs.map(r => `
-        <div class="gf-fr-row">
-          <div class="gf-fr-name">${esc(r.from?.displayName || r.from?.username || '?')}</div>
-          <div class="gf-fr-actions">
-            <button class="gf-fr-accept" data-id="${r.from?._id || r.from}">✅ Chấp nhận</button>
-            <button class="gf-fr-reject" data-id="${r.from?._id || r.from}">❌</button>
+    wrap.innerHTML = `
+      <div class="gf-req-header">
+        <span class="gf-req-title">🔔 Lời mời kết bạn</span>
+        <span class="gf-req-count">${reqs.length}</span>
+      </div>` +
+      reqs.map(r => {
+        const name = esc(r.from?.displayName || r.from?.username || '?');
+        const initials = name.slice(0,2).toUpperCase();
+        const id = r.from?._id || r.from;
+        const timeAgo = r.createdAt ? timeAgoVi(new Date(r.createdAt)) : '';
+        return `
+        <div class="gf-fr-card" data-id="${id}">
+          <div class="gf-fr-avatar">${initials}</div>
+          <div class="gf-fr-info">
+            <div class="gf-fr-name">${name}</div>
+            ${timeAgo ? `<div class="gf-fr-time">${timeAgo}</div>` : ''}
           </div>
-        </div>
-      `).join('');
+          <div class="gf-fr-actions">
+            <button class="gf-fr-accept" data-id="${id}" title="Chấp nhận">✅</button>
+            <button class="gf-fr-reject" data-id="${id}" title="Từ chối">✕</button>
+          </div>
+        </div>`;
+      }).join('');
 
     wrap.querySelectorAll('.gf-fr-accept').forEach(btn => {
       btn.addEventListener('click', async () => {
+        btn.disabled = true;
         await apiGamification.acceptFriend(btn.dataset.id);
         toast('🎉 Đã kết bạn!');
+        launchConfetti('low');
         loadFriendRequests(); loadLeaderboard(); loadFriendsList();
       });
     });
     wrap.querySelectorAll('.gf-fr-reject').forEach(btn => {
       btn.addEventListener('click', async () => {
+        btn.closest('.gf-fr-card').style.opacity = '0.4';
         await apiGamification.rejectFriend(btn.dataset.id);
         loadFriendRequests();
       });
@@ -4212,15 +4268,53 @@ async function loadFriendsList() {
     const wrap = document.getElementById('gf-friends-list');
     if (!wrap) return;
     if (!friends || friends.length === 0) {
-      wrap.innerHTML = '<div class="gf-empty">Chưa có bạn bè. Chia sẻ mã bạn bè để kết nối!</div>';
+      wrap.innerHTML = `
+        <div class="gf-friends-empty">
+          <div class="gf-fe-icon">🤝</div>
+          <div class="gf-fe-text">Chưa có bạn bè</div>
+          <div class="gf-fe-sub">Chia sẻ mã bạn bè để kết nối và truyền lửa cho nhau!</div>
+        </div>`;
       return;
     }
-    wrap.innerHTML = friends.map(f => `
-      <div class="gf-fl-row">
-        <div class="gf-fl-name">${esc(f.displayName || f.username)}</div>
-        <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
-      </div>
-    `).join('');
+    wrap.innerHTML = `<div class="gf-fl-header">Bạn bè (${friends.length})</div>` +
+      friends.map(f => {
+        const name = esc(f.displayName || f.username);
+        const initials = name.slice(0,2).toUpperCase();
+        return `
+        <div class="gf-fl-card" data-id="${f._id}">
+          <div class="gf-fl-avatar">${initials}</div>
+          <div class="gf-fl-info">
+            <div class="gf-fl-name">${name}</div>
+            <div class="gf-fl-sub">Đang hoạt động</div>
+          </div>
+          <div class="gf-fl-actions">
+            <button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>
+            <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
+          </div>
+        </div>`;
+      }).join('');
+
+    // Fire buttons
+    wrap.querySelectorAll('.gf-fl-fire-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (btn.dataset.busy) return;
+        btn.dataset.busy = '1';
+        btn.textContent = '⏳';
+        try {
+          await apiGamification.sendFire(btn.dataset.id);
+          btn.textContent = '✅';
+          toast(`🔥 Đã truyền lửa cho ${btn.dataset.name}!`);
+          showFireSentAnimation();
+          setTimeout(() => { btn.textContent = '🔥'; delete btn.dataset.busy; }, 3000);
+        } catch(e) {
+          btn.textContent = '🔥';
+          delete btn.dataset.busy;
+          toast('❌ ' + (e.error || 'Lỗi gửi lửa'));
+        }
+      });
+    });
+
+    // Remove buttons
     wrap.querySelectorAll('.gf-fl-remove').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (!confirm('Huỷ kết bạn?')) return;
@@ -4230,6 +4324,103 @@ async function loadFriendsList() {
       });
     });
   } catch(e) {}
+}
+
+// ── FIRE NOTIFICATION CHECK ──
+async function checkFireNotifications() {
+  try {
+    const notif = await apiGamification.notifications();
+    // Update tab badge
+    const dot = document.getElementById('tnav-notif-dot');
+    if (dot) dot.style.display = notif.total > 0 ? 'inline-block' : 'none';
+    // Update section badge
+    updateFriendNotifBadge(notif.requestCount);
+    // Show fire overlay for unseen fires
+    if (notif.fireCount > 0) {
+      const fires = await apiGamification.getFires();
+      if (fires && fires.length > 0) {
+        const latest = fires[fires.length - 1];
+        showFireReceivedOverlay(latest.fromName, latest.message, fires.length);
+      }
+    }
+  } catch(e) {}
+}
+
+function updateFriendNotifBadge(count) {
+  const badge = document.getElementById('gf-notif-badge');
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ── FIRE ANIMATIONS ──
+function showFireReceivedOverlay(fromName, message, count) {
+  const overlay = document.getElementById('fire-overlay');
+  const fromEl = document.getElementById('fire-overlay-from');
+  const msgEl = document.getElementById('fire-overlay-msg');
+  const particles = document.getElementById('fire-overlay-particles');
+  if (!overlay) return;
+
+  fromEl.textContent = `${fromName} ${message}`;
+  if (count > 1) msgEl.textContent = `+${count - 1} ngọn lửa khác đang chờ bạn!`;
+  else msgEl.textContent = '';
+
+  // Generate particle fires
+  particles.innerHTML = '';
+  const emojis = ['🔥','🔥','🔥','✨','💪','⚡','🌟','🔥'];
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'fire-particle';
+    p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.cssText = `
+      left:${Math.random() * 100}%;
+      animation-delay:${Math.random() * 1.5}s;
+      animation-duration:${1.5 + Math.random() * 1.5}s;
+      font-size:${20 + Math.floor(Math.random() * 28)}px;
+    `;
+    particles.appendChild(p);
+  }
+
+  overlay.style.display = 'flex';
+}
+
+function showFireSentAnimation() {
+  // Brief burst of fire on sender side
+  const container = document.getElementById('floating-pets-container');
+  if (!container) return;
+  const emojis = ['🔥','🔥','💪','✨','⚡'];
+  for (let i = 0; i < 8; i++) {
+    const p = document.createElement('div');
+    p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.cssText = `
+      position:fixed;
+      left:${30 + Math.random() * 40}%;
+      top:${30 + Math.random() * 30}%;
+      font-size:${22 + Math.floor(Math.random() * 20)}px;
+      pointer-events:none;z-index:9990;
+      animation:fireSentFloat ${0.8 + Math.random() * 0.8}s ease-out forwards;
+      animation-delay:${Math.random() * 0.4}s;
+    `;
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 2000);
+  }
+}
+
+// ── TIME AGO (Vietnamese) ──
+function timeAgoVi(date) {
+  const diff = Date.now() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days = Math.floor(diff / 86400000);
+  if (mins < 1) return 'Vừa xong';
+  if (mins < 60) return `${mins} phút trước`;
+  if (hours < 24) return `${hours} giờ trước`;
+  if (days < 7) return `${days} ngày trước`;
+  return date.toLocaleDateString('vi-VN');
 }
 
 // ── ACHIEVEMENTS PAGE ──
