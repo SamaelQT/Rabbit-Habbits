@@ -2206,9 +2206,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   background:linear-gradient(135deg,rgba(255,100,0,.15),rgba(255,200,0,.15));
   border:1px solid rgba(255,150,0,.25);transition:all .2s;
 }
-.gf-fl-fire-btn:hover{
+.gf-fl-fire-btn:hover:not(:disabled){
   background:linear-gradient(135deg,rgba(255,100,0,.3),rgba(255,200,0,.25));
   transform:scale(1.12);box-shadow:0 0 12px rgba(255,100,0,.4);
+}
+.gf-fl-fire-btn.sent-today,.gf-fl-fire-btn:disabled{
+  background:rgba(94,240,160,.1);border-color:rgba(94,240,160,.2);
+  cursor:default;opacity:.7;font-size:13px;
 }
 .gf-fl-remove{
   width:28px;height:28px;border:none;border-radius:7px;cursor:pointer;

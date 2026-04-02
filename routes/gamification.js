@@ -416,7 +416,18 @@ router.get('/leaderboard', async (req, res) => {
 router.get('/friends-list', async (req, res) => {
   try {
     const me = await User.findById(req.userId).populate('friends', 'username displayName');
-    res.json(me.friends || []);
+    const today = todayKey();
+    // Which friends already got fire today
+    const sentToday = (me.sentFires || [])
+      .filter(s => s.sentAt.toISOString().slice(0, 10) === today)
+      .map(s => s.to.toString());
+    const friends = (me.friends || []).map(f => ({
+      _id: f._id,
+      username: f.username,
+      displayName: f.displayName,
+      fireSentToday: sentToday.includes(f._id.toString())
+    }));
+    res.json(friends);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -475,18 +486,33 @@ const FIRE_MESSAGES = [
   'truyền hết năng lượng của mình cho bạn — dùng đi nào! 💫',
 ];
 
+// Helper: today's date string in UTC (YYYY-MM-DD)
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // POST /api/gamification/send-fire  { toUserId }
 router.post('/send-fire', async (req, res) => {
   try {
     const { toUserId } = req.body;
     if (!toUserId) return res.status(400).json({ error: 'Thiếu người nhận' });
 
-    const me = await User.findById(req.userId).select('username displayName friends');
+    const me = await User.findById(req.userId).select('username displayName friends sentFires');
     if (!me) return res.status(401).json({ error: 'Unauthorized' });
 
     // Must be friends
     if (!me.friends.some(f => f.toString() === toUserId)) {
       return res.status(400).json({ error: 'Chỉ bạn bè mới nhận được lửa!' });
+    }
+
+    // Purge stale sentFires (older than today)
+    const today = todayKey();
+    me.sentFires = (me.sentFires || []).filter(s => s.sentAt.toISOString().slice(0, 10) === today);
+
+    // Check daily limit: 1 fire per friend per day
+    const alreadySent = me.sentFires.some(s => s.to.toString() === toUserId);
+    if (alreadySent) {
+      return res.status(429).json({ error: 'Đã gửi lửa cho bạn này hôm nay rồi! Ngày mai hãy gửi tiếp nhé 🔥' });
     }
 
     const target = await User.findById(toUserId);
@@ -496,12 +522,16 @@ router.post('/send-fire', async (req, res) => {
     const message = FIRE_MESSAGES[Math.floor(Math.random() * FIRE_MESSAGES.length)];
     const fromName = me.displayName || me.username;
 
-    // Keep only last 20 fires per user
+    // Keep only last 20 fires per recipient
     if (target.receivedFires.length >= 20) {
       target.receivedFires = target.receivedFires.slice(-19);
     }
     target.receivedFires.push({ from: me._id, fromName, message });
     await target.save();
+
+    // Record that I sent fire today
+    me.sentFires.push({ to: toUserId, sentAt: new Date() });
+    await me.save();
 
     res.json({ ok: true, message });
   } catch(e) { res.status(500).json({ error: e.message }); }

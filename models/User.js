@@ -19,6 +19,11 @@ const userSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     seen:      { type: Boolean, default: false }
   }],
+  // Track who this user sent fire to today (reset automatically by date check)
+  sentFires: [{
+    to:     { type: mongoose.Schema.Types.ObjectId },
+    sentAt: { type: Date, default: Date.now }
+  }],
   createdAt:   { type: Date, default: Date.now }
 });
 

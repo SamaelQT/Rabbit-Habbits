@@ -4277,36 +4277,40 @@ async function loadFriendsList() {
       friends.map(f => {
         const name = esc(f.displayName || f.username);
         const initials = name.slice(0,2).toUpperCase();
+        const sentToday = f.fireSentToday;
+        const fireBtn = sentToday
+          ? `<button class="gf-fl-fire-btn sent-today" data-id="${f._id}" data-name="${name}" disabled title="Đã gửi lửa hôm nay">✅</button>`
+          : `<button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>`;
         return `
         <div class="gf-fl-card" data-id="${f._id}">
           <div class="gf-fl-avatar">${initials}</div>
           <div class="gf-fl-info">
             <div class="gf-fl-name">${name}</div>
-            <div class="gf-fl-sub">Đang hoạt động</div>
+            <div class="gf-fl-sub">${sentToday ? '🔥 Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
           </div>
           <div class="gf-fl-actions">
-            <button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>
+            ${fireBtn}
             <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
           </div>
         </div>`;
       }).join('');
 
-    // Fire buttons
-    wrap.querySelectorAll('.gf-fl-fire-btn').forEach(btn => {
+    // Fire buttons — only active ones (not already sent today)
+    wrap.querySelectorAll('.gf-fl-fire-btn:not(.sent-today)').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (btn.dataset.busy) return;
-        btn.dataset.busy = '1';
+        if (btn.disabled) return;
+        btn.disabled = true;
         btn.textContent = '⏳';
         try {
           await apiGamification.sendFire(btn.dataset.id);
-          btn.textContent = '✅';
+          // Mark as sent today in UI
+          setFireBtnSent(btn, btn.dataset.name);
           toast(`🔥 Đã truyền lửa cho ${btn.dataset.name}!`);
           showFireSentAnimation();
-          setTimeout(() => { btn.textContent = '🔥'; delete btn.dataset.busy; }, 3000);
         } catch(e) {
+          btn.disabled = false;
           btn.textContent = '🔥';
-          delete btn.dataset.busy;
-          toast('❌ ' + (e.error || 'Lỗi gửi lửa'));
+          toast('❌ ' + (e.error || e.message || 'Lỗi gửi lửa'));
         }
       });
     });
@@ -4381,14 +4385,25 @@ function initFireOverlay() {
       toast('🔥 Đã gửi lửa lại!');
       showFireSentAnimation();
       replyBtn.textContent = '✅ Đã gửi!';
+      // Also update the friend list button in the UI if visible
+      const friendBtn = document.querySelector(`.gf-fl-fire-btn[data-id="${_fireOverlaySenderId}"]`);
+      if (friendBtn) setFireBtnSent(friendBtn, friendBtn.dataset.name);
       setTimeout(() => {
         overlay.style.display = 'none';
         _fireOverlaySenderId = null;
         apiGamification.markFiresSeen().catch(() => {});
+        const dot = document.getElementById('tnav-notif-dot');
+        if (dot) dot.style.display = 'none';
       }, 1200);
     } catch(e) {
-      toast('❌ ' + (e.error || 'Lỗi gửi lửa'));
-      replyBtn.disabled = false; replyBtn.textContent = '🔥 Gửi lại lửa';
+      const msg = e.error || e.message || 'Lỗi gửi lửa';
+      toast('❌ ' + msg);
+      // If already sent today, update button anyway
+      if (msg.includes('hôm nay')) {
+        replyBtn.textContent = '✅ Đã gửi hôm nay';
+      } else {
+        replyBtn.disabled = false; replyBtn.textContent = '🔥 Gửi lại lửa';
+      }
     }
   });
 
@@ -4440,6 +4455,18 @@ function showFireReceivedOverlay(fromName, message, count, senderId) {
   }
 
   overlay.style.display = 'flex';
+}
+
+// Mark a fire button as already sent today (updates sub-text too)
+function setFireBtnSent(btn, name) {
+  btn.textContent = '✅';
+  btn.disabled = true;
+  btn.classList.add('sent-today');
+  const card = btn.closest('.gf-fl-card');
+  if (card) {
+    const sub = card.querySelector('.gf-fl-sub');
+    if (sub) sub.textContent = '🔥 Đã truyền lửa hôm nay';
+  }
 }
 
 function showFireSentAnimation() {
