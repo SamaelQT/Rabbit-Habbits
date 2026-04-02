@@ -2140,6 +2140,9 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   setTimeout(() => loadFloatingPets(), 1500);
   // Check fire/friend notifications on load
   setTimeout(() => checkFireNotifications(), 3000);
+
+  // Fire overlay buttons — init here so they work on ANY page
+  initFireOverlay();
 });
 
 // ═══════════════════════════════════════════
@@ -4008,12 +4011,6 @@ async function initGamification() {
     }
   });
 
-  // Fire overlay close
-  document.getElementById('fire-overlay-close')?.addEventListener('click', () => {
-    document.getElementById('fire-overlay').style.display = 'none';
-    apiGamification.markFiresSeen().catch(() => {});
-  });
-
   refreshGamification();
   // Check fires on init
   setTimeout(checkFireNotifications, 1500);
@@ -4340,7 +4337,7 @@ async function checkFireNotifications() {
       const fires = await apiGamification.getFires();
       if (fires && fires.length > 0) {
         const latest = fires[fires.length - 1];
-        showFireReceivedOverlay(latest.fromName, latest.message, fires.length);
+        showFireReceivedOverlay(latest.fromName, latest.message, fires.length, latest.from);
       }
     }
   } catch(e) {}
@@ -4357,13 +4354,70 @@ function updateFriendNotifBadge(count) {
   }
 }
 
+// ── FIRE OVERLAY INIT (called once from DOMContentLoaded) ──
+let _fireOverlaySenderId = null;
+
+function initFireOverlay() {
+  const overlay = document.getElementById('fire-overlay');
+  if (!overlay) return;
+
+  // Close button
+  document.getElementById('fire-overlay-close')?.addEventListener('click', () => {
+    overlay.style.display = 'none';
+    _fireOverlaySenderId = null;
+    apiGamification.markFiresSeen().catch(() => {});
+    // Update notification dot
+    const dot = document.getElementById('tnav-notif-dot');
+    if (dot) dot.style.display = 'none';
+  });
+
+  // Reply with fire button
+  document.getElementById('fire-overlay-reply')?.addEventListener('click', async () => {
+    if (!_fireOverlaySenderId) { toast('Không tìm thấy người gửi!'); return; }
+    const replyBtn = document.getElementById('fire-overlay-reply');
+    replyBtn.disabled = true; replyBtn.textContent = '⏳ Đang gửi...';
+    try {
+      await apiGamification.sendFire(_fireOverlaySenderId);
+      toast('🔥 Đã gửi lửa lại!');
+      showFireSentAnimation();
+      replyBtn.textContent = '✅ Đã gửi!';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+        _fireOverlaySenderId = null;
+        apiGamification.markFiresSeen().catch(() => {});
+      }, 1200);
+    } catch(e) {
+      toast('❌ ' + (e.error || 'Lỗi gửi lửa'));
+      replyBtn.disabled = false; replyBtn.textContent = '🔥 Gửi lại lửa';
+    }
+  });
+
+  // Click backdrop to close
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.style.display = 'none';
+      _fireOverlaySenderId = null;
+      apiGamification.markFiresSeen().catch(() => {});
+    }
+  });
+}
+
 // ── FIRE ANIMATIONS ──
-function showFireReceivedOverlay(fromName, message, count) {
+function showFireReceivedOverlay(fromName, message, count, senderId) {
   const overlay = document.getElementById('fire-overlay');
   const fromEl = document.getElementById('fire-overlay-from');
   const msgEl = document.getElementById('fire-overlay-msg');
   const particles = document.getElementById('fire-overlay-particles');
+  const replyBtn = document.getElementById('fire-overlay-reply');
   if (!overlay) return;
+
+  // Store sender ID for reply button
+  _fireOverlaySenderId = senderId || null;
+  if (replyBtn) {
+    replyBtn.disabled = false;
+    replyBtn.textContent = '🔥 Gửi lại lửa';
+    replyBtn.style.display = senderId ? '' : 'none';
+  }
 
   fromEl.textContent = `${fromName} ${message}`;
   if (count > 1) msgEl.textContent = `+${count - 1} ngọn lửa khác đang chờ bạn!`;

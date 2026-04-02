@@ -2279,14 +2279,23 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   font-size:12px;color:rgba(255,200,100,.8);
   margin-bottom:20px;
 }
-.fire-overlay-close{
-  padding:12px 28px;border:none;border-radius:50px;cursor:pointer;
-  background:linear-gradient(135deg,#ff6b00,#ffaa00);
-  color:#fff;font-size:14px;font-weight:700;font-family:inherit;
-  box-shadow:0 4px 20px rgba(255,100,0,.5);
+.fire-overlay-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.fire-overlay-btn{
+  flex:1;min-width:130px;padding:12px 18px;border:none;border-radius:50px;
+  cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;
   transition:all .2s;
 }
-.fire-overlay-close:hover{transform:scale(1.05);box-shadow:0 6px 28px rgba(255,100,0,.7);}
+.fire-overlay-reply{
+  background:linear-gradient(135deg,#ff6b00,#ffaa00);color:#fff;
+  box-shadow:0 4px 18px rgba(255,100,0,.5);
+}
+.fire-overlay-reply:hover:not(:disabled){transform:scale(1.05);box-shadow:0 6px 26px rgba(255,100,0,.7);}
+.fire-overlay-reply:disabled{opacity:.6;cursor:default;transform:none;}
+.fire-overlay-close{
+  background:rgba(255,255,255,.1);color:rgba(255,255,255,.85);
+  border:1.5px solid rgba(255,255,255,.2);
+}
+.fire-overlay-close:hover{background:rgba(255,255,255,.18);transform:scale(1.03);}
 
 /* Fire sent floating animation */
 @keyframes fireSentFloat{
