@@ -387,8 +387,17 @@ function refreshDonut(ds){
 }
 
 // ─── TASK ITEM ────────────────────────────────────────────
+const CAT_META={
+  work:     {icon:'💼',label:'Công việc',color:'#7eb8f7'},
+  health:   {icon:'💪',label:'Sức khỏe', color:'#5ef0a0'},
+  learning: {icon:'📚',label:'Học tập',  color:'#ffcf5c'},
+  personal: {icon:'🏠',label:'Cá nhân',  color:'#f79cf7'},
+  other:    {icon:'🎯',label:'Khác',     color:'#aaa'},
+};
 function mkTaskItem(task){
   const p=task.priority||0;
+  const cat=task.category||'other';
+  const cm=CAT_META[cat]||CAT_META.other;
   const item=document.createElement('div');
   item.className='task-item'+(task.completed?' completed':'')+(p>0?` prio-${p}`:'');
   item.dataset.id=task._id;
@@ -398,6 +407,16 @@ function mkTaskItem(task){
     <div class="task-checkbox"><div class="task-checkbox-check"></div></div>
     <span class="task-title">${esc(task.title)}</span>
     <div class="task-actions">
+      <div class="task-cat-menu">
+        <button class="task-cat-toggle" title="Đổi danh mục" style="color:${cm.color}">${cm.icon}</button>
+        <div class="task-cat-dropdown">
+          <div class="tcd-item" data-cat="work">💼 Công việc</div>
+          <div class="tcd-item" data-cat="health">💪 Sức khỏe</div>
+          <div class="tcd-item" data-cat="learning">📚 Học tập</div>
+          <div class="tcd-item" data-cat="personal">🏠 Cá nhân</div>
+          <div class="tcd-item" data-cat="other">🎯 Khác</div>
+        </div>
+      </div>
       <div class="task-prio-menu">
         <button class="task-prio-toggle" title="Đổi ưu tiên">${p>0?PRIORITY_COLORS[p].slice(0,2):'…'}</button>
         <div class="task-prio-dropdown">
@@ -412,6 +431,27 @@ function mkTaskItem(task){
 
   item.querySelector('.task-checkbox').addEventListener('click',()=>toggleTask(task._id,item));
   item.querySelector('.task-delete').addEventListener('click',()=>deleteTask(task._id,item));
+
+  // Category dropdown
+  const catMenu=item.querySelector('.task-cat-menu');
+  const catToggle=item.querySelector('.task-cat-toggle');
+  const catDrop=item.querySelector('.task-cat-dropdown');
+  catToggle.addEventListener('click',e=>{e.stopPropagation();catDrop.classList.toggle('open');});
+  catDrop.querySelectorAll('.tcd-item').forEach(opt=>{
+    opt.addEventListener('click',async e=>{
+      e.stopPropagation();
+      const nc=opt.dataset.cat;
+      await apiTasks.upd(task._id,{category:nc});
+      task.category=nc;
+      const ncm=CAT_META[nc]||CAT_META.other;
+      catToggle.textContent=ncm.icon;
+      catToggle.style.color=ncm.color;
+      catToggle.title=`Danh mục: ${ncm.label}`;
+      catDrop.classList.remove('open');
+      toast(`🏷️ Danh mục: ${ncm.icon} ${ncm.label}`);
+    });
+  });
+  document.addEventListener('click',()=>catDrop.classList.remove('open'));
 
   // Priority dropdown
   const menu=item.querySelector('.task-prio-menu');

@@ -77,6 +77,7 @@ router.patch('/:id', async (req, res) => {
     const update = {};
     if(req.body.title    !== undefined) update.title    = req.body.title;
     if(req.body.priority !== undefined) update.priority = req.body.priority;
+    if(req.body.category !== undefined) update.category = req.body.category;
     const task = await Task.findOneAndUpdate({ _id: req.params.id, userId: req.userId }, update, { new: true });
     if(!task) return res.status(404).json({ error: 'Not found' });
     res.json(task);
