@@ -52,17 +52,6 @@
         <div id="notif-panel-body"></div>
       </div>
     </div>
-    <!-- Notif detail overlay -->
-    <div class="notif-detail-overlay" id="notif-detail-overlay" style="display:none">
-      <div class="notif-detail-card" id="notif-detail-card">
-        <div class="notif-detail-header">
-          <button class="notif-detail-back" id="notif-detail-back">← Quay lại</button>
-          <div class="notif-detail-title" id="notif-detail-title"></div>
-        </div>
-        <div class="notif-detail-body" id="notif-detail-body"></div>
-      </div>
-    </div>
-
     <button class="theme-btn" id="theme-btn" title="Đổi giao diện">☀️</button>
     <div class="header-date" id="header-date"></div>
   </div>
@@ -951,6 +940,18 @@
 
 <canvas id="confetti-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999"></canvas>
 <div class="toast" id="toast"></div>
+
+<!-- Notif detail overlay (must be outside header to avoid backdrop-filter stacking context) -->
+<div class="notif-detail-overlay" id="notif-detail-overlay" style="display:none">
+  <div class="notif-detail-card" id="notif-detail-card">
+    <div class="notif-detail-header">
+      <button class="notif-detail-back" id="notif-detail-back">← Quay lại</button>
+      <div class="notif-detail-title" id="notif-detail-title"></div>
+    </div>
+    <div class="notif-detail-body" id="notif-detail-body"></div>
+  </div>
+</div>
+
 <script src="/js/app.js"></script>
 </body>
 </html>
