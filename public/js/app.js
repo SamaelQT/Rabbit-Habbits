@@ -2256,22 +2256,35 @@ const TASK_QUOTES = [
 ];
 
 const CHANGELOG = [
-  { date:'2026-04-03', icon:'📊', title:'Thống kê nâng cao', desc:'Hành trình cá nhân, tiến bộ theo tháng, cân bằng cuộc sống, cột mốc sắp tới' },
-  { date:'2026-04-03', icon:'🏆', title:'Kho lưu trữ mục tiêu', desc:'Mục tiêu kết thúc lưu vào kho với thống kê chi tiết' },
-  { date:'2026-04-02', icon:'💬', title:'Nhắn tin bạn bè', desc:'Chat trực tiếp với từng người bạn trong tab Bạn bè' },
-  { date:'2026-04-02', icon:'🐾', title:'Biến thể thú cưng', desc:'10 biến thể màu sắc/tên riêng cho mỗi loài động vật và cây' },
-  { date:'2026-04-01', icon:'🎮', title:'Thử thách tuần', desc:'Nhiệm vụ ngẫu nhiên mỗi tuần — hoàn thành để nhận điểm thưởng' },
-  { date:'2026-03-28', icon:'🔥', title:'Truyền lửa bạn bè', desc:'Gửi động lực cho bạn bè, 50 câu ngẫu nhiên, chống vòng lặp' },
-  { date:'2026-03-25', icon:'⭐', title:'Hệ thống Level', desc:'Lên cấp khi tích điểm, thưởng task tăng theo level' },
+  { version:'v2.4', date:'03/04/2026', icon:'📊', title:'Thống kê nâng cao', isNew:true,
+    desc:'Hành trình cá nhân (ngày dùng app, tổng tasks, habits, điểm), tiến bộ theo tháng (line chart 12 tháng), cân bằng cuộc sống (radar chart 5 danh mục), cột mốc sắp tới với progress bar.' },
+  { version:'v2.4', date:'03/04/2026', icon:'🏆', title:'Kho lưu trữ mục tiêu', isNew:true,
+    desc:'Mục tiêu đã kết thúc (dù bỏ lỡ vài ngày) có thể lưu vào kho. Xem lại lịch sử với thống kê: tổng mục tiêu, ngày hoàn thành, tỉ lệ TB, mục tiêu hoàn hảo.' },
+  { version:'v2.3', date:'03/04/2026', icon:'🎁', title:'Hiệu ứng quà tặng', isNew:true,
+    desc:'Mỗi vật phẩm tặng bạn bè có hiệu ứng riêng: ⭐ Sao mở lì xì random 10-100 điểm, 🍫 Socola bay trái tim, 🌹 Hoa rơi cánh, 🐇 Thỏ chạy ngang màn hình, 🐟 Cá nhảy lên...' },
+  { version:'v2.3', date:'02/04/2026', icon:'💬', title:'Nhắn tin bạn bè', isNew:false,
+    desc:'Chat trực tiếp với từng người bạn. Cửa sổ chat toàn màn hình, tin nhắn cập nhật mỗi 4 giây, hiển thị chuỗi lửa 🔥 của cả hai.' },
+  { version:'v2.2', date:'02/04/2026', icon:'🐾', title:'Biến thể thú cưng', isNew:false,
+    desc:'10 biến thể tên + emoji riêng cho mỗi loài động vật. Cây cối có tint màu CSS độc đáo. Vòng cổ tên hiển thị dưới thú cưng floating. Modal đặt tên với gợi ý theo loài.' },
+  { version:'v2.1', date:'01/04/2026', icon:'🎮', title:'Thử thách tuần & Leaderboard', isNew:false,
+    desc:'Nhiệm vụ ngẫu nhiên mỗi tuần (hoàn thành task, ghi nhật ký, duy trì thói quen...). Bảng xếp hạng bạn bè theo tổng điểm.' },
+  { version:'v2.0', date:'28/03/2026', icon:'🔥', title:'Truyền lửa & Gamification', isNew:false,
+    desc:'50 câu động viên ngẫu nhiên. Người nhận có hiệu ứng lửa toàn màn hình. Hệ thống level 20 cấp, tiền thưởng task tăng theo level. Huy hiệu thành tích.' },
 ];
 
 const USAGE_GUIDE = [
-  { icon:'📋', title:'Tasks', desc:'Tạo task hàng ngày, ưu tiên cao = điểm thưởng cao hơn. Gán danh mục để xem thống kê cân bằng.' },
-  { icon:'🐇', title:'Thói quen', desc:'Tick thói quen mỗi ngày để duy trì streak. Streak freeze card bảo vệ chuỗi ngày khi bận.' },
-  { icon:'🎯', title:'Mục tiêu', desc:'Tạo kế hoạch nhiều ngày, tick từng ngày. Khi kết thúc lưu vào Kho lưu trữ.' },
-  { icon:'🐾', title:'Thú cưng', desc:'Mua thú cưng ở Cửa hàng, chăm sóc mỗi ngày để giữ sức khỏe. Thú cưng lớn lên theo điểm.' },
-  { icon:'🔥', title:'Truyền lửa', desc:'Vào tab Game → Bạn bè, nhấn 🔥 để động viên bạn bè. Mỗi ngày 1 lần mỗi người.' },
-  { icon:'💬', title:'Nhắn tin', desc:'Nhấn 💬 trên thẻ bạn bè để mở cửa sổ chat.' },
+  { icon:'📋', title:'Tasks & Danh mục',
+    desc:'Tạo task hàng ngày với 4 mức ưu tiên. Gán danh mục (Công việc / Sức khỏe / Học tập / Cá nhân) để xem biểu đồ cân bằng cuộc sống trong Thống kê.' },
+  { icon:'🐇', title:'Thói quen (Habits)',
+    desc:'Tick mỗi ngày để duy trì streak 🔥. Mua Streak Freeze Card ở Cửa hàng để bảo vệ chuỗi khi bận. Xem heatmap và xu hướng 8 tuần trong Thống kê.' },
+  { icon:'🎯', title:'Mục tiêu dài hạn',
+    desc:'Tạo kế hoạch nhiều ngày, đặt task cho từng ngày. Khi hết thời hạn nhấn 🏆 để lưu vào Kho lưu trữ. Mục tiêu 100% sẽ được ghi nhận là Hoàn hảo 💯.' },
+  { icon:'🐾', title:'Thú cưng',
+    desc:'Mua ở Cửa hàng, đặt tên khi nhận. Động vật cần ăn mỗi ngày, cây cần tưới nước. Bỏ bê 3 ngày → mất điểm, 7 ngày → thú cưng qua đời 😢.' },
+  { icon:'🎁', title:'Tặng quà & Truyền lửa',
+    desc:'Nhấn 🎁 để tặng vật phẩm từ kho của bạn — mỗi vật phẩm có hiệu ứng riêng trên màn hình người nhận. Nhấn 🔥 để gửi câu động viên, 1 lần/ngày/người.' },
+  { icon:'📊', title:'Thống kê & Tiến bộ',
+    desc:'Xem hành trình từ ngày đầu, điểm tiến bộ 12 tháng, cân bằng cuộc sống, và cột mốc sắp tới. Tất cả trong tab Thống kê.' },
 ];
 
 async function loadNotifications() {
@@ -2325,23 +2338,44 @@ async function loadNotifications() {
     }
   } catch(e) {}
 
-  // 3. Changelog / New features
-  html += `<div class="notif-section-title">✨ Cập nhật mới nhất</div>`;
-  CHANGELOG.slice(0, 4).forEach(c => {
-    html += `<div class="notif-item">
+  // 3. Pending gifts (unopened)
+  try {
+    const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
+    if (pendingGifts.length) {
+      urgentCount += pendingGifts.length;
+      html += `<div class="notif-section-title">🎁 Quà chưa mở</div>`;
+      pendingGifts.forEach((g, idx) => {
+        html += `<div class="notif-item notif-urgent" data-pending-gift="${idx}" style="cursor:pointer">
+          <span class="notif-item-icon">${g.itemEmoji}</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title">${esc(g.fromName)} tặng ${g.qty}x ${g.itemName}</div>
+            <div class="notif-item-sub">Nhấn để mở quà ✨</div>
+          </div>
+        </div>`;
+      });
+    }
+  } catch(e) {}
+
+  // 4. Changelog / New features
+  html += `<div class="notif-section-title">✨ Bản cập nhật</div>`;
+  CHANGELOG.forEach(c => {
+    const newBadge = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
+    const verBadge = `<span class="notif-version-badge">${c.version}</span>`;
+    html += `<div class="notif-item${c.isNew?' notif-update-new':''}">
       <span class="notif-item-icon">${c.icon}</span>
       <div class="notif-item-body">
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:3px">${newBadge}${verBadge}<span style="font-size:10px;color:var(--text3);padding-top:1px">${c.date}</span></div>
         <div class="notif-item-title">${c.title}</div>
         <div class="notif-item-sub">${c.desc}</div>
       </div>
     </div>`;
   });
 
-  // 4. Usage guide
+  // 5. Usage guide
   html += `<div class="notif-section-title">📖 Hướng dẫn sử dụng</div>`;
   USAGE_GUIDE.forEach(g => {
-    html += `<div class="notif-item">
-      <span class="notif-item-icon">${g.icon}</span>
+    html += `<div class="notif-item notif-guide-item">
+      <div class="notif-item-icon">${g.icon}</div>
       <div class="notif-item-body">
         <div class="notif-item-title">${g.title}</div>
         <div class="notif-item-sub">${g.desc}</div>
@@ -2350,6 +2384,31 @@ async function loadNotifications() {
   });
 
   body.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3)">Không có thông báo</div>';
+
+  // Wire up pending gift clicks
+  body.querySelectorAll('[data-pending-gift]').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.pendingGift);
+      const pending = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
+      const g = pending[idx];
+      if (!g) return;
+      // Remove from pending
+      pending.splice(idx, 1);
+      localStorage.setItem('rh-pending-gifts', JSON.stringify(pending));
+      // Close panel and show effect
+      document.getElementById('notif-panel').style.display = 'none';
+      showGiftReceivedEffect(g);
+      // Refresh badge
+      loadNotifications();
+    });
+  });
+
+  // Bell visual state
+  const bellBtn = document.getElementById('notif-bell-btn');
+  if (bellBtn) {
+    if (urgentCount > 0) { bellBtn.classList.add('has-notif'); }
+    else { bellBtn.classList.remove('has-notif'); }
+  }
 
   if (badge) {
     if (urgentCount > 0) {
@@ -4086,6 +4145,24 @@ async function handleFloatingPetFeed(petEl, action) {
 let _floatingPetsLoaded = false;
 const _floatingPetPositions = {};
 
+function _savePetPos(id, x, y) {
+  _floatingPetPositions[id] = { x, y };
+  try {
+    const all = JSON.parse(localStorage.getItem('rh-pet-pos') || '{}');
+    all[id] = { x, y };
+    localStorage.setItem('rh-pet-pos', JSON.stringify(all));
+  } catch(e) {}
+}
+
+function _loadPetPos(id) {
+  if (_floatingPetPositions[id]) return _floatingPetPositions[id];
+  try {
+    const all = JSON.parse(localStorage.getItem('rh-pet-pos') || '{}');
+    if (all[id]) { _floatingPetPositions[id] = all[id]; return all[id]; }
+  } catch(e) {}
+  return null;
+}
+
 // Track cursor position to avoid covering it
 let _cursorX = -9999, _cursorY = -9999;
 document.addEventListener('mousemove', e => { _cursorX = e.clientX; _cursorY = e.clientY; });
@@ -4160,15 +4237,21 @@ async function loadFloatingPets() {
         el.querySelector('.fp-emoji').style.filter = `hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)`;
       }
 
-      // Restore saved position or pick a default edge position
-      const savedPos = _floatingPetPositions[pet._id];
+      // Restore saved position (localStorage) or pick a default edge position
+      const savedPos = _loadPetPos(pet._id);
       if (savedPos) {
         el.style.left = savedPos.x + 'px';
-        el.style.top = savedPos.y + 'px';
+        el.style.top  = savedPos.y + 'px';
       } else {
-        const pos = _pickEdgePos();
-        el.style.left = pos.x + 'px';
-        el.style.top  = pos.y + 'px';
+        // Defer position to after layout so innerWidth/Height are correct
+        el.style.left = '-999px';
+        el.style.top  = '-999px';
+        requestAnimationFrame(() => {
+          const pos = _pickEdgePos();
+          el.style.left = pos.x + 'px';
+          el.style.top  = pos.y + 'px';
+          _savePetPos(pet._id, pos.x, pos.y);
+        });
       }
 
       // Stagger animations
@@ -4225,8 +4308,8 @@ async function loadFloatingPets() {
         el._isDragging = false;
         el.style.zIndex = '';
         el.style.transition = ''; // restore CSS-defined transition
-        // Save position
-        _floatingPetPositions[pet._id] = { x: el.offsetLeft, y: el.offsetTop };
+        // Save position to memory + localStorage
+        _savePetPos(pet._id, el.offsetLeft, el.offsetTop);
 
         // If barely moved = click
         const dist = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
@@ -5284,13 +5367,56 @@ async function checkGiftNotifications() {
     const gifts = await apiGamification.getGifts();
     if (!gifts || gifts.length === 0) return;
     await apiGamification.markGiftsSeen();
-    // Show each gift one by one with a delay so effects don't collide
-    let delay = 300;
-    gifts.forEach(g => {
-      setTimeout(() => showGiftReceivedEffect(g), delay);
-      delay += 1800;
+    // For each gift, ask open now or later
+    gifts.forEach((g, i) => {
+      setTimeout(() => showGiftOpenChoice(g), i * 400);
     });
   } catch(e) {}
+}
+
+function showGiftOpenChoice(g) {
+  // Create a small toast-style prompt
+  const el = document.createElement('div');
+  el.className = 'gift-choice-toast';
+  el.innerHTML = `
+    <div class="gct-left">
+      <span class="gct-emoji">${g.itemEmoji}</span>
+      <div class="gct-info">
+        <div class="gct-title">${esc(g.fromName)} tặng ${g.qty}x ${g.itemName}</div>
+        <div class="gct-sub">Mở quà ngay hay để sau?</div>
+      </div>
+    </div>
+    <div class="gct-btns">
+      <button class="gct-now-btn">Mở ngay ✨</button>
+      <button class="gct-later-btn">Để sau</button>
+    </div>
+  `;
+  document.body.appendChild(el);
+  // Animate in
+  requestAnimationFrame(() => el.classList.add('gct-visible'));
+
+  const remove = () => {
+    el.classList.remove('gct-visible');
+    setTimeout(() => el.remove(), 300);
+  };
+
+  el.querySelector('.gct-now-btn').addEventListener('click', () => {
+    remove();
+    showGiftReceivedEffect(g);
+  });
+  el.querySelector('.gct-later-btn').addEventListener('click', () => {
+    remove();
+    // Save to pending gifts in localStorage
+    const pending = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
+    pending.push(g);
+    localStorage.setItem('rh-pending-gifts', JSON.stringify(pending));
+    toast(`🎁 Đã lưu quà vào thông báo — mở sau khi sẵn sàng!`);
+    // Update badge
+    loadNotifications();
+  });
+
+  // Auto-dismiss after 12 seconds
+  setTimeout(() => { if (document.body.contains(el)) remove(); }, 12000);
 }
 
 function showGiftReceivedEffect(g) {
