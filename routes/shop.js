@@ -420,6 +420,7 @@ router.get('/pets', async (req, res) => {
         alive: pet.alive,
         hidden: pet.hidden || false,
         warning: health.warning,
+        daysSinceLastCare: health.daysSince || 0,
         colorTint: tint,
         lastFedAt: pet.lastFedAt,
         lastWateredAt: pet.lastWateredAt,

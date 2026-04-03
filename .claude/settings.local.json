@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"require\\(''./routes/stats''\\)\")",
+      "Bash(node -e \":*)"
+    ]
+  }
+}

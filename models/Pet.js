@@ -18,9 +18,10 @@ const petSchema = new mongoose.Schema({
   timesWatered:   { type: Number, default: 0 },
   timesFertilized:{ type: Number, default: 0 },
   // State
-  alive:     { type: Boolean, default: true },
-  hidden:    { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  alive:          { type: Boolean, default: true },
+  hidden:         { type: Boolean, default: false },
+  lastPenaltyDay: { type: Number, default: 0 },   // day index (ms/DAY) of last health penalty
+  createdAt:      { type: Date, default: Date.now }
 });
 
 // Calculate level from totalPoints (every 50 pts = 1 level, max 10)
@@ -29,49 +30,47 @@ petSchema.methods.calcLevel = function() {
   return this.level;
 };
 
-// Check if neglected (3 days without care)
+// Check if neglected — called every time pets are loaded
 petSchema.methods.checkHealth = function(freezeActive) {
   if (!this.alive) return { alive: false, warning: false };
   if (freezeActive) return { alive: true, warning: false };
 
   const now = new Date();
-  const THREE_DAYS = 3 * 24 * 60 * 60 * 1000;
+  const DAY = 24 * 60 * 60 * 1000;
   const isAnimal = ['rabbit','cat','dog','hamster','bird'].includes(this.type);
   const isPlant  = ['tree','flower','tree2','flower2','flower3','kim_ngan','ngoc_bich','van_loc'].includes(this.type);
 
-  let neglected = false;
-  if (isAnimal && this.lastFedAt) {
-    neglected = (now - this.lastFedAt) > THREE_DAYS;
-  } else if (isAnimal && !this.lastFedAt) {
-    neglected = (now - this.createdAt) > THREE_DAYS;
-  }
-  if (isPlant && this.lastWateredAt) {
-    neglected = (now - this.lastWateredAt) > THREE_DAYS;
-  } else if (isPlant && !this.lastWateredAt) {
-    neglected = (now - this.createdAt) > THREE_DAYS;
-  }
+  // Reference point: last care, or creation date
+  let lastCare = null;
+  if (isAnimal) lastCare = this.lastFedAt || this.createdAt;
+  if (isPlant)  lastCare = this.lastWateredAt || this.createdAt;
 
-  if (neglected) {
-    // Lose 10 points per check when neglected
-    this.totalPoints = Math.max(0, this.totalPoints - 10);
-    this.calcLevel();
-    if (this.totalPoints <= 0 && this.timesFed + this.timesWatered > 0) {
-      this.alive = false;
+  const daysSince = lastCare ? (now - lastCare) / DAY : 0;
+
+  // Health degrades: -10 pts per day after 3 days neglect
+  if (daysSince > 3) {
+    const neglectDays = Math.floor(daysSince - 3);
+    // Apply penalty proportional to neglect (avoid re-applying on every load)
+    // Use a hidden field to track last penalty date
+    const lastPenaltyDay = this.lastPenaltyDay || 0;
+    const todayDay = Math.floor(now / DAY);
+    if (todayDay > lastPenaltyDay) {
+      const missedDays = Math.min(todayDay - lastPenaltyDay, neglectDays);
+      this.totalPoints = Math.max(0, this.totalPoints - (10 * missedDays));
+      this.lastPenaltyDay = todayDay;
+      this.calcLevel();
     }
   }
 
-  // Warning if 2+ days without care
-  const TWO_DAYS = 2 * 24 * 60 * 60 * 1000;
-  let warning = false;
-  if (isAnimal) {
-    const ref = this.lastFedAt || this.createdAt;
-    warning = (now - ref) > TWO_DAYS;
-  } else if (isPlant) {
-    const ref = this.lastWateredAt || this.createdAt;
-    warning = (now - ref) > TWO_DAYS;
+  // Die after 7 days without any care (regardless of whether ever cared for)
+  if (daysSince > 7) {
+    this.alive = false;
   }
 
-  return { alive: this.alive, warning };
+  // Warning if 2+ days without care
+  const warning = daysSince > 2;
+
+  return { alive: this.alive, warning, daysSince: Math.floor(daysSince) };
 };
 
 module.exports = mongoose.model('Pet', petSchema);

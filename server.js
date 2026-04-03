@@ -18,6 +18,7 @@ app.use('/api/journal', require('./routes/journal'));
 app.use('/api/goals',   require('./routes/goals'));
 app.use('/api/shop',    require('./routes/shop'));
 app.use('/api/gamification', require('./routes/gamification'));
+app.use('/api/stats',        require('./routes/stats'));
 
 app.get('/auth.html', (req, res) =>
   res.sendFile(path.join(__dirname, 'public', 'auth.html')));

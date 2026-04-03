@@ -626,13 +626,23 @@ router.post('/gift-item', async (req, res) => {
     // Add to recipient's inventory
     let recipientUP = await UserPoints.findOne({ userId: toUserId });
     if (!recipientUP) recipientUP = await UserPoints.create({ userId: toUserId });
-    recipientUP[itemId] = (recipientUP[itemId] || 0) + qty;
+
+    // Special effect: star = random bonus points (10–100 per star)
+    let bonusPoints = 0;
+    if (itemId === 'star') {
+      for (let i = 0; i < qty; i++) {
+        bonusPoints += 10 + Math.floor(Math.random() * 91);
+      }
+      recipientUP.addPoints(bonusPoints);
+    } else {
+      recipientUP[itemId] = (recipientUP[itemId] || 0) + qty;
+    }
     await recipientUP.save();
 
     // Record gift notification
     const fromName = me.displayName || me.username;
     recipient.receivedGifts = recipient.receivedGifts || [];
-    recipient.receivedGifts.push({ from: me._id, fromName, itemId: item.id, itemName: item.name, itemEmoji: item.emoji, qty });
+    recipient.receivedGifts.push({ from: me._id, fromName, itemId: item.id, itemName: item.name, itemEmoji: item.emoji, qty, bonusPoints });
     await recipient.save();
 
     res.json({ ok: true, [itemId]: senderUP[itemId] });

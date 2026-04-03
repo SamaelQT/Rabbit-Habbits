@@ -32,7 +32,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const h = new Habit({ userId: req.userId, name: req.body.name, emoji: req.body.emoji||'🐰', color: req.body.color||'#b07fff' });
+    const h = new Habit({ userId: req.userId, name: req.body.name, emoji: req.body.emoji||'🐰', color: req.body.color||'#b07fff', category: req.body.category||'other' });
     await h.save(); res.status(201).json(h);
   } catch(e) { res.status(400).json({ error: e.message }); }
 });

@@ -1,40 +1,77 @@
-# ✦ TaskFlow — Checklist Theo Dõi Công Việc
+# 🐰 Rabbit Habits
+
+Nền tảng năng suất cá nhân và gamification bằng tiếng Việt. Theo dõi thói quen, mục tiêu dài hạn, nhật ký cảm xúc và nhận thưởng thú cưng khi duy trì chuỗi ngày tốt.
+
+---
 
 ## Tính năng
-- 📅 Lịch tháng có tô màu tuần hiện tại và ngày hôm nay
-- 📋 Xem theo **Tuần** hoặc **Tháng** với từng cột ngày riêng biệt
-- ✅ Thêm / xóa / tick hoàn thành task từng ngày
-- 📊 Chart tiến độ % mỗi ngày (donut chart mini)
-- 📈 Thống kê tuần / tháng / năm: tổng tasks, tỉ lệ hoàn thành
-- 🏆 Top tasks xuất hiện thường xuyên nhất + tỉ lệ hoàn thành
-- 💾 Lưu dữ liệu vào **MongoDB**
+
+### ✅ Tasks & Năng suất
+- Tạo, hoàn thành, xoá task với 4 mức độ ưu tiên
+- Tiền thưởng điểm tăng theo level của người dùng (×1.1 mỗi level)
+- Thống kê tuần/tháng/năm: tỉ lệ hoàn thành, top tasks, giờ làm việc hiệu quả
+
+### 🐇 Thói quen (Habits)
+- Theo dõi thói quen hàng ngày với streak
+- Heatmap lịch sử, biểu đồ xu hướng 8 tuần, phân tích ngày tốt nhất
+
+### 🎯 Mục tiêu dài hạn (Goals)
+- Tạo mục tiêu nhiều ngày với kế hoạch từng ngày
+- Mục tiêu đã kết thúc (dù bỏ lỡ một vài ngày) có thể lưu vào **Kho lưu trữ**
+- Thống kê kho: tổng mục tiêu, ngày hoàn thành, tỉ lệ TB, mục tiêu hoàn hảo
+
+### 📓 Nhật ký (Journal)
+- Ghi lại tâm trạng và nội dung mỗi ngày
+- Biểu đồ xu hướng cảm xúc 30 ngày, phân tích theo ngày trong tuần
+
+### 🐾 Thú cưng (Pets)
+- 13 loại thú cưng: 5 động vật, 8 cây cối
+- Mỗi loài có **10 biến thể** (tên + emoji riêng); cây cối có tint màu CSS
+- Thú cưng phát triển theo điểm tích lũy (10 giai đoạn)
+- Thú cưng bị bệnh nếu bị bỏ bê 3+ ngày liên tiếp, có thể chết nếu quá lâu
+- Thú cưng di chuyển dọc cạnh/góc màn hình, tránh che cursor người dùng
+
+### 🎮 Gamification
+- Hệ thống level dựa trên tổng điểm tích lũy
+- Thử thách tuần (weekly challenges) với nhiệm vụ ngẫu nhiên
+- Bảng xếp hạng bạn bè
+- Huy hiệu thành tích (badges)
+- Cửa hàng: mua thú cưng, vật phẩm chăm sóc, streak freeze card
+
+### 👥 Bạn bè & Cộng đồng
+- Kết bạn qua mã bạn bè
+- **Truyền lửa** (🔥): gửi một trong 50 câu động viên ngẫu nhiên cho bạn; bạn nhận hiệu ứng lửa toàn màn hình
+  - Người nhận có thể gửi lại lửa 1 lần; người gửi đầu tiên chỉ thấy nút Đóng (tránh vòng lặp vô hạn)
+- **Nhắn tin**: chat trực tiếp với từng người bạn (polling mỗi 4 giây)
+
+### 📊 Thống kê & Phân tích
+- Báo cáo tuần (tasks, streak, tâm trạng)
+- So sánh tuần này vs tuần trước
+- Biểu đồ cảm xúc 30 ngày
+- Phân tích giờ làm việc hiệu quả
+- Thống kê kho mục tiêu đã hoàn thành
 
 ---
 
 ## Cài đặt
 
-### 1. Yêu cầu
-- [Node.js](https://nodejs.org) >= 18
-- [MongoDB](https://www.mongodb.com/try/download/community) (local) hoặc [MongoDB Atlas](https://cloud.mongodb.com) (cloud)
+### Yêu cầu
+- Node.js ≥ 18
+- MongoDB Atlas (hoặc MongoDB local)
 
-### 2. Cài dependencies
+### Cài dependencies
 ```bash
-cd taskflow
 npm install
 ```
 
-### 3. Cấu hình MongoDB
-Mở file `.env` và sửa:
-
+### Cấu hình `.env`
 ```env
-# MongoDB local (mặc định)
-MONGODB_URI=mongodb://localhost:27017/taskflow
-
-# Hoặc MongoDB Atlas (cloud - khuyến nghị cho production)
-MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/taskflow
+PORT=3000
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/rabbit-habits
+JWT_SECRET=your_secret_key
 ```
 
-### 4. Chạy server
+### Chạy
 ```bash
 # Development (auto-reload)
 npm run dev
@@ -43,45 +80,48 @@ npm run dev
 npm start
 ```
 
-### 5. Mở trình duyệt
-```
-http://localhost:3000
-```
+Mở trình duyệt: `http://localhost:3000`
 
 ---
 
 ## Cấu trúc thư mục
 ```
-taskflow/
-├── server.js           # Express server chính
-├── .env                # Biến môi trường (MongoDB URI, port)
+rabbit-habits/
+├── server.js
+├── .env
 ├── models/
-│   └── Task.js         # MongoDB schema
+│   ├── User.js
+│   ├── Task.js
+│   ├── Habit.js + HabitLog.js
+│   ├── Goal.js
+│   ├── Journal.js
+│   ├── Pet.js
+│   ├── UserPoints.js
+│   └── Message.js
 ├── routes/
-│   └── tasks.js        # API endpoints
+│   ├── auth.js
+│   ├── tasks.js
+│   ├── habits.js
+│   ├── journal.js
+│   ├── goals.js
+│   ├── shop.js
+│   └── gamification.js
+├── middleware/
+│   └── auth.js
 └── public/
-    ├── index.html      # Giao diện chính
-    ├── css/
-    │   └── style.css   # Styles
-    └── js/
-        └── app.js      # Logic frontend
+    ├── index.html
+    ├── auth.html
+    ├── css/style.css
+    └── js/app.js
 ```
 
-## API Endpoints
-| Method | URL | Mô tả |
-|--------|-----|-------|
-| GET | `/api/tasks?startDate=&endDate=` | Lấy tasks theo khoảng ngày |
-| POST | `/api/tasks` | Tạo task mới |
-| PATCH | `/api/tasks/:id/toggle` | Toggle hoàn thành |
-| PATCH | `/api/tasks/:id` | Cập nhật tên task |
-| DELETE | `/api/tasks/:id` | Xóa task |
-| GET | `/api/tasks/stats?startDate=&endDate=` | Thống kê |
-
----
-
-## Sắp ra mắt
-- [ ] Drag & drop sắp xếp task
-- [ ] Tags / nhãn màu cho task
-- [ ] Nhắc nhở / deadline
-- [ ] Export PDF báo cáo
-- [ ] Dark/Light mode toggle
+## API chính
+| Method | Prefix | Mô tả |
+|--------|--------|-------|
+| `*` | `/api/auth` | Đăng ký, đăng nhập, đăng xuất |
+| `*` | `/api/tasks` | CRUD tasks, thống kê, giờ hiệu quả |
+| `*` | `/api/habits` | CRUD habits, log hàng ngày |
+| `*` | `/api/goals` | CRUD goals, toggle ngày, kho lưu trữ |
+| `*` | `/api/journal` | Nhật ký tâm trạng |
+| `*` | `/api/shop` | Thú cưng, vật phẩm, điểm |
+| `*` | `/api/gamification` | Level, thử thách, bạn bè, truyền lửa, nhắn tin |

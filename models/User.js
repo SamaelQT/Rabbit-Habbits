@@ -25,14 +25,15 @@ const userSchema = new mongoose.Schema({
     sentAt: { type: Date, default: Date.now }
   }],
   receivedGifts: [{
-    from:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    fromName:  { type: String, default: '' },
-    itemId:    { type: String, default: '' },
-    itemName:  { type: String, default: '' },
-    itemEmoji: { type: String, default: '' },
-    qty:       { type: Number, default: 1 },
-    createdAt: { type: Date, default: Date.now },
-    seen:      { type: Boolean, default: false }
+    from:        { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fromName:    { type: String, default: '' },
+    itemId:      { type: String, default: '' },
+    itemName:    { type: String, default: '' },
+    itemEmoji:   { type: String, default: '' },
+    qty:         { type: Number, default: 1 },
+    bonusPoints: { type: Number, default: 0 },
+    createdAt:   { type: Date, default: Date.now },
+    seen:        { type: Boolean, default: false }
   }],
   lastSeen:    { type: Date, default: null },
   createdAt:   { type: Date, default: Date.now }

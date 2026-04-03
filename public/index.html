@@ -36,6 +36,16 @@
     <div class="header-points-badge" id="header-points-badge" title="Điểm của bạn">
       <span>⭐</span><span id="header-points-val">0</span>
     </div>
+    <div class="notif-bell-wrap" id="notif-bell-wrap">
+      <button class="notif-bell-btn" id="notif-bell-btn" title="Thông báo">🔔<span class="notif-bell-badge" id="notif-bell-badge" style="display:none">0</span></button>
+      <div class="notif-panel" id="notif-panel" style="display:none">
+        <div class="notif-panel-header">
+          <div class="notif-panel-title">🔔 Thông báo</div>
+          <button class="notif-panel-close" id="notif-panel-close">✕</button>
+        </div>
+        <div id="notif-panel-body"></div>
+      </div>
+    </div>
     <button class="theme-btn" id="theme-btn" title="Đổi giao diện">☀️</button>
     <div class="header-date" id="header-date"></div>
   </div>
@@ -234,6 +244,39 @@
   </div>
 </div>
 
+<!-- Lì xì overlay (star gift effect) -->
+<div class="gift-lixi-overlay" id="gift-lixi-overlay" style="display:none">
+  <div class="gift-lixi-box">
+    <div class="gift-lixi-envelope" id="lixi-envelope">🧧</div>
+    <div class="gift-lixi-msg" id="lixi-msg" style="display:none">
+      <div class="gift-lixi-from" id="lixi-from"></div>
+      <div class="gift-lixi-pts" id="lixi-pts"></div>
+      <div class="gift-lixi-sub">Điểm đã được cộng vào tài khoản</div>
+      <button class="gift-lixi-close-btn" id="lixi-close-btn">Tuyệt vời! 🎉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pet naming modal -->
+<div id="pet-name-modal" style="display:none">
+  <div class="pet-name-backdrop"></div>
+  <div class="pet-name-card">
+    <div class="pet-name-pet-preview" id="pnm-preview">🐰</div>
+    <div class="pet-name-variant" id="pnm-variant"></div>
+    <div class="pet-name-title">Đặt tên cho thú cưng của bạn</div>
+    <div class="pet-name-sub" id="pnm-sub">Tên sẽ hiển thị trên vòng cổ</div>
+    <div class="pet-name-input-wrap">
+      <input class="pet-name-input" id="pnm-input" type="text" maxlength="20" placeholder="Nhập tên dễ thương..."/>
+      <span class="pet-name-collar-icon">🏷️</span>
+    </div>
+    <div class="pet-name-suggestions" id="pnm-suggestions"></div>
+    <div class="pet-name-footer">
+      <button class="pet-name-cancel-btn" id="pnm-cancel">Huỷ</button>
+      <button class="pet-name-confirm-btn" id="pnm-confirm">Nhận ngay! 🎉</button>
+    </div>
+  </div>
+</div>
+
 <!-- Gift modal -->
 <div id="gift-modal" style="display:none">
   <div class="gift-modal-backdrop" id="gift-modal-backdrop"></div>
@@ -331,6 +374,45 @@
       <div class="chart-panel-header"><div class="chart-panel-title">💖 Cảm xúc tháng qua</div><div class="chart-panel-sub" id="emotion-month-label">30 ngày gần nhất</div></div>
       <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-emotion-month"></canvas></div>
       <div id="emotion-month-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
+    </div>
+
+    <!-- Journey Summary -->
+    <div class="report-card" id="journey-card" style="margin-top:18px;margin-bottom:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">🧭 Hành trình của bạn</div>
+        <div class="chart-panel-sub">Tổng kết từ ngày đầu tiên</div>
+      </div>
+      <div id="journey-stats-body" style="padding:0 16px 20px"></div>
+    </div>
+
+    <!-- Monthly Progress -->
+    <div class="report-card" id="monthly-progress-card" style="margin-bottom:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">📈 Tiến bộ theo tháng</div>
+        <div class="chart-panel-sub">Điểm hoạt động 12 tháng gần nhất</div>
+      </div>
+      <div class="chart-canvas-wrap" style="height:240px"><canvas id="chart-monthly-progress"></canvas></div>
+    </div>
+
+    <!-- Life Balance -->
+    <div class="report-card" id="life-balance-card" style="margin-bottom:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">⚖️ Cân bằng cuộc sống</div>
+        <div class="chart-panel-sub">Phân bổ thời gian theo danh mục</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:20px;padding:0 20px 20px">
+        <div class="chart-canvas-wrap" style="height:260px;flex:1"><canvas id="chart-life-balance"></canvas></div>
+        <div id="life-balance-legend" style="min-width:140px;display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+
+    <!-- Upcoming Milestones -->
+    <div class="report-card" id="milestones-card" style="margin-bottom:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">🏅 Cột mốc sắp tới</div>
+        <div class="chart-panel-sub">Những thành tích đang chờ bạn</div>
+      </div>
+      <div id="milestones-body" style="padding:0 20px 20px;display:flex;flex-direction:column;gap:12px"></div>
     </div>
 
     <!-- WEEKLY REPORT CARD -->
@@ -573,7 +655,10 @@
     <div id="chat-window" class="chat-window" style="display:none">
       <div class="chat-window-header">
         <button class="chat-back-btn" id="chat-back-btn">← Quay lại</button>
-        <div class="chat-friend-name" id="chat-friend-name"></div>
+        <div class="chat-header-center">
+          <div class="chat-friend-name" id="chat-friend-name"></div>
+          <div class="chat-friend-streak" id="chat-friend-streak" style="display:none"></div>
+        </div>
         <div class="chat-online-dot" id="chat-online-status"></div>
       </div>
       <div class="chat-messages" id="chat-messages"></div>
@@ -805,6 +890,16 @@
       <div class="ahf-color" data-c="#ffcf5c" style="background:#ffcf5c"></div>
       <div class="ahf-color" data-c="#5ee8f0" style="background:#5ee8f0"></div>
       <div class="ahf-color" data-c="#ff6b8a" style="background:#ff6b8a"></div>
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:4px">Danh mục</div>
+      <div class="category-selector" id="habit-category-selector">
+        <button class="cat-btn active" data-cat="other">🎯 Khác</button>
+        <button class="cat-btn" data-cat="work">💼 Công việc</button>
+        <button class="cat-btn" data-cat="health">💪 Sức khỏe</button>
+        <button class="cat-btn" data-cat="learning">📚 Học tập</button>
+        <button class="cat-btn" data-cat="personal">🏠 Cá nhân</button>
+      </div>
     </div>
     <div class="ahf-btns">
       <button class="ahf-cancel" id="ahf-cancel">Huỷ</button>

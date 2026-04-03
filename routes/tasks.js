@@ -36,7 +36,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
-    const task = new Task({ userId: req.userId, title: req.body.title, date: req.body.date, priority: req.body.priority || 0 });
+    const task = new Task({ userId: req.userId, title: req.body.title, date: req.body.date, priority: req.body.priority || 0, category: req.body.category || 'other' });
     await task.save();
     res.status(201).json(task);
   } catch(e) { res.status(400).json({ error: e.message }); }

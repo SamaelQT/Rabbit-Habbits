@@ -49,7 +49,7 @@ const API={
 };
 const apiTasks={
   list:(s,e)=>API.g(`/api/tasks?startDate=${s}&endDate=${e}`),
-  add:(t,d,p)=>API.p('/api/tasks',{title:t,date:d,priority:p||0}),
+  add:(t,d,p,cat)=>API.p('/api/tasks',{title:t,date:d,priority:p||0,category:cat||'other'}),
   toggle:(id)=>API.pa(`/api/tasks/${id}/toggle`,{}),
   del:(id)=>API.d(`/api/tasks/${id}`),
   upd:(id,fields)=>API.pa(`/api/tasks/${id}`,fields),
@@ -320,6 +320,17 @@ function createDayColumn(date){
           <button class="prio-pill prio-pill-high" data-p="3">🔴 Cao</button>
         </div>
       </div>
+      <!-- Row 3: category selector -->
+      <div class="priority-row">
+        <span class="prio-label">Danh mục:</span>
+        <div class="category-selector task-cat-selector">
+          <button class="cat-btn active" data-cat="other">🎯 Khác</button>
+          <button class="cat-btn" data-cat="work">💼 Công việc</button>
+          <button class="cat-btn" data-cat="health">💪 Sức khỏe</button>
+          <button class="cat-btn" data-cat="learning">📚 Học tập</button>
+          <button class="cat-btn" data-cat="personal">🏠 Cá nhân</button>
+        </div>
+      </div>
     </div>`;
 
   const list=col.querySelector('.tasks-list');
@@ -339,9 +350,19 @@ function createDayColumn(date){
     });
   });
 
+  // Category picker state
+  let selCat='other';
+  col.querySelectorAll('.task-cat-selector .cat-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      selCat=btn.dataset.cat;
+      col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
   const inp=col.querySelector('.add-task-input');
-  col.querySelector('.add-task-btn').addEventListener('click',()=>addTask(ds,inp,selPrio));
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter')addTask(ds,inp,selPrio);});
+  col.querySelector('.add-task-btn').addEventListener('click',()=>addTask(ds,inp,selPrio,selCat));
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')addTask(ds,inp,selPrio,selCat);});
   return col;
 }
 
@@ -439,14 +460,14 @@ function mkTaskItem(task){
   return item;
 }
 
-async function addTask(ds,inp,prio=0){
+async function addTask(ds,inp,prio=0,cat='other'){
   const title=inp.value.trim(); if(!title) return;
   if(inp.dataset.busy) return; inp.dataset.busy='1';
   inp.value='';
   const btn=inp.closest('.add-task-area')?.querySelector('.add-task-btn');
   if(btn){ btn.disabled=true; btn.style.opacity='.5'; }
   try {
-  const task=await apiTasks.add(title,ds,prio);
+  const task=await apiTasks.add(title,ds,prio,cat);
   if(!state.tasks[ds]) state.tasks[ds]=[];
   state.tasks[ds].push(task);
   // Re-sort by priority
@@ -517,7 +538,12 @@ async function loadStats(){
   loadEmotionStats();
   // Monthly emotion chart
   loadMonthlyEmotionChart();
-  // New stats panels
+  // Journey + new stat panels
+  loadJourneyStats();
+  loadMonthlyProgress();
+  loadLifeBalance();
+  loadUpcomingMilestones();
+  // Original report panels
   loadWeeklyReport();
   loadWeekComparison();
   loadMoodLineChart();
@@ -1711,7 +1737,8 @@ function initHabitsForm(){
   document.getElementById('ahf-save').addEventListener('click',async()=>{
     const name=document.getElementById('ahf-name').value.trim();
     if(!name){toast('⚠ Nhập tên thói quen');return;}
-    await apiHabits.add({name,emoji:state.selectedEmoji,color:state.selectedColor});
+    const habitCat=document.querySelector('#habit-category-selector .cat-btn.active')?.dataset.cat||'other';
+    await apiHabits.add({name,emoji:state.selectedEmoji,color:state.selectedColor,category:habitCat});
     document.getElementById('add-habit-form').style.display='none';
     document.getElementById('ahf-name').value='';
     await loadHabits(); toast('🐰 Đã thêm thói quen!');
@@ -1727,6 +1754,12 @@ function initHabitsForm(){
     cp.addEventListener('click',()=>{
       document.querySelectorAll('.ahf-color').forEach(c=>c.classList.remove('selected'));
       cp.classList.add('selected'); state.selectedColor=cp.dataset.c;
+    });
+  });
+  document.querySelectorAll('#habit-category-selector .cat-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelectorAll('#habit-category-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
     });
   });
 }
@@ -2222,6 +2255,112 @@ const TASK_QUOTES = [
   { text: "Ngày mai bạn sẽ cảm ơn bản thân hôm nay đã không bỏ cuộc.", author: "Rabbit Habits" },
 ];
 
+const CHANGELOG = [
+  { date:'2026-04-03', icon:'📊', title:'Thống kê nâng cao', desc:'Hành trình cá nhân, tiến bộ theo tháng, cân bằng cuộc sống, cột mốc sắp tới' },
+  { date:'2026-04-03', icon:'🏆', title:'Kho lưu trữ mục tiêu', desc:'Mục tiêu kết thúc lưu vào kho với thống kê chi tiết' },
+  { date:'2026-04-02', icon:'💬', title:'Nhắn tin bạn bè', desc:'Chat trực tiếp với từng người bạn trong tab Bạn bè' },
+  { date:'2026-04-02', icon:'🐾', title:'Biến thể thú cưng', desc:'10 biến thể màu sắc/tên riêng cho mỗi loài động vật và cây' },
+  { date:'2026-04-01', icon:'🎮', title:'Thử thách tuần', desc:'Nhiệm vụ ngẫu nhiên mỗi tuần — hoàn thành để nhận điểm thưởng' },
+  { date:'2026-03-28', icon:'🔥', title:'Truyền lửa bạn bè', desc:'Gửi động lực cho bạn bè, 50 câu ngẫu nhiên, chống vòng lặp' },
+  { date:'2026-03-25', icon:'⭐', title:'Hệ thống Level', desc:'Lên cấp khi tích điểm, thưởng task tăng theo level' },
+];
+
+const USAGE_GUIDE = [
+  { icon:'📋', title:'Tasks', desc:'Tạo task hàng ngày, ưu tiên cao = điểm thưởng cao hơn. Gán danh mục để xem thống kê cân bằng.' },
+  { icon:'🐇', title:'Thói quen', desc:'Tick thói quen mỗi ngày để duy trì streak. Streak freeze card bảo vệ chuỗi ngày khi bận.' },
+  { icon:'🎯', title:'Mục tiêu', desc:'Tạo kế hoạch nhiều ngày, tick từng ngày. Khi kết thúc lưu vào Kho lưu trữ.' },
+  { icon:'🐾', title:'Thú cưng', desc:'Mua thú cưng ở Cửa hàng, chăm sóc mỗi ngày để giữ sức khỏe. Thú cưng lớn lên theo điểm.' },
+  { icon:'🔥', title:'Truyền lửa', desc:'Vào tab Game → Bạn bè, nhấn 🔥 để động viên bạn bè. Mỗi ngày 1 lần mỗi người.' },
+  { icon:'💬', title:'Nhắn tin', desc:'Nhấn 💬 trên thẻ bạn bè để mở cửa sổ chat.' },
+];
+
+async function loadNotifications() {
+  const body = document.getElementById('notif-panel-body');
+  const badge = document.getElementById('notif-bell-badge');
+  if (!body) return;
+
+  let urgentCount = 0;
+  let html = '';
+
+  // 1. Pets needing care
+  try {
+    const pets = await apiShop.pets();
+    const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
+    if (sick.length) {
+      urgentCount += sick.length;
+      html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
+      sick.forEach(p => {
+        html += `<div class="notif-item notif-urgent">
+          <span class="notif-item-icon">${p.emoji}</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title">${esc(p.name)}</div>
+            <div class="notif-item-sub">Sức khỏe: ${p.health}% — Cần chăm sóc ngay!</div>
+          </div>
+        </div>`;
+      });
+    }
+  } catch(e) {}
+
+  // 2. Today's incomplete tasks
+  try {
+    const todayStr = tds(state.today);
+    const tasks = await API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`);
+    const incomplete = (tasks||[]).filter(t => !t.completed);
+    if (incomplete.length) {
+      urgentCount += incomplete.length;
+      html += `<div class="notif-section-title">📋 Task hôm nay chưa xong</div>`;
+      incomplete.slice(0, 5).forEach(t => {
+        const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
+        html += `<div class="notif-item">
+          <span class="notif-item-icon">⬜</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title">${esc(t.title)}</div>
+            <div class="notif-item-sub">${prioLabels[t.priority]||'Bình thường'}</div>
+          </div>
+        </div>`;
+      });
+      if (incomplete.length > 5) {
+        html += `<div style="padding:4px 16px 8px;font-size:11px;color:var(--text3)">+${incomplete.length-5} task khác...</div>`;
+      }
+    }
+  } catch(e) {}
+
+  // 3. Changelog / New features
+  html += `<div class="notif-section-title">✨ Cập nhật mới nhất</div>`;
+  CHANGELOG.slice(0, 4).forEach(c => {
+    html += `<div class="notif-item">
+      <span class="notif-item-icon">${c.icon}</span>
+      <div class="notif-item-body">
+        <div class="notif-item-title">${c.title}</div>
+        <div class="notif-item-sub">${c.desc}</div>
+      </div>
+    </div>`;
+  });
+
+  // 4. Usage guide
+  html += `<div class="notif-section-title">📖 Hướng dẫn sử dụng</div>`;
+  USAGE_GUIDE.forEach(g => {
+    html += `<div class="notif-item">
+      <span class="notif-item-icon">${g.icon}</span>
+      <div class="notif-item-body">
+        <div class="notif-item-title">${g.title}</div>
+        <div class="notif-item-sub">${g.desc}</div>
+      </div>
+    </div>`;
+  });
+
+  body.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3)">Không có thông báo</div>';
+
+  if (badge) {
+    if (urgentCount > 0) {
+      badge.textContent = urgentCount;
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
 // Goal-specific motivations
 const MOTIVATIONS = {
   start: [
@@ -2390,24 +2529,29 @@ function renderGoalArchiveList(goals, container){
     const pct  = g.totalDays > 0 ? Math.round((done/g.totalDays)*100) : 0;
     const color = g.color || '#b07fff';
     const barColor = progressColor(pct);
+    const perfect = pct === 100;
     const startD = g.startDate ? g.startDate.split('-').slice(1).reverse().join('/') : '';
     const lastDay = g.days[g.days.length-1];
     const endD = lastDay ? lastDay.date.split('-').slice(1).reverse().join('/') : '';
     const card = document.createElement('div');
     card.className = 'goal-archive-card';
-    card.style.cssText = `border-color:${color}44`;
+    card.style.cssText = `border-color:${color}33`;
     card.innerHTML = `
-      <div class="gac-left">
-        <div class="gac-emoji" style="background:${color}20">${g.emoji}</div>
-        <div class="gac-info">
-          <div class="gac-title">${esc(g.title)}</div>
-          <div class="gac-meta">${startD} → ${endD} &nbsp;·&nbsp; ${g.totalDays} ngày</div>
+      <div class="gac-emoji" style="background:${color}18">${g.emoji}</div>
+      <div class="gac-body">
+        <div class="gac-title">${esc(g.title)}</div>
+        <div class="gac-meta">${startD} → ${endD} &nbsp;·&nbsp; ${g.totalDays} ngày</div>
+        <div class="gac-bar-wrap">
+          <div class="gac-bar-track">
+            <div class="gac-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${barColor})"></div>
+          </div>
+          <div class="gac-pct-badge" style="color:${barColor};background:${barColor}18;border:1px solid ${barColor}33">
+            ${perfect ? '💯' : pct + '%'}
+          </div>
         </div>
-      </div>
-      <div class="gac-right">
-        <div class="gac-pct" style="color:${barColor}">${pct}%</div>
-        <div class="gac-bar-track"><div class="gac-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${barColor})"></div></div>
-        <div class="gac-days-done">${done}/${g.totalDays} ngày ✓</div>
+        <div class="gac-days-tag" style="color:${color};border-color:${color}33;background:${color}0a">
+          ✓ ${done}/${g.totalDays} ngày
+        </div>
       </div>
     `;
     container.appendChild(card);
@@ -2418,13 +2562,22 @@ async function renderGoalArchiveStats(container){
   container.style.display='';
   try {
     const s = await apiGoals.archiveStats();
-    container.innerHTML = `
-      <div class="report-stat"><div class="rs-val">${s.totalGoals}</div><div class="rs-lbl">Mục tiêu</div></div>
-      <div class="report-stat"><div class="rs-val">${s.totalDaysCompleted}</div><div class="rs-lbl">Ngày hoàn thành</div></div>
-      <div class="report-stat"><div class="rs-val">${s.avgCompletion}%</div><div class="rs-lbl">Tỷ lệ TB</div></div>
-      <div class="report-stat"><div class="rs-val">${s.perfectGoals}</div><div class="rs-lbl">Hoàn hảo 💯</div></div>
-      <div class="report-stat"><div class="rs-val">${s.longestGoal}</div><div class="rs-lbl">Ngày dài nhất</div></div>
-    `;
+    const chips = [
+      { icon:'🎯', val: s.totalGoals,         lbl:'Mục tiêu',          color:'#b07fff', bg:'rgba(176,127,255,.12)' },
+      { icon:'📅', val: s.totalDaysCompleted,  lbl:'Ngày hoàn thành',   color:'#5ee8f0', bg:'rgba(94,232,240,.12)' },
+      { icon:'📊', val: s.avgCompletion+'%',   lbl:'Tỷ lệ TB',          color:'#ffcf5c', bg:'rgba(255,207,92,.12)'  },
+      { icon:'💯', val: s.perfectGoals,        lbl:'Hoàn hảo',          color:'#5ef0a0', bg:'rgba(94,240,160,.12)' },
+      { icon:'🏅', val: s.longestGoal+' ngày', lbl:'Dài nhất',          color:'#ff85c8', bg:'rgba(255,133,200,.12)' },
+    ];
+    container.innerHTML = chips.map(c=>`
+      <div class="ga-stat-chip">
+        <div class="ga-stat-icon" style="background:${c.bg}">${c.icon}</div>
+        <div class="ga-stat-text">
+          <div class="ga-stat-val" style="color:${c.color}">${c.val}</div>
+          <div class="ga-stat-lbl">${c.lbl}</div>
+        </div>
+      </div>
+    `).join('');
   } catch(e){ container.innerHTML = '<div style="color:var(--text3);font-size:13px">Chưa có dữ liệu</div>'; }
 }
 
@@ -2437,13 +2590,23 @@ async function loadGoalArchiveStats(){
       body.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:4px 0">Chưa có mục tiêu nào được lưu vào kho.</div>';
       return;
     }
-    body.innerHTML = `
-      <div class="report-stat"><div class="rs-val">${s.totalGoals}</div><div class="rs-lbl">Mục tiêu đã hoàn thành</div></div>
-      <div class="report-stat"><div class="rs-val">${s.totalDaysCompleted}</div><div class="rs-lbl">Tổng ngày hoàn thành</div></div>
-      <div class="report-stat"><div class="rs-val">${s.avgCompletion}%</div><div class="rs-lbl">Tỷ lệ hoàn thành TB</div></div>
-      <div class="report-stat"><div class="rs-val">${s.perfectGoals}</div><div class="rs-lbl">Mục tiêu hoàn hảo 💯</div></div>
-      <div class="report-stat"><div class="rs-val">${s.longestGoal} ngày</div><div class="rs-lbl">Mục tiêu dài nhất</div></div>
-    `;
+    const chips = [
+      { icon:'🎯', val: s.totalGoals,         lbl:'Mục tiêu lưu kho',  color:'#b07fff', bg:'rgba(176,127,255,.12)' },
+      { icon:'📅', val: s.totalDaysCompleted,  lbl:'Ngày hoàn thành',   color:'#5ee8f0', bg:'rgba(94,232,240,.12)'  },
+      { icon:'📊', val: s.avgCompletion+'%',   lbl:'Tỷ lệ TB',          color:'#ffcf5c', bg:'rgba(255,207,92,.12)'  },
+      { icon:'💯', val: s.perfectGoals,        lbl:'Hoàn hảo',          color:'#5ef0a0', bg:'rgba(94,240,160,.12)'  },
+      { icon:'🏅', val: s.longestGoal+' ngày', lbl:'Mục tiêu dài nhất', color:'#ff85c8', bg:'rgba(255,133,200,.12)' },
+    ];
+    body.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px 18px';
+    body.innerHTML = chips.map(c=>`
+      <div class="ga-stat-chip">
+        <div class="ga-stat-icon" style="background:${c.bg}">${c.icon}</div>
+        <div class="ga-stat-text">
+          <div class="ga-stat-val" style="color:${c.color}">${c.val}</div>
+          <div class="ga-stat-lbl">${c.lbl}</div>
+        </div>
+      </div>
+    `).join('');
   } catch(e){ body.innerHTML = '<div style="color:var(--text3);font-size:13px">Lỗi tải dữ liệu</div>'; }
 }
 
@@ -2479,7 +2642,7 @@ function createGoalCard(g){
           <span style="color:var(--text3);font-size:10px">${endLabel}</span>
         </div>
       </div>
-      ${pct===100 && !g.completed ? `<button class="gc-archive-btn" title="Lưu vào kho">🏆</button>` : ''}
+      ${!g.completed && lastDay && lastDay.date <= todayStr ? `<button class="gc-archive-btn" title="Lưu vào kho">🏆</button>` : ''}
       <button class="gc-delete" title="Xoá">✕</button>
     </div>
 
@@ -3086,6 +3249,68 @@ const SHOP_FEATURES = {
   flower3: '🌺 Hoa Lan thanh cao sang trọng. Nhấn thấy cánh lan & vương miện rơi! Tưới nước & bón phân.',
 };
 
+// ── PET NAMING MODAL ──
+const PET_NAME_SUGGESTIONS = {
+  rabbit:   ['Bông','Mochi','Caramel','Snowball','Latte','Pudding','Cinnamon','Peanut','Hazel','Daisy'],
+  cat:      ['Miu','Luna','Sushi','Mochi','Cleo','Simba','Nala','Whiskers','Kitty','Shadow'],
+  dog:      ['Buddy','Max','Coco','Bear','Charlie','Rocky','Milo','Biscuit','Toby','Zeus'],
+  hamster:  ['Pip','Nugget','Cashew','Biscuit','Peanut','Dumpling','Noodle','Chip','Waffles','Pretzel'],
+  bird:     ['Kiwi','Mango','Sora','Azure','Sunny','Lemon','Peach','Sky','Chirp','Zephyr'],
+  tree:     ['Xanh Lá','Bách Tùng','Cổ Thụ','Trường Xanh','Thái Bình','Vĩnh Cửu','Đại Thụ','Trường Sinh','Minh Quang','Phúc Lộc'],
+  flower:   ['Hồng Nhung','Tím Mộng','Vàng Hoa','Thanh Khiết','Diễm Lệ','Ngọc Lan','Bạch Liên','Phù Dung','Hương Nhi','Mỹ Linh'],
+  tree2:    ['Lộc Vừng','Thần Mộc','Tiên Thụ','Thanh Tùng','Phúc Mộc','Ngọc Thụ','Vân Sam','Huyền Bí','Đại Cổ','Linh Mộc'],
+  flower2:  ['Sen Trắng','Quỳnh Hương','Phong Lan','Mai Vàng','Hoa Cúc','Thủy Tiên','Violette','Jasmine','Iris','Dahlia'],
+  flower3:  ['Bồng Lai','Thiên Lý','Ngọc Liên','Xuân Hoa','Thu Cúc','Đông Mai','Hạ Hồng','Bướm Bay','Nàng Thơ','Tiểu Mỹ'],
+  kim_ngan: ['Kim Ngân','Phú Quý','Vàng Rực','Tiền Lộc','Hoàng Kim','Tài Lộc','Kim Bảo','Ngọc Phú','Vàng Son','Lộc Tài'],
+  ngoc_bich:['Ngọc Bích','Lục Ngọc','Cẩm Thạch','Jade','Bích Ngọc','Thanh Ngọc','Lam Ngọc','Lá Xanh','Thúy Ngọc','Ngọc Lam'],
+  van_loc:  ['Vạn Lộc','Phúc Đức','Trường Thọ','Cát Tường','An Khang','Bình An','Thịnh Vượng','Trường Lộc','Phúc Thọ','Như Ý'],
+};
+
+function openPetNameModal(p, onConfirm) {
+  const modal   = document.getElementById('pet-name-modal');
+  const preview = document.getElementById('pnm-preview');
+  const variant = document.getElementById('pnm-variant');
+  const input   = document.getElementById('pnm-input');
+  const suggs   = document.getElementById('pnm-suggestions');
+  const sub     = document.getElementById('pnm-sub');
+  if (!modal) return;
+
+  // Pick preview emoji from first stage of this type
+  preview.textContent = p.stages?.[0] || p.emoji || '🐾';
+  variant.textContent = p.name;
+  sub.textContent = `Tên sẽ hiển thị trên vòng cổ`;
+  input.value = '';
+
+  // Suggestions
+  const names = PET_NAME_SUGGESTIONS[p.type] || PET_NAME_SUGGESTIONS.rabbit;
+  suggs.innerHTML = names.slice(0, 5).map(n =>
+    `<button class="pnm-sugg-btn">${n}</button>`
+  ).join('');
+  suggs.querySelectorAll('.pnm-sugg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      input.value = btn.textContent;
+      input.focus();
+      suggs.querySelectorAll('.pnm-sugg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  modal.style.display = 'flex';
+  setTimeout(() => input.focus(), 100);
+
+  const close = () => { modal.style.display = 'none'; };
+  const confirm = () => {
+    const name = input.value.trim();
+    close();
+    onConfirm(name);
+  };
+
+  document.getElementById('pnm-cancel').onclick  = close;
+  document.getElementById('pnm-confirm').onclick = confirm;
+  modal.querySelector('.pet-name-backdrop').onclick = close;
+  input.onkeydown = (e) => { if (e.key === 'Enter') confirm(); };
+}
+
 function makeStoreCard(p) {
   const card = document.createElement('div');
   card.className = 'store-card';
@@ -3106,27 +3331,25 @@ function makeStoreCard(p) {
       detailToggle.textContent = isOpen ? '▲ Ẩn chi tiết' : 'ℹ️ Chi tiết';
     });
   }
-  card.querySelector('.store-price').addEventListener('click', async () => {
-    try {
-      // Ask user to name the pet
-      const petName = prompt(`Đặt tên cho ${p.name} mới của bạn:`, '');
-      if (petName === null) return; // cancelled
-      const trimmed = petName.trim();
-      const res = await fetch('/api/shop/buy-pet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: p.type, name: trimmed || undefined }),
-        credentials: 'include'
-      }).then(r => r.json());
-      if (res.error) throw new Error(res.error);
-      updatePointsUI(res.points);
-      const vName = res.variantName || p.name;
-      toast(`🎉 Bạn nhận được: ${vName}!${res.remaining != null ? ` (còn ${res.remaining} biến thể chưa mở)` : ''}`);
-      launchConfetti('medium');
-      await loadMyPets();
-      await loadShopData();
-      checkAndAwardBadges();
-    } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+  card.querySelector('.store-price').addEventListener('click', () => {
+    openPetNameModal(p, async (name) => {
+      try {
+        const res = await fetch('/api/shop/buy-pet', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: p.type, name: name || undefined }),
+          credentials: 'include'
+        }).then(r => r.json());
+        if (res.error) throw new Error(res.error);
+        updatePointsUI(res.points);
+        const vName = res.variantName || p.name;
+        toast(`🎉 Bạn nhận được: ${vName}!${res.remaining != null ? ` (còn ${res.remaining} biến thể chưa mở)` : ''}`);
+        launchConfetti('medium');
+        await loadMyPets();
+        await loadShopData();
+        checkAndAwardBadges();
+      } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+    });
   });
   return card;
 }
@@ -3863,6 +4086,47 @@ async function handleFloatingPetFeed(petEl, action) {
 let _floatingPetsLoaded = false;
 const _floatingPetPositions = {};
 
+// Track cursor position to avoid covering it
+let _cursorX = -9999, _cursorY = -9999;
+document.addEventListener('mousemove', e => { _cursorX = e.clientX; _cursorY = e.clientY; });
+
+// Pick a position along screen edges/corners, far from cursor
+function _pickEdgePos() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const S = 60; // pet size approx
+  const m = 16; // margin from edge
+  // Define candidate zones along edges
+  const candidates = [
+    // Corners
+    { x: m,           y: H - S - m },
+    { x: W - S - m,   y: H - S - m },
+    { x: m,           y: H * 0.35 },
+    { x: W - S - m,   y: H * 0.35 },
+    // Bottom edge (spread)
+    { x: W * 0.25,    y: H - S - m },
+    { x: W * 0.5,     y: H - S - m },
+    { x: W * 0.75 - S,y: H - S - m },
+    // Left edge
+    { x: m,           y: H * 0.55 },
+    { x: m,           y: H * 0.7  },
+    // Right edge
+    { x: W - S - m,   y: H * 0.55 },
+    { x: W - S - m,   y: H * 0.7  },
+  ];
+  // Add jitter
+  const jittered = candidates.map(c => ({
+    x: c.x + (Math.random() - 0.5) * 40,
+    y: c.y + (Math.random() - 0.5) * 20,
+  }));
+  // Filter positions far enough from cursor (>180px)
+  const safe = jittered.filter(c => {
+    const dx = c.x + S/2 - _cursorX, dy = c.y + S/2 - _cursorY;
+    return Math.sqrt(dx*dx + dy*dy) > 180;
+  });
+  const pool = safe.length ? safe : jittered;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 async function loadFloatingPets() {
   const container = document.getElementById('floating-pets-container');
   if (!container) return;
@@ -3886,22 +4150,25 @@ async function loadFloatingPets() {
       el.setAttribute('data-category', category);
       el.setAttribute('data-pet-type', pet.type);
       el.setAttribute('data-pet-id', pet._id);
-      el.textContent = pet.emoji;
+      // Use inner structure: emoji + name collar
+      el.innerHTML = `
+        <span class="fp-emoji">${pet.emoji}</span>
+        <span class="fp-collar">${esc(pet.name)}</span>
+      `;
       // Apply CSS hue tint for plant variants
       if (pet.colorTint != null && pet.colorTint !== 0) {
-        el.style.filter = `hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)`;
+        el.querySelector('.fp-emoji').style.filter = `hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)`;
       }
 
-      // Restore saved position or set default (bottom-right)
+      // Restore saved position or pick a default edge position
       const savedPos = _floatingPetPositions[pet._id];
       if (savedPos) {
         el.style.left = savedPos.x + 'px';
         el.style.top = savedPos.y + 'px';
       } else {
-        const rightZone = window.innerWidth - 200;
-        const bottomZone = window.innerHeight - 160;
-        el.style.left = (rightZone + Math.random() * 120) + 'px';
-        el.style.top = (bottomZone + Math.random() * 60) + 'px';
+        const pos = _pickEdgePos();
+        el.style.left = pos.x + 'px';
+        el.style.top  = pos.y + 'px';
       }
 
       // Stagger animations
@@ -3909,20 +4176,25 @@ async function loadFloatingPets() {
 
       // Animals walk randomly, plants stay put (user can drag plants)
       if (category === 'animal') {
-        const walkInterval = setInterval(() => {
-          if (el._isDragging) return;
-          const margin = 60;
-          const newX = margin + Math.random() * (window.innerWidth - margin * 2 - 80);
-          const newY = (window.innerHeight * 0.55) + Math.random() * (window.innerHeight * 0.35);
-          // Set direction via CSS variable — no transform conflict
-          const curX = parseFloat(el.style.left) || el.offsetLeft;
-          el.style.setProperty('--dir', newX < curX ? '-1' : '1');
-          el.classList.add('walking');
-          el.style.left = newX + 'px';
-          el.style.top = newY + 'px';
-          setTimeout(() => el.classList.remove('walking'), 3200);
-        }, 5000 + Math.random() * 5000);
-        el._walkInterval = walkInterval;
+        // Initial delay so pets don't all move at the same time
+        const initialDelay = 3000 + i * 2000 + Math.random() * 4000;
+        let walkTimer;
+        const scheduleWalk = () => {
+          walkTimer = setTimeout(() => {
+            if (!el._isDragging) {
+              const pos = _pickEdgePos();
+              const curX = parseFloat(el.style.left) || el.offsetLeft;
+              el.style.setProperty('--dir', pos.x < curX ? '-1' : '1');
+              el.classList.add('walking');
+              el.style.left = pos.x + 'px';
+              el.style.top  = pos.y + 'px';
+              setTimeout(() => el.classList.remove('walking'), 3200);
+            }
+            scheduleWalk(); // next walk in 18–35 seconds
+          }, 18000 + Math.random() * 17000);
+        };
+        setTimeout(scheduleWalk, initialDelay);
+        el._stopWalk = () => clearTimeout(walkTimer);
       }
 
       // Drag to reposition
@@ -4106,6 +4378,219 @@ const apiGamification = {
   sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
   unreadMessages:   () => API.g('/api/gamification/unread-messages'),
 };
+
+// ═══════════════════════════════════════════
+// STATS API + FUNCTIONS
+// ═══════════════════════════════════════════
+
+const apiStats = {
+  journey: () => API.g('/api/stats/journey'),
+  monthly: () => API.g('/api/stats/monthly'),
+  balance: () => API.g('/api/stats/balance'),
+};
+
+async function loadJourneyStats() {
+  const body = document.getElementById('journey-stats-body');
+  if (!body) return;
+  try {
+    const s = await apiStats.journey();
+    const chips = [
+      { icon:'📅', val: s.daysSince,          lbl:'Ngày đồng hành',         color:'#b07fff', bg:'rgba(176,127,255,.12)' },
+      { icon:'✅', val: s.totalTasksDone,      lbl:'Tasks hoàn thành',        color:'#5ef0a0', bg:'rgba(94,240,160,.12)' },
+      { icon:'🔥', val: s.totalHabitDays,      lbl:'Ngày duy trì thói quen',  color:'#ffcf5c', bg:'rgba(255,207,92,.12)' },
+      { icon:'🎯', val: s.totalGoalsArchived,  lbl:'Mục tiêu đã đạt',         color:'#5ee8f0', bg:'rgba(94,232,240,.12)' },
+      { icon:'⭐', val: s.totalEarned,          lbl:'Tổng điểm kiếm được',     color:'#ff85c8', bg:'rgba(255,133,200,.12)' },
+    ];
+    body.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap';
+    body.innerHTML = chips.map(c => `
+      <div class="ga-stat-chip">
+        <div class="ga-stat-icon" style="background:${c.bg}">${c.icon}</div>
+        <div class="ga-stat-text">
+          <div class="ga-stat-val" style="color:${c.color}">${c.val.toLocaleString()}</div>
+          <div class="ga-stat-lbl">${c.lbl}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) { console.error('loadJourneyStats:', e); }
+}
+
+async function loadMonthlyProgress() {
+  const canvas = document.getElementById('chart-monthly-progress');
+  if (!canvas) return;
+  try {
+    const data = await apiStats.monthly();
+    const VI_MO = ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12'];
+    const labels = data.map(d => { const [,m] = d.month.split('-'); return VI_MO[parseInt(m)-1]; });
+    const scores = data.map(d => d.score);
+    if (window._chartMonthly) window._chartMonthly.destroy();
+    window._chartMonthly = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Điểm hoạt động',
+          data: scores,
+          borderColor: '#b07fff',
+          backgroundColor: 'rgba(176,127,255,.12)',
+          borderWidth: 2,
+          pointBackgroundColor: '#b07fff',
+          pointRadius: 4,
+          tension: 0.4,
+          fill: true,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+          callbacks: { label: ctx => ` ${ctx.raw} điểm` }
+        }},
+        scales: {
+          x: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b8fa8' } },
+          y: { grid: { color: 'rgba(255,255,255,.05)' }, ticks: { color: '#8b8fa8' }, beginAtZero: true }
+        }
+      }
+    });
+  } catch(e) { console.error('loadMonthlyProgress:', e); }
+}
+
+const CAT_CONFIG = {
+  work:     { label: '💼 Công việc', color: '#5ee8f0' },
+  health:   { label: '💪 Sức khỏe', color: '#5ef0a0' },
+  learning: { label: '📚 Học tập',   color: '#ffcf5c' },
+  personal: { label: '🏠 Cá nhân',   color: '#ff85c8' },
+  other:    { label: '🎯 Khác',      color: '#b07fff' },
+};
+
+async function loadLifeBalance() {
+  const canvas = document.getElementById('chart-life-balance');
+  const legend = document.getElementById('life-balance-legend');
+  if (!canvas) return;
+  try {
+    const data = await apiStats.balance();
+    const keys = ['work','health','learning','personal','other'];
+    const values = keys.map(k => data[k] || 0);
+    const total = values.reduce((a,b)=>a+b, 0);
+    if (total === 0) {
+      canvas.parentElement.parentElement.innerHTML += '<div style="color:var(--text3);font-size:13px;padding:0 20px 20px">Chưa có dữ liệu danh mục. Hãy gán danh mục khi tạo task hoặc thói quen.</div>';
+      return;
+    }
+    if (window._chartBalance) window._chartBalance.destroy();
+    window._chartBalance = new Chart(canvas, {
+      type: 'radar',
+      data: {
+        labels: keys.map(k => CAT_CONFIG[k].label),
+        datasets: [{
+          data: values,
+          backgroundColor: 'rgba(176,127,255,.15)',
+          borderColor: '#b07fff',
+          borderWidth: 2,
+          pointBackgroundColor: keys.map(k => CAT_CONFIG[k].color),
+          pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            grid: { color: 'rgba(255,255,255,.08)' },
+            angleLines: { color: 'rgba(255,255,255,.08)' },
+            ticks: { display: false },
+            pointLabels: { color: '#8b8fa8', font: { size: 12 } },
+          }
+        }
+      }
+    });
+    if (legend) {
+      legend.innerHTML = keys.map((k,i) => `
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <div style="width:10px;height:10px;border-radius:50%;background:${CAT_CONFIG[k].color};flex-shrink:0"></div>
+          <span style="color:var(--text2)">${CAT_CONFIG[k].label}</span>
+          <span style="color:var(--text);font-weight:600;margin-left:auto">${values[i]}</span>
+        </div>
+      `).join('');
+    }
+  } catch(e) { console.error('loadLifeBalance:', e); }
+}
+
+async function loadUpcomingMilestones() {
+  const body = document.getElementById('milestones-body');
+  if (!body) return;
+  try {
+    const [levelData, journey] = await Promise.all([apiGamification.level(), apiStats.journey()]);
+    const thresholds = levelData.thresholds || [];
+    const lvl = levelData.level || 1;
+    const totalEarned = levelData.totalEarned || 0;
+    const milestones = [];
+
+    // Next level
+    if (lvl < thresholds.length) {
+      const nextThresh = thresholds[lvl] || thresholds[thresholds.length-1];
+      const prevThresh = thresholds[lvl-1] || 0;
+      milestones.push({
+        icon: levelData.emojis?.[lvl] || '⭐',
+        label: `Level ${lvl+1} — ${levelData.names?.[lvl] || ''}`,
+        current: totalEarned - prevThresh,
+        target: nextThresh - prevThresh,
+        color: '#b07fff',
+      });
+    }
+
+    // Tasks milestone
+    const taskMilestones = [10,50,100,250,500,1000];
+    const nextTaskM = taskMilestones.find(m => m > (journey.totalTasksDone||0));
+    if (nextTaskM) {
+      const prev = taskMilestones[taskMilestones.indexOf(nextTaskM)-1] || 0;
+      milestones.push({
+        icon:'✅', label:`Hoàn thành ${nextTaskM} tasks`,
+        current: journey.totalTasksDone - prev, target: nextTaskM - prev,
+        color:'#5ef0a0',
+      });
+    }
+
+    // Goals milestone
+    const goalMilestones = [1,3,5,10,20];
+    const nextGoalM = goalMilestones.find(m => m > (journey.totalGoalsArchived||0));
+    if (nextGoalM) {
+      const prev = goalMilestones[goalMilestones.indexOf(nextGoalM)-1] || 0;
+      milestones.push({
+        icon:'🎯', label:`Lưu kho ${nextGoalM} mục tiêu`,
+        current: journey.totalGoalsArchived - prev, target: nextGoalM - prev,
+        color:'#5ee8f0',
+      });
+    }
+
+    // Habit days milestone
+    const habitMilestones = [10,30,100,365,1000];
+    const nextHabitM = habitMilestones.find(m => m > (journey.totalHabitDays||0));
+    if (nextHabitM) {
+      const prev = habitMilestones[habitMilestones.indexOf(nextHabitM)-1] || 0;
+      milestones.push({
+        icon:'🔥', label:`${nextHabitM} ngày duy trì thói quen`,
+        current: journey.totalHabitDays - prev, target: nextHabitM - prev,
+        color:'#ffcf5c',
+      });
+    }
+
+    const top = milestones.slice(0, 4);
+    body.innerHTML = top.map(m => {
+      const pct = Math.min(100, Math.round((Math.max(0,m.current) / m.target) * 100));
+      return `
+        <div class="milestone-item">
+          <div class="milestone-top">
+            <span class="milestone-icon">${m.icon}</span>
+            <span class="milestone-label">${m.label}</span>
+            <span class="milestone-pct" style="color:${m.color}">${pct}%</span>
+          </div>
+          <div class="milestone-track">
+            <div class="milestone-fill" style="width:${pct}%;background:${m.color}"></div>
+          </div>
+          <div class="milestone-sub">${Math.max(0,m.current)}/${m.target}${m.target - m.current > 0 ? ` — còn ${m.target - m.current} nữa` : ' 🎉 Đã đạt!'}</div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) { console.error('loadUpcomingMilestones:', e); }
+}
 
 let _gfInited = false;
 
@@ -4798,18 +5283,209 @@ async function checkGiftNotifications() {
   try {
     const gifts = await apiGamification.getGifts();
     if (!gifts || gifts.length === 0) return;
-    // Show toast for each unseen gift
-    const grouped = {};
-    gifts.forEach(g => {
-      const key = `${g.fromName}:${g.itemId}`;
-      if (!grouped[key]) grouped[key] = { ...g, totalQty: 0 };
-      grouped[key].totalQty += g.qty;
-    });
-    Object.values(grouped).forEach(g => {
-      toast(`🎁 ${g.fromName} tặng bạn ${g.totalQty}x ${g.itemEmoji} ${g.itemName}!`);
-    });
     await apiGamification.markGiftsSeen();
+    // Show each gift one by one with a delay so effects don't collide
+    let delay = 300;
+    gifts.forEach(g => {
+      setTimeout(() => showGiftReceivedEffect(g), delay);
+      delay += 1800;
+    });
   } catch(e) {}
+}
+
+function showGiftReceivedEffect(g) {
+  switch(g.itemId) {
+    case 'star':       _giftEffectStar(g);       break;
+    case 'chocolate':  _giftEffectChocolate(g);  break;
+    case 'rose':       _giftEffectRose(g);       break;
+    case 'coffee':     _giftEffectCoffee(g);     break;
+    case 'treat':      _giftEffectTreat(g);      break;
+    case 'water':      _giftEffectWater(g);      break;
+    case 'fertilizer': _giftEffectFertilizer(g); break;
+    case 'food':       _giftEffectFood(g);       break;
+    case 'meat':       _giftEffectMeat(g);       break;
+    case 'fish':       _giftEffectFish(g);       break;
+    case 'seed':       _giftEffectSeed(g);       break;
+    default:
+      toast(`🎁 ${g.fromName} tặng bạn ${g.qty}x ${g.itemEmoji} ${g.itemName}!`);
+  }
+}
+
+// ⭐ Sao may mắn — mở phong bao lì xì, cộng điểm ngẫu nhiên
+function _giftEffectStar(g) {
+  const pts = g.bonusPoints || Math.floor(Math.random() * 91) + 10;
+  const overlay = document.getElementById('gift-lixi-overlay');
+  const env     = document.getElementById('lixi-envelope');
+  const msg     = document.getElementById('lixi-msg');
+  if (!overlay) return;
+  document.getElementById('lixi-from').textContent = `${g.fromName} gửi tặng bạn lì xì!`;
+  document.getElementById('lixi-pts').textContent  = `+${pts} ⭐`;
+  env.style.cssText  = 'display:flex;animation:none;font-size:72px;cursor:pointer;';
+  msg.style.display  = 'none';
+  overlay.style.display = 'flex';
+
+  const openIt = () => {
+    env.style.animation = 'lixiOpen 0.5s forwards';
+    setTimeout(() => {
+      env.style.display = 'none';
+      msg.style.display = 'flex';
+      updatePointsUI((_shopData.points || 0) + pts);
+      launchConfetti('medium');
+      _spawnParticles(['⭐','✨','🌟','💫','🎊'], 22);
+    }, 500);
+  };
+  env.onclick = openIt;
+  document.getElementById('lixi-close-btn').onclick = () => { overlay.style.display = 'none'; };
+  toast(`🧧 ${g.fromName} gửi lì xì! Nhấn để mở!`);
+}
+
+// 🍫 Socola — trái tim + confetti niềm vui
+function _giftEffectChocolate(g) {
+  toast(`🍫 ${g.fromName} tặng ${g.qty}x Socola! Ngọt ngào quá! 💕`);
+  _spawnParticles(['🍫','💕','💝','😍','🥰','💖','✨'], 24);
+  setTimeout(() => _spawnParticles(['💕','💖','💗'], 12), 600);
+}
+
+// 🌹 Hoa hồng — cánh hoa rơi lãng mạn
+function _giftEffectRose(g) {
+  toast(`🌹 ${g.fromName} tặng ${g.qty}x Hoa hồng! Lãng mạn quá~`);
+  const PETALS = ['🌹','🌸','🌺','💐','🪷'];
+  for (let i = 0; i < 18; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.className = 'gift-petal';
+      p.textContent = PETALS[Math.floor(Math.random() * PETALS.length)];
+      const dur = 2 + Math.random() * 2;
+      p.style.cssText = `left:${Math.random()*100}%;--dur:${dur}s;font-size:${16+Math.floor(Math.random()*14)}px;`;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), dur * 1000 + 200);
+    }, i * 120);
+  }
+}
+
+// ☕ Cà phê — hơi nước + năng lượng bốc lên
+function _giftEffectCoffee(g) {
+  toast(`☕ ${g.fromName} tặng ${g.qty}x Cà phê! Tỉnh táo và năng động!`);
+  _spawnParticlesUp(['☕','⚡','💪','🔥','⚡','✨'], 16);
+}
+
+// 🍪 Bánh thưởng — bong bóng màu sắc nổ
+function _giftEffectTreat(g) {
+  toast(`🍪 ${g.fromName} tặng ${g.qty}x Bánh thưởng! Ngon lắm!`);
+  _spawnParticles(['🍪','🎈','🎊','🎉','🎀','💛','🧡'], 20);
+  launchConfetti('light');
+}
+
+// 💧 Nước — giọt nước rơi từ trên xuống
+function _giftEffectWater(g) {
+  toast(`💧 ${g.fromName} tặng ${g.qty}x Nước sạch! Mát lành!`);
+  for (let i = 0; i < 20; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.className = 'gift-petal';
+      p.textContent = ['💧','🌊','💦','🫧'][Math.floor(Math.random()*4)];
+      const dur = 1.5 + Math.random();
+      p.style.cssText = `left:${10+Math.random()*80}%;--dur:${dur}s;font-size:${14+Math.floor(Math.random()*10)}px;`;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), dur * 1000 + 200);
+    }, i * 80);
+  }
+}
+
+// 🌿 Phân bón — lá cây + hoa nở bay lên
+function _giftEffectFertilizer(g) {
+  toast(`🌿 ${g.fromName} tặng ${g.qty}x Phân bón! Cây cối sẽ lớn mạnh!`);
+  _spawnParticlesUp(['🌿','🌱','🌻','🌸','🍀','🪴','🌾'], 18);
+}
+
+// 🥕 Cà rốt — thỏ nhảy từ cạnh màn hình
+function _giftEffectFood(g) {
+  toast(`🥕 ${g.fromName} tặng ${g.qty}x Cà rốt! Thỏ thích lắm!`);
+  _spawnParticles(['🥕','🐰','🐇','✨'], 16);
+  // Thỏ chạy ngang màn hình
+  const rabbit = document.createElement('div');
+  rabbit.textContent = '🐇';
+  rabbit.style.cssText = `position:fixed;bottom:${60+Math.random()*80}px;left:-60px;font-size:32px;z-index:9999;pointer-events:none;transition:left 2.5s linear;`;
+  document.body.appendChild(rabbit);
+  requestAnimationFrame(() => { rabbit.style.left = (window.innerWidth + 60) + 'px'; });
+  setTimeout(() => rabbit.remove(), 2700);
+}
+
+// 🥩 Thịt — lửa BBQ bốc lên
+function _giftEffectMeat(g) {
+  toast(`🥩 ${g.fromName} tặng ${g.qty}x Thịt tươi! Thơm ngon!`);
+  _spawnParticlesUp(['🔥','🥩','💨','🌡️','🔥','✨'], 18);
+}
+
+// 🐟 Cá hồi — bong bóng nước + cá nhảy
+function _giftEffectFish(g) {
+  toast(`🐟 ${g.fromName} tặng ${g.qty}x Cá hồi! Tươi rói!`);
+  _spawnParticles(['🐟','🫧','💧','🐠','🐡','🌊'], 18);
+  // Cá nhảy lên
+  const fish = document.createElement('div');
+  fish.textContent = '🐟';
+  fish.style.cssText = `position:fixed;left:${20+Math.random()*60}%;bottom:-20px;font-size:36px;z-index:9999;pointer-events:none;animation:fishJump 1.4s ease-out forwards;`;
+  document.body.appendChild(fish);
+  setTimeout(() => fish.remove(), 1500);
+}
+
+// 🌻 Hạt giống — mầm cây mọc lên từ dưới
+function _giftEffectSeed(g) {
+  toast(`🌻 ${g.fromName} tặng ${g.qty}x Hạt giống! Trồng cây thôi!`);
+  // Mầm mọc từ dưới lên
+  const SPROUTS = ['🌱','🌿','🌸','🌻','🌼'];
+  for (let i = 0; i < 5; i++) {
+    setTimeout(() => {
+      const s = document.createElement('div');
+      s.className = 'gift-sprout';
+      s.textContent = SPROUTS[i];
+      s.style.cssText = `left:${10+i*18}%;`;
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 2500);
+    }, i * 200);
+  }
+  _spawnParticlesUp(['🌻','✨','🌱','💚'], 10);
+}
+
+// Helper: spawn particles that float up
+function _spawnParticlesUp(emojis, count) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      p.style.cssText = `
+        position:fixed;
+        left:${10+Math.random()*80}%;
+        bottom:${80+Math.random()*80}px;
+        font-size:${16+Math.floor(Math.random()*18)}px;
+        pointer-events:none;z-index:9990;
+        animation:giftFloatUp ${1.2+Math.random()*1}s ease-out forwards;
+      `;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 2500);
+    }, i * 60);
+  }
+}
+
+// Helper: spawn particles that scatter from center
+function _spawnParticles(emojis, count) {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const p = document.createElement('div');
+      p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+      p.style.cssText = `
+        position:fixed;
+        left:${20+Math.random()*60}%;
+        top:${20+Math.random()*50}%;
+        font-size:${14+Math.floor(Math.random()*22)}px;
+        pointer-events:none;z-index:9990;
+        animation:fireSentFloat ${0.8+Math.random()*0.8}s ease-out forwards;
+        animation-delay:${Math.random()*0.3}s;
+      `;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 2000);
+    }, i * 50);
+  }
 }
 
 // ── TIME AGO (Vietnamese) ──

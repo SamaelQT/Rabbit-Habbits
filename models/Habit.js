@@ -5,8 +5,9 @@ const habitSchema = new mongoose.Schema({
   name:    { type: String, required: true, trim: true },
   emoji:   { type: String, default: '🐰' },
   color:   { type: String, default: '#b07fff' },
-  order:   { type: Number, default: 0 },
-  active:  { type: Boolean, default: true },
+  order:    { type: Number, default: 0 },
+  active:   { type: Boolean, default: true },
+  category: { type: String, enum: ['work','health','learning','personal','other'], default: 'other' },
   createdAt: { type: Date, default: Date.now }
 });
 
