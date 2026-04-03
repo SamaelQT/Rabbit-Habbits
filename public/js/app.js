@@ -2122,6 +2122,17 @@ document.addEventListener('DOMContentLoaded', async ()=>{
     }
   });
   _notifClose?.addEventListener('click', () => { _notifPanel.style.display = 'none'; });
+
+  // Notif detail overlay
+  const _notifDetailOverlay = document.getElementById('notif-detail-overlay');
+  const _notifDetailBack    = document.getElementById('notif-detail-back');
+  _notifDetailBack?.addEventListener('click', () => {
+    if (_notifDetailOverlay) _notifDetailOverlay.style.display = 'none';
+  });
+  _notifDetailOverlay?.addEventListener('click', (e) => {
+    if (e.target === _notifDetailOverlay) _notifDetailOverlay.style.display = 'none';
+  });
+
   document.addEventListener('click', (e) => {
     if (_notifPanel && _notifPanel.style.display !== 'none' && !e.target.closest('#notif-bell-wrap')) {
       _notifPanel.style.display = 'none';
@@ -2324,7 +2335,9 @@ async function loadNotifications() {
       urgentCount += sick.length;
       html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
       sick.forEach(p => {
-        html += `<div class="notif-item notif-urgent">
+        const detailTitle = encodeURIComponent(`${p.emoji} ${p.name} cần chăm sóc`);
+        const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p>Sức khỏe hiện tại: <strong>${p.health}%</strong></p><p>${p.health < 30 ? '⚠️ <strong>Nguy hiểm!</strong> Thú cưng của bạn sắp qua đời.' : '⚠️ Thú cưng cần được chăm sóc ngay hôm nay.'}</p><p>Hãy vào tab <strong>Thú cưng</strong> để cho ${['rabbit','cat','dog','hamster','bird'].includes(p.type) ? 'ăn 🍎' : 'uống nước 💧'}.</p>`);
+        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
           <span class="notif-item-icon">${p.emoji}</span>
           <div class="notif-item-body">
             <div class="notif-item-title">${esc(p.name)}</div>
@@ -2345,7 +2358,11 @@ async function loadNotifications() {
       html += `<div class="notif-section-title">📋 Task hôm nay chưa xong</div>`;
       incomplete.slice(0, 5).forEach(t => {
         const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
-        html += `<div class="notif-item">
+        const prioIcons = ['⚪','🟡','🟠','🔴'];
+        const pts = [5,5,8,12];
+        const detailTitle = encodeURIComponent(`📋 ${esc(t.title)}`);
+        const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${prioIcons[t.priority]||'⚪'} Độ ưu tiên: ${prioLabels[t.priority]||'Bình thường'}</span></p><p>Task <strong>"${esc(t.title)}"</strong> chưa được hoàn thành hôm nay.</p><p>Hoàn thành để nhận <strong>+${pts[t.priority]||5} điểm</strong>.</p>${t.dueDate?`<p>Hạn chót: ${t.dueDate}</p>`:''}`);
+        html += `<div class="notif-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
           <span class="notif-item-icon">⬜</span>
           <div class="notif-item-body">
             <div class="notif-item-title">${esc(t.title)}</div>
@@ -2372,6 +2389,7 @@ async function loadNotifications() {
             <div class="notif-item-title">${esc(g.fromName)} tặng ${g.qty}x ${g.itemName}</div>
             <div class="notif-item-sub">Nhấn để mở quà ✨</div>
           </div>
+          <span style="font-size:16px;color:var(--text3);padding-left:4px">›</span>
         </div>`;
       });
     }
@@ -2382,7 +2400,9 @@ async function loadNotifications() {
   CHANGELOG.forEach(c => {
     const newBadge = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
     const verBadge = `<span class="notif-version-badge">${c.version}</span>`;
-    html += `<div class="notif-item${c.isNew?' notif-update-new':''}">
+    const detailTitle = encodeURIComponent(`${c.icon} ${c.title} — ${c.version}`);
+    const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${c.icon} ${c.version} · ${c.date}${c.isNew?' · <strong style="color:#5ef0a0">MỚI</strong>':''}</span></p><p>${c.desc}</p>`);
+    html += `<div class="notif-item${c.isNew?' notif-update-new':''} clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
       <span class="notif-item-icon">${c.icon}</span>
       <div class="notif-item-body">
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:3px">${newBadge}${verBadge}<span style="font-size:10px;color:var(--text3);padding-top:1px">${c.date}</span></div>
@@ -2395,7 +2415,9 @@ async function loadNotifications() {
   // 5. Usage guide
   html += `<div class="notif-section-title">📖 Hướng dẫn sử dụng</div>`;
   USAGE_GUIDE.forEach(g => {
-    html += `<div class="notif-item notif-guide-item">
+    const detailTitle = encodeURIComponent(`${g.icon} ${g.title}`);
+    const detailBody = encodeURIComponent(`<p>${g.desc}</p>`);
+    html += `<div class="notif-item notif-guide-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
       <div class="notif-item-icon">${g.icon}</div>
       <div class="notif-item-body">
         <div class="notif-item-title">${g.title}</div>
@@ -2405,6 +2427,21 @@ async function loadNotifications() {
   });
 
   body.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3)">Không có thông báo</div>';
+
+  // Wire up detail overlay clicks
+  body.querySelectorAll('.clickable[data-detail-title]').forEach(el => {
+    el.addEventListener('click', () => {
+      const title = decodeURIComponent(el.dataset.detailTitle || '');
+      const bodyHtml = decodeURIComponent(el.dataset.detailBody || '');
+      const overlay = document.getElementById('notif-detail-overlay');
+      const titleEl = document.getElementById('notif-detail-title');
+      const bodyEl = document.getElementById('notif-detail-body');
+      if (!overlay || !titleEl || !bodyEl) return;
+      titleEl.textContent = title;
+      bodyEl.innerHTML = bodyHtml;
+      overlay.style.display = 'flex';
+    });
+  });
 
   // Wire up pending gift clicks
   body.querySelectorAll('[data-pending-gift]').forEach(el => {
@@ -4270,23 +4307,18 @@ async function loadFloatingPets() {
         el.querySelector('.fp-emoji').style.filter = `hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)`;
       }
 
-      // Restore saved position (localStorage) or pick a default edge position
+      // Restore saved position (localStorage) or default to bottom-right corner
       const savedPos = _loadPetPos(pet._id);
       if (savedPos) {
         el.style.left = savedPos.x + 'px';
         el.style.top  = savedPos.y + 'px';
       } else {
-        // Hide offscreen, pick edge pos after layout renders
-        el.style.visibility = 'hidden';
-        el.style.left = '0px';
-        el.style.top  = '0px';
-        setTimeout(() => {
-          const pos = _pickEdgePos();
-          el.style.left = pos.x + 'px';
-          el.style.top  = pos.y + 'px';
-          el.style.visibility = '';
-          _savePetPos(pet._id, pos.x, pos.y);
-        }, 100 + i * 60);
+        // Default: stagger along bottom-right
+        const W = window.innerWidth, H = window.innerHeight;
+        const x = W - 90 - (i % 4) * 70;
+        const y = H - 120 - Math.floor(i / 4) * 80;
+        el.style.left = x + 'px';
+        el.style.top  = y + 'px';
       }
 
       // Stagger animations
