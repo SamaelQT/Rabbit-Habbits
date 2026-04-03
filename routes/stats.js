@@ -61,7 +61,7 @@ router.get('/monthly', async (req, res) => {
 // GET /api/stats/balance — category breakdown
 router.get('/balance', async (req, res) => {
   try {
-    const CATS = ['work', 'health', 'learning', 'personal', 'other'];
+    const CATS = ['work', 'health', 'sport', 'shopping', 'learning', 'personal', 'other'];
     const tasks     = await Task.find({ userId: req.userId, completed: true });
     const habits    = await Habit.find({ userId: req.userId });
     const habitLogs = await HabitLog.find({ userId: req.userId, done: true });

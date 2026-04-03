@@ -2942,14 +2942,16 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 }
 
 /* ── Category selector ──────────────────────────────── */
-.category-selector{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;}
+.category-selector{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
 .cat-btn{
-  padding:5px 11px;border:1px solid var(--border);border-radius:20px;
+  padding:4px 9px;border:1px solid var(--border);border-radius:20px;
   background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;
   transition:all .2s;white-space:nowrap;
 }
 .cat-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(176,127,255,.12);}
 .cat-btn:hover:not(.active){border-color:var(--border2);color:var(--text);}
+.cat-row .prio-label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
+.cat-auto-hint{transition:opacity .2s;}
 
 /* ── Milestone items ────────────────────────────────── */
 .milestone-item{display:flex;flex-direction:column;gap:5px;}

@@ -6,7 +6,7 @@ const taskSchema = new mongoose.Schema({
   priority:  { type: Number, default: 0, min: 0, max: 3 },
   date:      { type: String, required: true, index: true },
   completedAt: { type: Date, default: null },
-  category:    { type: String, enum: ['work','health','learning','personal','other'], default: 'other' },
+  category:    { type: String, enum: ['work','health','sport','shopping','learning','personal','other'], default: 'other' },
   createdAt:   { type: Date, default: Date.now }
 });
 taskSchema.index({ userId: 1, date: 1 });

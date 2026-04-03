@@ -321,14 +321,16 @@ function createDayColumn(date){
         </div>
       </div>
       <!-- Row 3: category selector -->
-      <div class="priority-row">
-        <span class="prio-label">Danh mục:</span>
+      <div class="priority-row cat-row">
+        <span class="prio-label">Danh mục: <span class="cat-auto-hint" id="cat-auto-hint-${ds}"></span></span>
         <div class="category-selector task-cat-selector">
-          <button class="cat-btn active" data-cat="other">🎯 Khác</button>
-          <button class="cat-btn" data-cat="work">💼 Công việc</button>
-          <button class="cat-btn" data-cat="health">💪 Sức khỏe</button>
-          <button class="cat-btn" data-cat="learning">📚 Học tập</button>
-          <button class="cat-btn" data-cat="personal">🏠 Cá nhân</button>
+          <button class="cat-btn" data-cat="work">💼 CV</button>
+          <button class="cat-btn" data-cat="health">🩺 SK</button>
+          <button class="cat-btn" data-cat="sport">🏃 TT</button>
+          <button class="cat-btn" data-cat="shopping">🛒 MS</button>
+          <button class="cat-btn" data-cat="learning">📚 HT</button>
+          <button class="cat-btn" data-cat="personal">🏠 CN</button>
+          <button class="cat-btn" data-cat="other">🎯 Khác</button>
         </div>
       </div>
     </div>`;
@@ -350,19 +352,49 @@ function createDayColumn(date){
     });
   });
 
-  // Category picker state
-  let selCat='other';
+  // Category picker state — null means "auto"
+  let selCat=null;
+  let catManual=false;
+  const autoHint=col.querySelector(`#cat-auto-hint-${ds}`);
   col.querySelectorAll('.task-cat-selector .cat-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
       selCat=btn.dataset.cat;
+      catManual=true;
       col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
+      if(autoHint) autoHint.textContent='';
     });
   });
 
   const inp=col.querySelector('.add-task-input');
-  col.querySelector('.add-task-btn').addEventListener('click',()=>addTask(ds,inp,selPrio,selCat));
-  inp.addEventListener('keydown',e=>{if(e.key==='Enter')addTask(ds,inp,selPrio,selCat);});
+
+  // Auto-detect category as user types
+  inp.addEventListener('input',()=>{
+    if(catManual) return;
+    const detected=autoCategory(inp.value);
+    const cm=CAT_META[detected]||CAT_META.other;
+    col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+    col.querySelector(`.task-cat-selector [data-cat="${detected}"]`)?.classList.add('active');
+    if(autoHint) autoHint.innerHTML=inp.value.trim()?`<span style="color:${cm.color};font-size:10px">✦ ${cm.icon} ${cm.label}</span>`:'';
+  });
+
+  col.querySelector('.add-task-btn').addEventListener('click',()=>{
+    const cat=selCat||autoCategory(inp.value);
+    addTask(ds,inp,selPrio,cat);
+    // Reset
+    selCat=null; catManual=false;
+    col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+    if(autoHint) autoHint.textContent='';
+  });
+  inp.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){
+      const cat=selCat||autoCategory(inp.value);
+      addTask(ds,inp,selPrio,cat);
+      selCat=null; catManual=false;
+      col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+      if(autoHint) autoHint.textContent='';
+    }
+  });
   return col;
 }
 
@@ -388,12 +420,73 @@ function refreshDonut(ds){
 
 // ─── TASK ITEM ────────────────────────────────────────────
 const CAT_META={
-  work:     {icon:'💼',label:'Công việc',color:'#7eb8f7'},
-  health:   {icon:'💪',label:'Sức khỏe', color:'#5ef0a0'},
-  learning: {icon:'📚',label:'Học tập',  color:'#ffcf5c'},
-  personal: {icon:'🏠',label:'Cá nhân',  color:'#f79cf7'},
-  other:    {icon:'🎯',label:'Khác',     color:'#aaa'},
+  work:     {icon:'💼',label:'Công việc', color:'#7eb8f7'},
+  health:   {icon:'🩺',label:'Sức khỏe', color:'#5ef0a0'},
+  sport:    {icon:'🏃',label:'Thể thao',  color:'#ff9f5c'},
+  shopping: {icon:'🛒',label:'Mua sắm',   color:'#f7c97e'},
+  learning: {icon:'📚',label:'Học tập',   color:'#ffcf5c'},
+  personal: {icon:'🏠',label:'Cá nhân',   color:'#f79cf7'},
+  other:    {icon:'🎯',label:'Khác',      color:'#999'},
 };
+
+// Auto-categorization keywords (Vietnamese + English)
+const CAT_KEYWORDS={
+  work:[
+    'làm việc','công việc','báo cáo','họp','meeting','email','dự án','project',
+    'code','coding','lập trình','web','app','thiết kế','design','deadline',
+    'khách hàng','client','hợp đồng','contract','phỏng vấn','interview','cv',
+    'văn phòng','office','trình bày','presentation','excel','word','powerpoint',
+    'budget','ngân sách','doanh thu','sale','bán hàng','marketing','quảng cáo',
+    'sếp','đồng nghiệp','kế hoạch công','seo','ads','server','database','deploy',
+    'bug','fix lỗi','task công','sprint','jira','figma','canva bài'
+  ],
+  health:[
+    'khám bệnh','bệnh viện','thuốc','uống thuốc','dinh dưỡng','vitamin',
+    'sức khỏe','y tế','bác sĩ','nha sĩ','tiêm','xét nghiệm','khám','detox',
+    'giảm cân','tăng cân','cân nặng','bmi','protein','calories','ăn sáng',
+    'ăn trưa','ăn tối','bữa ăn','uống nước','nước lọc','ngủ sớm','ngủ đủ giấc',
+    'nghỉ ngơi sức','huyết áp','đường huyết','omega','collagen','supplement'
+  ],
+  sport:[
+    'gym','tập gym','chạy bộ','bơi lội','đạp xe','yoga','thể dục','bóng đá',
+    'tennis','cầu lông','bóng rổ','leo núi','đi bộ','tập luyện','thể thao',
+    'workout','exercise','cardio','push up','plank','squat','chạy','bơi',
+    'tập thể','thi đấu','giải đấu','training','zumba','pilates','boxing',
+    'kickboxing','taekwondo','karate','golf','cầu lông','pickleball','chèo',
+    'leo','đá bóng','đánh cầu','đánh tennis','tập yoga','tập cardio'
+  ],
+  shopping:[
+    'mua','siêu thị','cửa hàng','đặt hàng','order','chợ','shopping','thanh toán',
+    'hóa đơn','nạp tiền','tiền điện','tiền nước','tiền internet','bill','trả tiền',
+    'nộp tiền','mua sắm','ship','giao hàng','shopee','lazada','tiki','amazon',
+    'grab food','foody','beedeilvery','thuê nhà','tiền nhà','tiền phòng',
+    'gia hạn','subscribe','đăng ký dịch','mua vé','đặt vé','booking'
+  ],
+  learning:[
+    'học','đọc sách','khóa học','nghiên cứu','ôn thi','luyện tập','study',
+    'course','bài tập','bài học','tự học','tiếng anh','ngoại ngữ','certificate',
+    'chứng chỉ','ielts','toeic','toán','lý','hóa','văn','sử','địa','sinh',
+    'đại học','cao học','luận văn','đề tài','ôn bài','kiểm tra','bài kiểm',
+    'flashcard','anki','podcast học','xem tutorial','đọc tài liệu','ghi chú học',
+    'python','javascript','react','sql','data','ai học','machine learning học'
+  ],
+  personal:[
+    'gia đình','bạn bè','gặp gỡ','du lịch','sở thích','sinh nhật','tiệc',
+    'hẹn hò','gọi điện','nhắn tin','giúp đỡ','từ thiện','tình nguyện',
+    'dọn dẹp','giặt đồ','nấu ăn','sửa chữa','trang trí','vệ sinh nhà',
+    'thú cưng','tưới cây','chụp ảnh','vẽ','nhạc','xem phim','chơi game',
+    'viết blog','nhật ký','diary','thiền','meditiate','dạo chơi','picnic',
+    'họ hàng','ba mẹ','anh chị em','con cái','hàng xóm'
+  ]
+};
+
+function autoCategory(title){
+  const t=title.toLowerCase().normalize('NFC');
+  for(const [cat,kws] of Object.entries(CAT_KEYWORDS)){
+    if(kws.some(kw=>t.includes(kw))) return cat;
+  }
+  return 'other';
+}
 function mkTaskItem(task){
   const p=task.priority||0;
   const cat=task.category||'other';
@@ -411,7 +504,9 @@ function mkTaskItem(task){
         <button class="task-cat-toggle" title="Đổi danh mục" style="color:${cm.color}">${cm.icon}</button>
         <div class="task-cat-dropdown">
           <div class="tcd-item" data-cat="work">💼 Công việc</div>
-          <div class="tcd-item" data-cat="health">💪 Sức khỏe</div>
+          <div class="tcd-item" data-cat="health">🩺 Sức khỏe</div>
+          <div class="tcd-item" data-cat="sport">🏃 Thể thao</div>
+          <div class="tcd-item" data-cat="shopping">🛒 Mua sắm</div>
           <div class="tcd-item" data-cat="learning">📚 Học tập</div>
           <div class="tcd-item" data-cat="personal">🏠 Cá nhân</div>
           <div class="tcd-item" data-cat="other">🎯 Khác</div>
@@ -4645,7 +4740,9 @@ async function loadMonthlyProgress() {
 
 const CAT_CONFIG = {
   work:     { label: '💼 Công việc', color: '#5ee8f0' },
-  health:   { label: '💪 Sức khỏe', color: '#5ef0a0' },
+  health:   { label: '🩺 Sức khỏe', color: '#5ef0a0' },
+  sport:    { label: '🏃 Thể thao',  color: '#ff9f5c' },
+  shopping: { label: '🛒 Mua sắm',   color: '#f7c97e' },
   learning: { label: '📚 Học tập',   color: '#ffcf5c' },
   personal: { label: '🏠 Cá nhân',   color: '#ff85c8' },
   other:    { label: '🎯 Khác',      color: '#b07fff' },
@@ -4657,7 +4754,7 @@ async function loadLifeBalance() {
   if (!canvas) return;
   try {
     const data = await apiStats.balance();
-    const keys = ['work','health','learning','personal','other'];
+    const keys = ['work','health','sport','shopping','learning','personal','other'];
     const values = keys.map(k => data[k] || 0);
     const total = values.reduce((a,b)=>a+b, 0);
     if (total === 0) {
