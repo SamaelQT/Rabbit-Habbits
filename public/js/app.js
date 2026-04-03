@@ -4582,14 +4582,7 @@ async function loadFloatingPets() {
 
     _floatingPetsLoaded = true;
 
-    // Warn about hidden pets that are sick or close to death
-    const hiddenSick = pets.filter(p => p.hidden && p.alive && p.warning);
-    const hiddenDead = pets.filter(p => p.hidden && !p.alive);
-    if (hiddenDead.length > 0) {
-      toast(`😢 ${hiddenDead.length} thú cưng/cây đang ẩn đã mất vì không được chăm sóc!`);
-    } else if (hiddenSick.length > 0) {
-      toast(`⚠️ ${hiddenSick.length} thú cưng/cây đang ẩn cần được chăm sóc!`);
-    }
+    // Dead pet alerts are handled silently in the notification panel only
   } catch(e) { /* not logged in yet */ }
 }
 
