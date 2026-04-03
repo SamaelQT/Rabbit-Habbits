@@ -522,6 +522,7 @@ async function loadStats(){
   loadWeekComparison();
   loadMoodLineChart();
   loadProductiveHours();
+  loadGoalArchiveStats();
 }
 
 async function loadMonthlyCharts() {
@@ -1042,18 +1043,24 @@ async function renderStats(stats,s,e,globalStreak){
     const freqW=Math.round((t.total/maxT)*100);
     const rc=rate>=80?'var(--green)':rate>=50?'var(--amber)':'var(--red)';
     let sd={currentStreak:0,maxStreak:0};
-    try{sd=await apiTasks.streak(t.title);}catch(_){}
+    const streakLookup = t.isGroup && t.groupTitles ? t.groupTitles[0] : t.title;
+    try{sd=await apiTasks.streak(streakLookup);}catch(_){}
     const card=document.createElement('div');
     card.className='ttc';
+    const groupTag = t.isGroup ? `<div class="ttc-group-badge">📂 Nhóm: ${t.groupTitles.length} tasks</div>` : '';
+    const groupMembers = t.isGroup && t.groupTitles ? `<div class="ttc-group-members">${t.groupTitles.map(m=>`<span class="ttc-member">${esc(m)}</span>`).join('')}</div>` : '';
+    // For grouped tasks, use the first member title for streak lookup
+    const streakTitle = t.isGroup && t.groupTitles ? t.groupTitles[0] : t.title;
     card.innerHTML=`
       <div class="ttc-top">
         <div class="ttc-rank">${i+1}</div>
-        <div class="ttc-name" title="${esc(t.title)}">${esc(t.title)}</div>
+        <div class="ttc-name" title="${esc(t.title)}">${esc(t.isGroup ? t.groupTitles[0] : t.title)}${t.isGroup ? ` <span style="color:var(--text3);font-size:11px">(+${t.groupTitles.length-1})</span>` : ''}</div>
         <div class="ttc-meta">
           <span class="ttc-count">${t.total}×</span>
           <span class="ttc-fire">${streakFlames(sd.currentStreak||0)}</span>
         </div>
       </div>
+      ${groupMembers}
       <div class="ttc-freq-row">
         <div class="ttc-freq-bar-wrap">
           <div class="ttc-freq-bar" style="width:${freqW}%"></div>
@@ -1591,12 +1598,17 @@ async function renderHabitAnalytics(ana){
   if(ctx2 && ana.length){
     if(state.charts['habit-trend']) state.charts['habit-trend'].destroy();
     const labels = ana[0].weeklyData.map((_,i)=> i===7?'Tuần này':`-${7-i}W`);
-    const datasets = ana.slice(0,4).map(h=>({
-      label:`${h.emoji} ${h.name}`,
-      data: h.weeklyData.map(w=>w.rate),
-      borderColor: h.color, backgroundColor: h.color+'20',
-      borderWidth:2, pointRadius:3, tension:.4, fill:false
-    }));
+    // Distinct, high-contrast colors for each line (avoids same-color problem)
+    const TREND_COLORS = ['#5ef0a0','#ff85c8','#ffcf5c','#5ee8f0','#ff6b8a','#b07fff','#ffa048','#7cb9ff'];
+    const datasets = ana.slice(0,4).map((h,i)=>{
+      const lineColor = TREND_COLORS[i % TREND_COLORS.length];
+      return {
+        label:`${h.emoji} ${h.name}`,
+        data: h.weeklyData.map(w=>w.rate),
+        borderColor: lineColor, backgroundColor: lineColor+'20',
+        borderWidth:2.5, pointRadius:4, pointBackgroundColor:lineColor, tension:.4, fill:false
+      };
+    });
     state.charts['habit-trend'] = new Chart(ctx2,{
       type:'line', data:{labels,datasets},
       options:{responsive:true,maintainAspectRatio:false,
@@ -2304,6 +2316,9 @@ const apiGoals = {
   del:       (id)         => API.d(`/api/goals/${id}`),
   updateDay: (id,idx,b)   => API.pa(`/api/goals/${id}/day/${idx}`, b),
   toggleDay: (id,idx)     => API.pa(`/api/goals/${id}/day/${idx}/toggle`, {}),
+  archive:   (id)         => API.pa(`/api/goals/${id}/archive`, {}),
+  getArchive:()           => API.g('/api/goals/archive'),
+  archiveStats:()         => API.g('/api/goals/archive/stats'),
 };
 
 // Progress bar color based on %
@@ -2339,6 +2354,99 @@ function renderGoalsList(goals){
   goals.forEach(g => list.appendChild(createGoalCard(g)));
 }
 
+async function loadGoalArchiveSection(){
+  const section = document.getElementById('goals-archive-section');
+  if(!section) return;
+  try {
+    const archived = await apiGoals.getArchive();
+    if(!archived.length){ section.style.display='none'; return; }
+    section.style.display='';
+
+    // Toggle button
+    const toggleBtn = document.getElementById('goal-archive-toggle-btn');
+    const archiveList = document.getElementById('goals-archive-list');
+    const archiveStats = document.getElementById('goals-archive-stats');
+
+    toggleBtn.onclick = async () => {
+      const open = archiveList.style.display !== 'none';
+      if(open){
+        archiveList.style.display='none';
+        archiveStats.style.display='none';
+        toggleBtn.textContent='Xem kho';
+      } else {
+        archiveList.style.display='';
+        toggleBtn.textContent='Ẩn kho';
+        renderGoalArchiveList(archived, archiveList);
+        renderGoalArchiveStats(archiveStats);
+      }
+    };
+  } catch(e){ console.error('loadGoalArchiveSection error:', e); }
+}
+
+function renderGoalArchiveList(goals, container){
+  container.innerHTML = '';
+  goals.forEach(g => {
+    const done = g.days.filter(d=>d.done).length;
+    const pct  = g.totalDays > 0 ? Math.round((done/g.totalDays)*100) : 0;
+    const color = g.color || '#b07fff';
+    const barColor = progressColor(pct);
+    const startD = g.startDate ? g.startDate.split('-').slice(1).reverse().join('/') : '';
+    const lastDay = g.days[g.days.length-1];
+    const endD = lastDay ? lastDay.date.split('-').slice(1).reverse().join('/') : '';
+    const card = document.createElement('div');
+    card.className = 'goal-archive-card';
+    card.style.cssText = `border-color:${color}44`;
+    card.innerHTML = `
+      <div class="gac-left">
+        <div class="gac-emoji" style="background:${color}20">${g.emoji}</div>
+        <div class="gac-info">
+          <div class="gac-title">${esc(g.title)}</div>
+          <div class="gac-meta">${startD} → ${endD} &nbsp;·&nbsp; ${g.totalDays} ngày</div>
+        </div>
+      </div>
+      <div class="gac-right">
+        <div class="gac-pct" style="color:${barColor}">${pct}%</div>
+        <div class="gac-bar-track"><div class="gac-bar-fill" style="width:${pct}%;background:linear-gradient(90deg,${color},${barColor})"></div></div>
+        <div class="gac-days-done">${done}/${g.totalDays} ngày ✓</div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+async function renderGoalArchiveStats(container){
+  container.style.display='';
+  try {
+    const s = await apiGoals.archiveStats();
+    container.innerHTML = `
+      <div class="report-stat"><div class="rs-val">${s.totalGoals}</div><div class="rs-lbl">Mục tiêu</div></div>
+      <div class="report-stat"><div class="rs-val">${s.totalDaysCompleted}</div><div class="rs-lbl">Ngày hoàn thành</div></div>
+      <div class="report-stat"><div class="rs-val">${s.avgCompletion}%</div><div class="rs-lbl">Tỷ lệ TB</div></div>
+      <div class="report-stat"><div class="rs-val">${s.perfectGoals}</div><div class="rs-lbl">Hoàn hảo 💯</div></div>
+      <div class="report-stat"><div class="rs-val">${s.longestGoal}</div><div class="rs-lbl">Ngày dài nhất</div></div>
+    `;
+  } catch(e){ container.innerHTML = '<div style="color:var(--text3);font-size:13px">Chưa có dữ liệu</div>'; }
+}
+
+async function loadGoalArchiveStats(){
+  const body = document.getElementById('goal-archive-stats-body');
+  if(!body) return;
+  try {
+    const s = await apiGoals.archiveStats();
+    if(!s.totalGoals){
+      body.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:4px 0">Chưa có mục tiêu nào được lưu vào kho.</div>';
+      return;
+    }
+    body.innerHTML = `
+      <div class="report-stat"><div class="rs-val">${s.totalGoals}</div><div class="rs-lbl">Mục tiêu đã hoàn thành</div></div>
+      <div class="report-stat"><div class="rs-val">${s.totalDaysCompleted}</div><div class="rs-lbl">Tổng ngày hoàn thành</div></div>
+      <div class="report-stat"><div class="rs-val">${s.avgCompletion}%</div><div class="rs-lbl">Tỷ lệ hoàn thành TB</div></div>
+      <div class="report-stat"><div class="rs-val">${s.perfectGoals}</div><div class="rs-lbl">Mục tiêu hoàn hảo 💯</div></div>
+      <div class="report-stat"><div class="rs-val">${s.longestGoal} ngày</div><div class="rs-lbl">Mục tiêu dài nhất</div></div>
+    `;
+  } catch(e){ body.innerHTML = '<div style="color:var(--text3);font-size:13px">Lỗi tải dữ liệu</div>'; }
+}
+
 
 function createGoalCard(g){
   const done    = g.days.filter(d=>d.done).length;
@@ -2371,6 +2479,7 @@ function createGoalCard(g){
           <span style="color:var(--text3);font-size:10px">${endLabel}</span>
         </div>
       </div>
+      ${pct===100 && !g.completed ? `<button class="gc-archive-btn" title="Lưu vào kho">🏆</button>` : ''}
       <button class="gc-delete" title="Xoá">✕</button>
     </div>
 
@@ -2417,6 +2526,17 @@ function createGoalCard(g){
       ? `📋 Ẩn kế hoạch`
       : `📋 Xem kế hoạch ${g.totalDays} ngày`;
     card.querySelector('.gc-toggle-arrow').style.transform = open ? 'rotate(180deg)' : '';
+  });
+
+  // Archive button (only on 100% complete goals)
+  card.querySelector('.gc-archive-btn')?.addEventListener('click', async()=>{
+    if(!confirm(`Lưu mục tiêu "${g.title}" vào kho lưu trữ?`)) return;
+    await apiGoals.archive(g._id);
+    card.style.cssText += 'opacity:0;transform:translateY(-8px);transition:all .3s;';
+    setTimeout(()=>card.remove(), 300);
+    toast('🏆 Đã lưu vào kho lưu trữ!');
+    launchConfetti('medium');
+    loadGoalArchiveSection();
   });
 
   // Delete
@@ -2759,6 +2879,7 @@ function initGoals(){
   });
 
   loadGoals();
+  loadGoalArchiveSection();
   if('Notification' in window && Notification.permission==='default') Notification.requestPermission();
 }
 
@@ -2987,9 +3108,20 @@ function makeStoreCard(p) {
   }
   card.querySelector('.store-price').addEventListener('click', async () => {
     try {
-      const res = await apiShop.buyPet(p.type);
+      // Ask user to name the pet
+      const petName = prompt(`Đặt tên cho ${p.name} mới của bạn:`, '');
+      if (petName === null) return; // cancelled
+      const trimmed = petName.trim();
+      const res = await fetch('/api/shop/buy-pet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: p.type, name: trimmed || undefined }),
+        credentials: 'include'
+      }).then(r => r.json());
+      if (res.error) throw new Error(res.error);
       updatePointsUI(res.points);
-      toast(`🎉 Bạn đã mua ${p.name}!`);
+      const vName = res.variantName || p.name;
+      toast(`🎉 Bạn nhận được: ${vName}!${res.remaining != null ? ` (còn ${res.remaining} biến thể chưa mở)` : ''}`);
       launchConfetti('medium');
       await loadMyPets();
       await loadShopData();
@@ -3320,12 +3452,13 @@ async function loadMyPets() {
       const healthStatus = !pet.alive ? 'dead' : pet.warning ? 'warning' : 'healthy';
       const healthLabel = !pet.alive ? 'Đã mất' : pet.warning ? 'Cần chăm sóc' : 'Khỏe mạnh';
 
+      const tintStyle = (pet.colorTint != null && pet.colorTint !== 0) ? `filter:hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)` : '';
       card.innerHTML = `
         <button class="pet-visibility-btn" title="${isHidden ? 'Hiện' : 'Ẩn'} pet này">${isHidden ? '👁️‍🗨️' : '👁️'}</button>
         ${pet.warning ? '<div class="pet-warning-badge">⚠️ Cần chăm sóc!</div>' : ''}
-        <div class="pet-emoji">${pet.emoji}</div>
+        <div class="pet-emoji" style="${tintStyle}">${pet.emoji}</div>
         <div class="pet-name">${esc(pet.name)}</div>
-        <div class="pet-type-label">${TYPE_LABELS[pet.type] || pet.type} · Lv.${pet.level}</div>
+        <div class="pet-type-label">${pet.variantName || TYPE_LABELS[pet.type] || pet.type} · Lv.${pet.level}</div>
         <div class="pet-health-status"><span class="pet-health-dot ${healthStatus}"></span> ${healthLabel}</div>
         <div class="pet-level-bar"><div class="pet-level-fill" style="width:${pet.level >= 10 ? 100 : pctLevel}%"></div></div>
         <div class="pet-level-text">${pet.totalPoints} pts${pet.level >= 10 ? ' · MAX' : ` · ${50 - ptsInLevel} pts đến Lv.${pet.level + 1}`}</div>
@@ -3754,6 +3887,10 @@ async function loadFloatingPets() {
       el.setAttribute('data-pet-type', pet.type);
       el.setAttribute('data-pet-id', pet._id);
       el.textContent = pet.emoji;
+      // Apply CSS hue tint for plant variants
+      if (pet.colorTint != null && pet.colorTint !== 0) {
+        el.style.filter = `hue-rotate(${pet.colorTint}deg) saturate(1.2) brightness(1.1)`;
+      }
 
       // Restore saved position or set default (bottom-right)
       const savedPos = _floatingPetPositions[pet._id];
@@ -3964,6 +4101,10 @@ const apiGamification = {
   markGiftsSeen:  () => API.p('/api/gamification/gifts/seen', {}),
   notifications:  () => API.g('/api/gamification/notifications'),
   achievementStats: () => API.g('/api/gamification/achievement-stats'),
+  conversations:    () => API.g('/api/gamification/conversations'),
+  messages:         (fid, before) => API.g(`/api/gamification/messages/${fid}${before ? '?before=' + encodeURIComponent(before) : ''}`),
+  sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
+  unreadMessages:   () => API.g('/api/gamification/unread-messages'),
 };
 
 let _gfInited = false;
@@ -4020,6 +4161,7 @@ async function initGamification() {
     }
   });
 
+  initChat();
   refreshGamification();
   // Check fires on init
   setTimeout(checkFireNotifications, 1500);
@@ -4032,6 +4174,7 @@ async function refreshGamification() {
   loadFriendCode();
   loadFriendRequests();
   loadFriendsList();
+  loadConversations();
   loadAchievements();
 }
 
@@ -4304,6 +4447,7 @@ async function loadFriendsList() {
           <div class="gf-fl-actions">
             ${fireBtn}
             <button class="gf-fl-gift-btn" data-id="${f._id}" data-name="${name}" title="Tặng quà cho ${name}">🎁</button>
+            <button class="gf-fl-chat-btn" data-id="${f._id}" data-name="${name}" data-online="${online}" title="Nhắn tin cho ${name}">💬</button>
             <button class="gf-fl-remove" data-id="${f._id}" title="Huỷ kết bạn">✕</button>
           </div>
         </div>`;
@@ -4333,6 +4477,11 @@ async function loadFriendsList() {
       btn.addEventListener('click', () => openGiftModal(btn.dataset.id, btn.dataset.name));
     });
 
+    // Chat buttons
+    wrap.querySelectorAll('.gf-fl-chat-btn').forEach(btn => {
+      btn.addEventListener('click', () => openChatWindow(btn.dataset.id, btn.dataset.name, btn.dataset.online === 'true'));
+    });
+
     // Remove buttons
     wrap.querySelectorAll('.gf-fl-remove').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -4359,7 +4508,7 @@ async function checkFireNotifications() {
       const fires = await apiGamification.getFires();
       if (fires && fires.length > 0) {
         const latest = fires[fires.length - 1];
-        showFireReceivedOverlay(latest.fromName, latest.message, fires.length, latest.from);
+        showFireReceivedOverlay(latest.fromName, latest.message, fires.length, latest.from, latest.alreadySentBack);
       }
     }
   } catch(e) {}
@@ -4436,7 +4585,7 @@ function initFireOverlay() {
 }
 
 // ── FIRE ANIMATIONS ──
-function showFireReceivedOverlay(fromName, message, count, senderId) {
+function showFireReceivedOverlay(fromName, message, count, senderId, alreadySentBack) {
   const overlay = document.getElementById('fire-overlay');
   const fromEl = document.getElementById('fire-overlay-from');
   const msgEl = document.getElementById('fire-overlay-msg');
@@ -4447,9 +4596,14 @@ function showFireReceivedOverlay(fromName, message, count, senderId) {
   // Store sender ID for reply button
   _fireOverlaySenderId = senderId || null;
   if (replyBtn) {
-    replyBtn.disabled = false;
-    replyBtn.textContent = '🔥 Gửi lại lửa';
-    replyBtn.style.display = senderId ? '' : 'none';
+    // Hide reply if already sent fire to this person today (prevents infinite loop)
+    if (alreadySentBack) {
+      replyBtn.style.display = 'none';
+    } else {
+      replyBtn.disabled = false;
+      replyBtn.textContent = '🔥 Gửi lại lửa';
+      replyBtn.style.display = senderId ? '' : 'none';
+    }
   }
 
   fromEl.textContent = `${fromName} ${message}`;
@@ -4669,6 +4823,134 @@ function timeAgoVi(date) {
   if (hours < 24) return `${hours} giờ trước`;
   if (days < 7) return `${days} ngày trước`;
   return date.toLocaleDateString('vi-VN');
+}
+
+// ── CHAT / MESSAGING ──
+let _chatFriendId = null, _chatFriendName = null, _chatPollTimer = null;
+
+async function loadConversations() {
+  try {
+    const convos = await apiGamification.conversations();
+    const wrap = document.getElementById('gf-conversations-list');
+    if (!wrap) return;
+
+    // Update unread badge
+    const totalUnread = convos.reduce((s, c) => s + c.unread, 0);
+    const badge = document.getElementById('gf-chat-unread-badge');
+    if (badge) {
+      badge.textContent = totalUnread;
+      badge.style.display = totalUnread > 0 ? 'inline-flex' : 'none';
+    }
+
+    if (!convos.length) {
+      wrap.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:16px">Kết bạn để bắt đầu nhắn tin!</div>';
+      return;
+    }
+
+    wrap.innerHTML = convos.map(c => {
+      const initials = (c.friendName || '?').slice(0, 2).toUpperCase();
+      const lastMsg = c.lastMessage
+        ? `<span style="color:${c.lastMessage.fromMe ? 'var(--text3)' : 'var(--text2)'}">${c.lastMessage.fromMe ? 'Bạn: ' : ''}${esc(c.lastMessage.content).slice(0, 40)}${c.lastMessage.content.length > 40 ? '...' : ''}</span>`
+        : '<span style="color:var(--text3)">Chưa có tin nhắn</span>';
+      const time = c.lastMessage ? timeAgoVi(new Date(c.lastMessage.createdAt)) : '';
+      return `
+      <div class="chat-convo-card" data-fid="${c.friendId}" data-fname="${esc(c.friendName)}" data-online="${c.isOnline}">
+        <div class="chat-convo-avatar-wrap">
+          <div class="chat-convo-avatar">${initials}</div>
+          ${c.isOnline ? '<span class="gf-online-dot"></span>' : ''}
+        </div>
+        <div class="chat-convo-info">
+          <div class="chat-convo-name">${esc(c.friendName)}${c.unread > 0 ? ` <span class="chat-convo-unread">${c.unread}</span>` : ''}</div>
+          <div class="chat-convo-last">${lastMsg}</div>
+        </div>
+        <div class="chat-convo-time">${time}</div>
+      </div>`;
+    }).join('');
+
+    wrap.querySelectorAll('.chat-convo-card').forEach(card => {
+      card.addEventListener('click', () => {
+        openChatWindow(card.dataset.fid, card.dataset.fname, card.dataset.online === 'true');
+      });
+    });
+  } catch(e) { console.error('loadConversations:', e); }
+}
+
+async function openChatWindow(friendId, friendName, isOnline) {
+  _chatFriendId = friendId;
+  _chatFriendName = friendName;
+
+  document.getElementById('chat-friend-name').textContent = friendName;
+  const status = document.getElementById('chat-online-status');
+  if (status) {
+    status.textContent = isOnline ? '● Đang hoạt động' : '';
+    status.style.color = isOnline ? '#5ef0a0' : 'var(--text3)';
+  }
+
+  const msgWrap = document.getElementById('chat-messages');
+  msgWrap.innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px">Đang tải...</div>';
+  document.getElementById('chat-window').style.display = 'flex';
+  document.getElementById('chat-input').focus();
+
+  await loadChatMessages();
+
+  // Poll for new messages every 4 seconds
+  clearInterval(_chatPollTimer);
+  _chatPollTimer = setInterval(loadChatMessages, 4000);
+}
+
+async function loadChatMessages() {
+  if (!_chatFriendId) return;
+  try {
+    const messages = await apiGamification.messages(_chatFriendId);
+    const msgWrap = document.getElementById('chat-messages');
+    const wasAtBottom = msgWrap.scrollHeight - msgWrap.scrollTop - msgWrap.clientHeight < 60;
+
+    msgWrap.innerHTML = messages.length === 0
+      ? '<div style="text-align:center;color:var(--text3);padding:40px;font-size:13px">Hãy gửi tin nhắn đầu tiên! 👋</div>'
+      : messages.map(m => {
+          const isMe = m.from !== _chatFriendId;
+          const time = new Date(m.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+          return `<div class="chat-msg ${isMe ? 'chat-msg-me' : 'chat-msg-them'}">
+            <div class="chat-bubble">${esc(m.content)}</div>
+            <div class="chat-time">${time}</div>
+          </div>`;
+        }).join('');
+
+    if (wasAtBottom || msgWrap.dataset.firstLoad !== 'done') {
+      msgWrap.scrollTop = msgWrap.scrollHeight;
+      msgWrap.dataset.firstLoad = 'done';
+    }
+  } catch(e) { console.error('loadChatMessages:', e); }
+}
+
+function closeChatWindow() {
+  clearInterval(_chatPollTimer);
+  _chatFriendId = null;
+  document.getElementById('chat-window').style.display = 'none';
+  loadConversations(); // Refresh unread counts
+}
+
+function initChat() {
+  document.getElementById('chat-back-btn')?.addEventListener('click', closeChatWindow);
+
+  const input = document.getElementById('chat-input');
+  const sendBtn = document.getElementById('chat-send-btn');
+
+  async function sendChatMsg() {
+    if (!_chatFriendId) return;
+    const content = input.value.trim();
+    if (!content) return;
+    input.value = '';
+    sendBtn.disabled = true;
+    try {
+      await apiGamification.sendMessage(_chatFriendId, content);
+      await loadChatMessages();
+    } catch(e) { toast('❌ ' + (e.message || 'Lỗi gửi tin nhắn')); }
+    finally { sendBtn.disabled = false; input.focus(); }
+  }
+
+  sendBtn?.addEventListener('click', sendChatMsg);
+  input?.addEventListener('keydown', e => { if (e.key === 'Enter') sendChatMsg(); });
 }
 
 // ── ACHIEVEMENTS PAGE ──

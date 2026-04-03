@@ -129,4 +129,41 @@ router.delete('/:id', async (req, res) => {
   } catch(e){ res.status(500).json({ error: e.message }); }
 });
 
+// GET archived goals (completed or inactive)
+router.get('/archive', async (req, res) => {
+  try {
+    const goals = await Goal.find({
+      userId: req.userId,
+      $or: [{ completed: true }, { active: false }]
+    }).sort({ createdAt: -1 });
+    res.json(goals);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET archive stats
+router.get('/archive/stats', async (req, res) => {
+  try {
+    const goals = await Goal.find({ userId: req.userId, completed: true });
+    const totalGoals = goals.length;
+    const totalDaysCompleted = goals.reduce((sum, g) => sum + g.days.filter(d => d.done).length, 0);
+    const totalDaysPlanned = goals.reduce((sum, g) => sum + g.totalDays, 0);
+    const avgCompletion = totalDaysPlanned > 0 ? Math.round((totalDaysCompleted / totalDaysPlanned) * 100) : 0;
+    const perfectGoals = goals.filter(g => g.days.every(d => d.done)).length;
+    const longestGoal = goals.length > 0 ? Math.max(...goals.map(g => g.totalDays)) : 0;
+    res.json({ totalGoals, totalDaysCompleted, totalDaysPlanned, avgCompletion, perfectGoals, longestGoal });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// PATCH archive a completed goal
+router.patch('/:id/archive', async (req, res) => {
+  try {
+    const goal = await Goal.findOne({ _id: req.params.id, userId: req.userId });
+    if (!goal) return res.status(404).json({ error: 'Not found' });
+    goal.completed = true;
+    goal.active = false;
+    await goal.save();
+    res.json({ ok: true });
+  } catch(e) { res.status(400).json({ error: e.message }); }
+});
+
 module.exports = router;

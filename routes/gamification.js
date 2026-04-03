@@ -8,6 +8,7 @@ const Task         = require('../models/Task');
 const { HabitLog } = require('../models/Habit');
 const Journal      = require('../models/Journal');
 const Goal         = require('../models/Goal');
+const Message      = require('../models/Message');
 const requireAuth  = require('../middleware/auth');
 
 router.use(requireAuth);
@@ -542,8 +543,15 @@ router.post('/send-fire', async (req, res) => {
 // GET /api/gamification/fires — get my unseen fires
 router.get('/fires', async (req, res) => {
   try {
-    const me = await User.findById(req.userId).select('receivedFires');
-    const fires = (me.receivedFires || []).filter(f => !f.seen);
+    const me = await User.findById(req.userId).select('receivedFires sentFires');
+    const today = todayKey();
+    const sentToday = new Set((me.sentFires || [])
+      .filter(s => s.sentAt.toISOString().slice(0, 10) === today)
+      .map(s => s.to.toString()));
+    const fires = (me.receivedFires || []).filter(f => !f.seen).map(f => ({
+      ...f.toObject(),
+      alreadySentBack: sentToday.has(f.from.toString())
+    }));
     res.json(fires);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -736,6 +744,114 @@ router.get('/achievement-stats', async (req, res) => {
       badges: (up?.badges || []).length,
       totalBadges: (up?.badges || []).map(b => b.id)
     });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ MESSAGING ═══
+
+// GET /api/gamification/conversations — list recent conversations
+router.get('/conversations', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('friends');
+    const friendIds = (me.friends || []).map(f => f.toString());
+
+    // Get last message + unread count for each friend
+    const conversations = [];
+    for (const fid of friendIds) {
+      const lastMsg = await Message.findOne({
+        $or: [
+          { from: req.userId, to: fid },
+          { from: fid, to: req.userId }
+        ]
+      }).sort({ createdAt: -1 }).limit(1);
+
+      const unread = await Message.countDocuments({ from: fid, to: req.userId, seen: false });
+
+      const friend = await User.findById(fid).select('username displayName lastSeen');
+      if (!friend) continue;
+
+      conversations.push({
+        friendId: fid,
+        friendName: friend.displayName || friend.username,
+        lastMessage: lastMsg ? { content: lastMsg.content, fromMe: lastMsg.from.toString() === req.userId, createdAt: lastMsg.createdAt } : null,
+        unread,
+        isOnline: friend.lastSeen && friend.lastSeen > new Date(Date.now() - 5 * 60 * 1000)
+      });
+    }
+
+    // Sort: unread first, then by last message time
+    conversations.sort((a, b) => {
+      if (a.unread > 0 && b.unread === 0) return -1;
+      if (a.unread === 0 && b.unread > 0) return 1;
+      const aTime = a.lastMessage?.createdAt || 0;
+      const bTime = b.lastMessage?.createdAt || 0;
+      return new Date(bTime) - new Date(aTime);
+    });
+
+    res.json(conversations);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/messages/:friendId?before=&limit=
+router.get('/messages/:friendId', async (req, res) => {
+  try {
+    const { friendId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit) || 30, 50);
+    const before = req.query.before;
+
+    // Must be friends
+    const me = await User.findById(req.userId).select('friends');
+    if (!me.friends.some(f => f.toString() === friendId)) {
+      return res.status(403).json({ error: 'Không phải bạn bè!' });
+    }
+
+    const query = {
+      $or: [
+        { from: req.userId, to: friendId },
+        { from: friendId, to: req.userId }
+      ]
+    };
+    if (before) query.createdAt = { $lt: new Date(before) };
+
+    const messages = await Message.find(query).sort({ createdAt: -1 }).limit(limit);
+
+    // Mark incoming messages as seen
+    await Message.updateMany(
+      { from: friendId, to: req.userId, seen: false },
+      { seen: true }
+    );
+
+    res.json(messages.reverse());
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gamification/messages  { toUserId, content }
+router.post('/messages', async (req, res) => {
+  try {
+    const { toUserId, content } = req.body;
+    if (!toUserId || !content?.trim()) return res.status(400).json({ error: 'Thiếu nội dung tin nhắn' });
+    if (content.length > 500) return res.status(400).json({ error: 'Tin nhắn quá dài (tối đa 500 ký tự)' });
+
+    const me = await User.findById(req.userId).select('friends username displayName');
+    if (!me.friends.some(f => f.toString() === toUserId)) {
+      return res.status(403).json({ error: 'Chỉ bạn bè mới nhắn tin được!' });
+    }
+
+    const msg = await Message.create({
+      from: req.userId,
+      to: toUserId,
+      content: content.trim()
+    });
+
+    res.json(msg);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/unread-messages — total unread count
+router.get('/unread-messages', async (req, res) => {
+  try {
+    const count = await Message.countDocuments({ to: req.userId, seen: false });
+    res.json({ count });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -186,6 +186,16 @@
           <div class="goals-empty-sub">Hành trình ngàn dặm bắt đầu từ một bước.<br>Tạo mục tiêu đầu tiên ngay hôm nay!</div>
         </div>
       </div>
+
+      <!-- Goal Archive Section -->
+      <div id="goals-archive-section" style="margin-top:28px;display:none">
+        <div class="section-header" style="margin-bottom:14px">
+          <div class="section-title">🏆 Kho lưu trữ</div>
+          <button class="goal-archive-toggle-btn" id="goal-archive-toggle-btn">Xem kho</button>
+        </div>
+        <div id="goals-archive-stats" class="goal-archive-stats-row" style="display:none"></div>
+        <div id="goals-archive-list" style="display:none"></div>
+      </div>
     </div>
 
     <!-- Stats summary cards (stays on home) -->
@@ -358,6 +368,15 @@
       </div>
       <div class="chart-canvas-wrap" style="height:220px"><canvas id="chart-productive-hours"></canvas></div>
       <div id="productive-hours-summary" style="padding:8px 20px 16px;font-size:12px;color:var(--text2);text-align:center;"></div>
+    </div>
+
+    <!-- Goal Archive Stats -->
+    <div class="report-card" id="goal-archive-stats-panel" style="margin-top:14px">
+      <div class="chart-panel-header">
+        <div class="chart-panel-title">🏆 Mục tiêu đã hoàn thành</div>
+        <div class="chart-panel-sub">Thống kê kho lưu trữ mục tiêu</div>
+      </div>
+      <div id="goal-archive-stats-body" class="report-grid" style="padding:16px 20px 20px"></div>
     </div>
 
     <!-- Habits stats -->
@@ -539,6 +558,29 @@
 
       <!-- Friends list -->
       <div id="gf-friends-list"></div>
+
+      <!-- Chat section -->
+      <div class="gf-chat-section" id="gf-chat-section">
+        <div class="gf-chat-header">
+          <div class="gf-chat-title">💬 Tin nhắn</div>
+          <span class="gf-chat-unread-badge" id="gf-chat-unread-badge" style="display:none">0</span>
+        </div>
+        <div id="gf-conversations-list"></div>
+      </div>
+    </div>
+
+    <!-- Chat window (full-screen overlay) -->
+    <div id="chat-window" class="chat-window" style="display:none">
+      <div class="chat-window-header">
+        <button class="chat-back-btn" id="chat-back-btn">← Quay lại</button>
+        <div class="chat-friend-name" id="chat-friend-name"></div>
+        <div class="chat-online-dot" id="chat-online-status"></div>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="chat-input-bar">
+        <input class="chat-input" id="chat-input" type="text" placeholder="Nhắn tin..." maxlength="500" autocomplete="off"/>
+        <button class="chat-send-btn" id="chat-send-btn">Gửi</button>
+      </div>
     </div>
 
     <!-- Achievements (full page) -->

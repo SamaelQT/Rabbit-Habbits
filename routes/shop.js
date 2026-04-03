@@ -484,7 +484,8 @@ router.post('/care', async (req, res) => {
     }
     await pet.save();
 
-    const stage = GROWTH_STAGES[pet.type] || [];
+    const variant = pet.variant || 0;
+    const stage = getVariantStages(pet.type, variant);
     const stageEmoji = stage[Math.min(pet.level - 1, stage.length - 1)] || pet.emoji;
 
     res.json({

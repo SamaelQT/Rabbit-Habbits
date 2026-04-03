@@ -49,7 +49,12 @@ router.patch('/:id/toggle', async (req, res) => {
     task.completed   = !task.completed;
     task.completedAt = task.completed ? new Date() : null;
     await task.save();
-    const pts = [5, 5, 8, 12][task.priority] || 5;
+    // Base points by priority, scaled by user level (+10% per level above 1)
+    const basePts = [5, 5, 8, 12][task.priority] || 5;
+    let up = await UserPoints.findOne({ userId: req.userId });
+    if (!up) up = new UserPoints({ userId: req.userId });
+    const levelBonus = 1 + ((up.level || 1) - 1) * 0.1;
+    const pts = Math.round(basePts * levelBonus);
     let pointsAwarded = 0, pointsDeducted = 0, leveledUp = false, oldLevel = 0, newLevel = 0;
     if (task.completed) {
       const result = await awardPts(req.userId, pts);
@@ -86,6 +91,54 @@ router.delete('/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Group similar task titles by keyword overlap
+function groupSimilarTasks(freqItems) {
+  // Vietnamese stop words to ignore
+  const STOP = new Set(['và','hoặc','với','cho','của','các','những','một','hai','ba','để','đã','đang','sẽ','không','có','là','từ','đến','trong','ngoài','trên','dưới','về','bị','được']);
+
+  function getKeywords(title) {
+    return title.toLowerCase().trim().split(/\s+/).filter(w => w.length >= 2 && !STOP.has(w));
+  }
+
+  function similarity(a, b) {
+    const kA = getKeywords(a), kB = getKeywords(b);
+    if (kA.length === 0 || kB.length === 0) return 0;
+    const setB = new Set(kB);
+    const shared = kA.filter(w => setB.has(w)).length;
+    // Jaccard-like: shared / min(len) — more forgiving for short titles
+    return shared / Math.min(kA.length, kB.length);
+  }
+
+  const groups = [];
+  const used = new Set();
+
+  for (let i = 0; i < freqItems.length; i++) {
+    if (used.has(i)) continue;
+    const group = { ...freqItems[i], members: [freqItems[i].title], dates: [...freqItems[i].dates] };
+    used.add(i);
+
+    for (let j = i + 1; j < freqItems.length; j++) {
+      if (used.has(j)) continue;
+      if (similarity(freqItems[i].title, freqItems[j].title) >= 0.5) {
+        group.total += freqItems[j].total;
+        group.completed += freqItems[j].completed;
+        freqItems[j].dates.forEach(d => { if (!group.dates.includes(d)) group.dates.push(d); });
+        group.members.push(freqItems[j].title);
+        used.add(j);
+      }
+    }
+
+    // Use the most frequent title as the group title, add member count
+    if (group.members.length > 1) {
+      group.title = group.members[0] + ` (+${group.members.length - 1})`;
+      group.isGroup = true;
+      group.groupTitles = group.members;
+    }
+    groups.push(group);
+  }
+  return groups;
+}
+
 router.get('/stats', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -105,9 +158,14 @@ router.get('/stats', async (req, res) => {
       if(!freq[key].dates.includes(t.date)) freq[key].dates.push(t.date);
     });
     const allSorted = Object.values(freq).filter(t=>t.total>=2).sort((a,b)=>b.total-a.total);
-    const top3Keys  = new Set(allSorted.slice(0,3).map(t=>t.title.toLowerCase().trim()));
+
+    // Group similar tasks by keyword overlap
+    const grouped = groupSimilarTasks(allSorted);
+    grouped.sort((a,b) => b.total - a.total);
+
+    const top3Keys  = new Set(grouped.slice(0,3).map(t=>t.title.toLowerCase().trim()));
     const last3 = []; for(let i=0;i<3;i++){ const d=new Date(); d.setDate(d.getDate()-i); last3.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`); }
-    const freqList = allSorted.filter(t=>{
+    const freqList = grouped.filter(t=>{
       const k=t.title.toLowerCase().trim();
       return top3Keys.has(k) || t.dates.some(d=>last3.includes(d));
     }).slice(0,10);
