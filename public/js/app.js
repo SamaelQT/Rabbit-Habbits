@@ -2107,6 +2107,27 @@ document.addEventListener('DOMContentLoaded', async ()=>{
   // Theme toggle (header)
   document.getElementById('theme-btn')?.addEventListener('click',toggleTheme);
 
+  // Notification bell
+  const _bellBtn    = document.getElementById('notif-bell-btn');
+  const _notifPanel = document.getElementById('notif-panel');
+  const _notifClose = document.getElementById('notif-panel-close');
+  _bellBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = _notifPanel.style.display !== 'none';
+    if (isOpen) {
+      _notifPanel.style.display = 'none';
+    } else {
+      _notifPanel.style.display = 'flex';
+      loadNotifications();
+    }
+  });
+  _notifClose?.addEventListener('click', () => { _notifPanel.style.display = 'none'; });
+  document.addEventListener('click', (e) => {
+    if (_notifPanel && _notifPanel.style.display !== 'none' && !e.target.closest('#notif-bell-wrap')) {
+      _notifPanel.style.display = 'none';
+    }
+  });
+
   // Level badge click → go to gamification page
   document.getElementById('header-level-badge')?.addEventListener('click', () => navigateTo('gamification'));
 
@@ -4146,10 +4167,13 @@ let _floatingPetsLoaded = false;
 const _floatingPetPositions = {};
 
 function _savePetPos(id, x, y) {
+  // Store as ratio so position scales with viewport
+  const rx = x / window.innerWidth;
+  const ry = y / window.innerHeight;
   _floatingPetPositions[id] = { x, y };
   try {
     const all = JSON.parse(localStorage.getItem('rh-pet-pos') || '{}');
-    all[id] = { x, y };
+    all[id] = { rx, ry };
     localStorage.setItem('rh-pet-pos', JSON.stringify(all));
   } catch(e) {}
 }
@@ -4158,7 +4182,16 @@ function _loadPetPos(id) {
   if (_floatingPetPositions[id]) return _floatingPetPositions[id];
   try {
     const all = JSON.parse(localStorage.getItem('rh-pet-pos') || '{}');
-    if (all[id]) { _floatingPetPositions[id] = all[id]; return all[id]; }
+    if (all[id]) {
+      // Convert ratio back to pixels for current viewport
+      const x = all[id].rx * window.innerWidth;
+      const y = all[id].ry * window.innerHeight;
+      // Clamp so pet stays visible
+      const cx = Math.max(8, Math.min(window.innerWidth - 80, x));
+      const cy = Math.max(8, Math.min(window.innerHeight - 80, y));
+      _floatingPetPositions[id] = { x: cx, y: cy };
+      return { x: cx, y: cy };
+    }
   } catch(e) {}
   return null;
 }
@@ -4243,15 +4276,17 @@ async function loadFloatingPets() {
         el.style.left = savedPos.x + 'px';
         el.style.top  = savedPos.y + 'px';
       } else {
-        // Defer position to after layout so innerWidth/Height are correct
-        el.style.left = '-999px';
-        el.style.top  = '-999px';
-        requestAnimationFrame(() => {
+        // Hide offscreen, pick edge pos after layout renders
+        el.style.visibility = 'hidden';
+        el.style.left = '0px';
+        el.style.top  = '0px';
+        setTimeout(() => {
           const pos = _pickEdgePos();
           el.style.left = pos.x + 'px';
           el.style.top  = pos.y + 'px';
+          el.style.visibility = '';
           _savePetPos(pet._id, pos.x, pos.y);
-        });
+        }, 100 + i * 60);
       }
 
       // Stagger animations

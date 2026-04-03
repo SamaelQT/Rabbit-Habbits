@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(node -e \"require\\(''./routes/stats''\\)\")",
-      "Bash(node -e \":*)"
+      "Bash(node -e \":*)",
+      "Bash(node -e \"console.log\\(''''syntax check''''\\); require\\(''''./routes/shop.js''''\\)\")"
     ]
   }
 }
