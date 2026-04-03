@@ -58,20 +58,34 @@ router.get('/monthly', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/stats/balance — category breakdown
+// GET /api/stats/balance?month=YYYY-MM — category breakdown for a given month (default: current)
 router.get('/balance', async (req, res) => {
   try {
     const CATS = ['work', 'health', 'sport', 'shopping', 'learning', 'personal', 'other'];
-    const tasks     = await Task.find({ userId: req.userId, completed: true });
+    // Determine date range
+    let start, end;
+    if (req.query.month && /^\d{4}-\d{2}$/.test(req.query.month)) {
+      const [y, m] = req.query.month.split('-').map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      start = `${req.query.month}-01`;
+      end   = `${req.query.month}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      const now = new Date();
+      const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+      start = `${y}-${m}-01`;
+      end   = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+    }
+    const tasks     = await Task.find({ userId: req.userId, completed: true, date: { $gte: start, $lte: end } });
     const habits    = await Habit.find({ userId: req.userId });
-    const habitLogs = await HabitLog.find({ userId: req.userId, done: true });
+    const habitLogs = await HabitLog.find({ userId: req.userId, done: true, date: { $gte: start, $lte: end } });
     const habitCatMap = {};
     habits.forEach(h => { habitCatMap[h._id.toString()] = h.category || 'other'; });
     const counts = {};
     CATS.forEach(c => { counts[c] = 0; });
     tasks.forEach(t => { counts[t.category || 'other']++; });
     habitLogs.forEach(l => { counts[habitCatMap[l.habitId.toString()] || 'other']++; });
-    res.json(counts);
+    res.json({ month: start.slice(0, 7), counts });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

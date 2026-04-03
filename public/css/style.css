@@ -389,7 +389,13 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .sv-rate{color:var(--teal);} .sv-total{color:var(--accent2);} .sv-done{color:var(--pink2);} .sv-streak{color:var(--amber);}
 .charts-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
 .chart-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
-.chart-panel-header{padding:12px 16px 9px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.chart-panel-header{padding:12px 16px 9px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.balance-month-nav{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.bal-nav-btn{width:26px;height:26px;border:1px solid var(--border);background:var(--bg3);color:var(--text2);
+  border-radius:8px;cursor:pointer;font-size:15px;line-height:1;transition:all .15s;display:flex;align-items:center;justify-content:center;}
+.bal-nav-btn:hover:not(:disabled){background:var(--bg4);color:var(--text);border-color:var(--border2);}
+.bal-nav-btn:disabled{opacity:.3;cursor:not-allowed;}
+.bal-month-label{font-size:12px;font-weight:600;color:var(--accent);min-width:90px;text-align:center;}
 .chart-panel-title{font-size:12px;font-weight:600;color:var(--text2);}
 .chart-panel-sub{font-size:10px;color:var(--text3);}
 .chart-canvas-wrap{padding:12px 16px;}
@@ -2941,7 +2947,7 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
   text-align:center;padding:20px;font-size:12px;color:var(--text3);grid-column:1/-1;
 }
 
-/* ── Category selector ──────────────────────────────── */
+/* ── Category selector (stats habits page) ─────────── */
 .category-selector{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;}
 .cat-btn{
   padding:4px 9px;border:1px solid var(--border);border-radius:20px;
@@ -2950,8 +2956,31 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 }
 .cat-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(176,127,255,.12);}
 .cat-btn:hover:not(.active){border-color:var(--border2);color:var(--text);}
-.cat-row .prio-label{display:flex;align-items:center;gap:6px;white-space:nowrap;}
-.cat-auto-hint{transition:opacity .2s;}
+
+/* ── Task create category grid ───────────────────────── */
+.task-cat-row{padding:6px 14px 10px;border-top:1px solid var(--border);}
+.task-cat-grid{
+  display:grid;
+  grid-template-columns:repeat(7,1fr);
+  gap:5px;
+}
+.tcat-btn{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 4px;border:1px solid var(--border);border-radius:10px;
+  background:var(--bg3);color:var(--text3);cursor:pointer;
+  transition:all .18s;font-size:16px;
+}
+.tcat-btn span{font-size:10px;color:var(--text3);line-height:1.2;white-space:nowrap;}
+.tcat-btn:hover{background:var(--bg4);border-color:var(--border2);color:var(--text);}
+.tcat-btn:hover span{color:var(--text2);}
+.tcat-btn.active{
+  border-color:var(--accent);background:rgba(176,127,255,.15);
+  box-shadow:0 0 0 2px rgba(176,127,255,.2);
+}
+.tcat-btn.active span{color:var(--accent);}
+@media(max-width:600px){
+  .task-cat-grid{grid-template-columns:repeat(4,1fr);}
+}
 
 /* ── Milestone items ────────────────────────────────── */
 .milestone-item{display:flex;flex-direction:column;gap:5px;}

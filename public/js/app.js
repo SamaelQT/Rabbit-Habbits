@@ -321,16 +321,15 @@ function createDayColumn(date){
         </div>
       </div>
       <!-- Row 3: category selector -->
-      <div class="priority-row cat-row">
-        <span class="prio-label">Danh mục: <span class="cat-auto-hint" id="cat-auto-hint-${ds}"></span></span>
-        <div class="category-selector task-cat-selector">
-          <button class="cat-btn" data-cat="work">💼 CV</button>
-          <button class="cat-btn" data-cat="health">🩺 SK</button>
-          <button class="cat-btn" data-cat="sport">🏃 TT</button>
-          <button class="cat-btn" data-cat="shopping">🛒 MS</button>
-          <button class="cat-btn" data-cat="learning">📚 HT</button>
-          <button class="cat-btn" data-cat="personal">🏠 CN</button>
-          <button class="cat-btn" data-cat="other">🎯 Khác</button>
+      <div class="task-cat-row">
+        <div class="task-cat-grid">
+          <button class="tcat-btn" data-cat="work">💼<span>Công việc</span></button>
+          <button class="tcat-btn" data-cat="health">🩺<span>Sức khỏe</span></button>
+          <button class="tcat-btn" data-cat="sport">🏃<span>Thể thao</span></button>
+          <button class="tcat-btn" data-cat="shopping">🛒<span>Mua sắm</span></button>
+          <button class="tcat-btn" data-cat="learning">📚<span>Học tập</span></button>
+          <button class="tcat-btn" data-cat="personal">🏠<span>Cá nhân</span></button>
+          <button class="tcat-btn" data-cat="other">🎯<span>Khác</span></button>
         </div>
       </div>
     </div>`;
@@ -352,49 +351,41 @@ function createDayColumn(date){
     });
   });
 
-  // Category picker state — null means "auto"
-  let selCat=null;
-  let catManual=false;
-  const autoHint=col.querySelector(`#cat-auto-hint-${ds}`);
-  col.querySelectorAll('.task-cat-selector .cat-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      selCat=btn.dataset.cat;
-      catManual=true;
-      col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
+  // Category picker
+  let selCat = null; // null = not yet chosen (will auto-detect on submit)
+  let catManual = false;
+
+  const allCatBtns = () => col.querySelectorAll('.tcat-btn');
+
+  allCatBtns().forEach(btn => {
+    btn.addEventListener('click', () => {
+      selCat = btn.dataset.cat;
+      catManual = true;
+      allCatBtns().forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      if(autoHint) autoHint.textContent='';
     });
   });
 
-  const inp=col.querySelector('.add-task-input');
+  const inp = col.querySelector('.add-task-input');
 
-  // Auto-detect category as user types
-  inp.addEventListener('input',()=>{
-    if(catManual) return;
-    const detected=autoCategory(inp.value);
-    const cm=CAT_META[detected]||CAT_META.other;
-    col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
-    col.querySelector(`.task-cat-selector [data-cat="${detected}"]`)?.classList.add('active');
-    if(autoHint) autoHint.innerHTML=inp.value.trim()?`<span style="color:${cm.color};font-size:10px">✦ ${cm.icon} ${cm.label}</span>`:'';
+  // Auto-highlight category as user types (if not manually chosen)
+  inp.addEventListener('input', () => {
+    if (catManual) return;
+    if (!inp.value.trim()) { allCatBtns().forEach(b => b.classList.remove('active')); return; }
+    const detected = autoCategory(inp.value);
+    allCatBtns().forEach(b => b.classList.remove('active'));
+    col.querySelector(`.tcat-btn[data-cat="${detected}"]`)?.classList.add('active');
   });
 
-  col.querySelector('.add-task-btn').addEventListener('click',()=>{
-    const cat=selCat||autoCategory(inp.value);
-    addTask(ds,inp,selPrio,cat);
-    // Reset
-    selCat=null; catManual=false;
-    col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
-    if(autoHint) autoHint.textContent='';
-  });
-  inp.addEventListener('keydown',e=>{
-    if(e.key==='Enter'){
-      const cat=selCat||autoCategory(inp.value);
-      addTask(ds,inp,selPrio,cat);
-      selCat=null; catManual=false;
-      col.querySelectorAll('.task-cat-selector .cat-btn').forEach(b=>b.classList.remove('active'));
-      if(autoHint) autoHint.textContent='';
-    }
-  });
+  function doAddTask() {
+    const cat = selCat || autoCategory(inp.value) || 'other';
+    addTask(ds, inp, selPrio, cat);
+    selCat = null; catManual = false;
+    allCatBtns().forEach(b => b.classList.remove('active'));
+  }
+
+  col.querySelector('.add-task-btn').addEventListener('click', doAddTask);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') doAddTask(); });
   return col;
 }
 
@@ -2462,10 +2453,31 @@ async function loadNotifications() {
   let urgentCount = 0;
   let html = '';
 
-  // 1. Pets needing care
+  // 1. Pets needing care + dead pets
   try {
     const pets = await apiShop.pets();
     const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
+    const dead = pets.filter(p => !p.alive);
+
+    // Dead pets — show once per pet (tracked in localStorage)
+    const seenDead = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
+    const newDead  = dead.filter(p => !seenDead.includes(p._id));
+    if (newDead.length) {
+      urgentCount += newDead.length;
+      html += `<div class="notif-section-title">💀 Thú cưng/Cây đã mất</div>`;
+      newDead.forEach(p => {
+        const detailTitle = encodeURIComponent(`😢 ${p.name} đã qua đời`);
+        const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p><strong>${esc(p.name)}</strong> đã mất vì không được chăm sóc trong quá lâu.</p><p>Bạn có thể mua thú cưng/cây mới tại tab <strong>Cửa hàng</strong> và chăm sóc chúng mỗi ngày để tránh điều này xảy ra lần nữa.</p><p style="color:#ff6b8a;font-size:12px">💡 Nhớ rằng: động vật cần ăn mỗi ngày, cây cần tưới nước — bỏ bê 3 ngày sẽ mất điểm, 7 ngày thú cưng sẽ qua đời.</p>`);
+        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}" data-mark-dead="${p._id}">
+          <span class="notif-item-icon" style="opacity:.5">${p.emoji}</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title" style="color:#ff6b8a">${esc(p.name)} đã qua đời 😢</div>
+            <div class="notif-item-sub">Không được chăm sóc — Nhấn để xem chi tiết</div>
+          </div>
+        </div>`;
+      });
+    }
+
     if (sick.length) {
       urgentCount += sick.length;
       html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
@@ -2570,11 +2582,22 @@ async function loadNotifications() {
       const bodyHtml = decodeURIComponent(el.dataset.detailBody || '');
       const overlay = document.getElementById('notif-detail-overlay');
       const titleEl = document.getElementById('notif-detail-title');
-      const bodyEl = document.getElementById('notif-detail-body');
+      const bodyEl  = document.getElementById('notif-detail-body');
       if (!overlay || !titleEl || !bodyEl) return;
       titleEl.textContent = title;
       bodyEl.innerHTML = bodyHtml;
       overlay.style.display = 'flex';
+      // Mark dead pet as seen so it won't reappear in future sessions
+      if (el.dataset.markDead) {
+        const seen = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
+        if (!seen.includes(el.dataset.markDead)) {
+          seen.push(el.dataset.markDead);
+          localStorage.setItem('rh-seen-dead-pets', JSON.stringify(seen));
+        }
+        // Fade out the item after a moment
+        el.style.transition = 'opacity .4s';
+        setTimeout(() => { el.style.opacity = '0.35'; }, 300);
+      }
     });
   });
 
@@ -4662,9 +4685,9 @@ const apiGamification = {
 // ═══════════════════════════════════════════
 
 const apiStats = {
-  journey: () => API.g('/api/stats/journey'),
-  monthly: () => API.g('/api/stats/monthly'),
-  balance: () => API.g('/api/stats/balance'),
+  journey: ()      => API.g('/api/stats/journey'),
+  monthly: ()      => API.g('/api/stats/monthly'),
+  balance: (month) => API.g('/api/stats/balance' + (month ? `?month=${month}` : '')),
 };
 
 async function loadJourneyStats() {
@@ -4741,20 +4764,86 @@ const CAT_CONFIG = {
   other:    { label: '🎯 Khác',      color: '#b07fff' },
 };
 
-async function loadLifeBalance() {
+// Balance month navigation state
+let _balanceMonth = null; // null = current month
+function _balanceMonthKey(offset = 0) {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+function _balanceMonthLabel(key) {
+  const [y, m] = key.split('-');
+  const now = new Date();
+  const curKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if (key === curKey) return 'Tháng này';
+  const names = ['','Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+                     'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
+  return `${names[parseInt(m)]} ${y}`;
+}
+
+async function loadLifeBalance(month) {
   const canvas = document.getElementById('chart-life-balance');
   const legend = document.getElementById('life-balance-legend');
+  const monthLabel = document.getElementById('bal-month-label');
+  const nextBtn = document.getElementById('bal-next-btn');
   if (!canvas) return;
+
+  const now = new Date();
+  const curKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  if (!month) month = curKey;
+  _balanceMonth = month;
+
+  if (monthLabel) monthLabel.textContent = _balanceMonthLabel(month);
+  if (nextBtn) nextBtn.disabled = (month >= curKey);
+
+  // Wire nav buttons (idempotent via replacing)
+  const prevBtn = document.getElementById('bal-prev-btn');
+  if (prevBtn && !prevBtn._wired) {
+    prevBtn._wired = true;
+    prevBtn.addEventListener('click', () => {
+      const [y, m] = _balanceMonth.split('-').map(Number);
+      const d = new Date(y, m - 2, 1);
+      const prev = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      // Limit to 12 months back
+      const minKey = _balanceMonthKey(-11);
+      if (prev >= minKey) loadLifeBalance(prev);
+    });
+  }
+  if (nextBtn && !nextBtn._wired) {
+    nextBtn._wired = true;
+    nextBtn.addEventListener('click', () => {
+      const [y, m] = _balanceMonth.split('-').map(Number);
+      const d = new Date(y, m, 1);
+      const next = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      if (next <= curKey) loadLifeBalance(next);
+    });
+  }
+
   try {
-    const data = await apiStats.balance();
-    const keys = ['work','health','sport','shopping','learning','personal','other'];
+    const res  = await apiStats.balance(month);
+    const data = res.counts || res; // backwards compat
+    const keys   = ['work','health','sport','shopping','learning','personal','other'];
     const values = keys.map(k => data[k] || 0);
-    const total = values.reduce((a,b)=>a+b, 0);
+    const total  = values.reduce((a,b)=>a+b, 0);
+
+    if (window._chartBalance) window._chartBalance.destroy();
+
     if (total === 0) {
-      canvas.parentElement.parentElement.innerHTML += '<div style="color:var(--text3);font-size:13px;padding:0 20px 20px">Chưa có dữ liệu danh mục. Hãy gán danh mục khi tạo task hoặc thói quen.</div>';
+      if (legend) legend.innerHTML = `<div style="color:var(--text3);font-size:12px;text-align:center">Chưa có dữ liệu tháng này</div>`;
+      // Draw empty chart
+      window._chartBalance = new Chart(canvas, {
+        type:'radar', data:{ labels: keys.map(k=>CAT_CONFIG[k].label),
+          datasets:[{data:keys.map(()=>0), backgroundColor:'rgba(176,127,255,.08)',
+            borderColor:'rgba(176,127,255,.2)', borderWidth:1, pointRadius:3}]},
+        options:{ responsive:true, maintainAspectRatio:false,
+          plugins:{legend:{display:false}},
+          scales:{r:{grid:{color:'rgba(255,255,255,.06)'},
+            angleLines:{color:'rgba(255,255,255,.06)'},ticks:{display:false},
+            pointLabels:{color:'#5a5d6e',font:{size:11}}}}}
+      });
       return;
     }
-    if (window._chartBalance) window._chartBalance.destroy();
+
     window._chartBalance = new Chart(canvas, {
       type: 'radar',
       data: {
@@ -4776,7 +4865,7 @@ async function loadLifeBalance() {
             grid: { color: 'rgba(255,255,255,.08)' },
             angleLines: { color: 'rgba(255,255,255,.08)' },
             ticks: { display: false },
-            pointLabels: { color: '#8b8fa8', font: { size: 12 } },
+            pointLabels: { color: '#8b8fa8', font: { size: 11 } },
           }
         }
       }
@@ -4784,7 +4873,7 @@ async function loadLifeBalance() {
     if (legend) {
       legend.innerHTML = keys.map((k,i) => `
         <div style="display:flex;align-items:center;gap:8px;font-size:12px">
-          <div style="width:10px;height:10px;border-radius:50%;background:${CAT_CONFIG[k].color};flex-shrink:0"></div>
+          <div style="width:9px;height:9px;border-radius:50%;background:${CAT_CONFIG[k].color};flex-shrink:0"></div>
           <span style="color:var(--text2)">${CAT_CONFIG[k].label}</span>
           <span style="color:var(--text);font-weight:600;margin-left:auto">${values[i]}</span>
         </div>

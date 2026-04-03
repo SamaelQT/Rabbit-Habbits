@@ -403,8 +403,15 @@
     <!-- Life Balance -->
     <div class="report-card" id="life-balance-card" style="margin-bottom:14px">
       <div class="chart-panel-header">
-        <div class="chart-panel-title">⚖️ Cân bằng cuộc sống</div>
-        <div class="chart-panel-sub">Phân bổ thời gian theo danh mục</div>
+        <div>
+          <div class="chart-panel-title">⚖️ Cân bằng cuộc sống</div>
+          <div class="chart-panel-sub">Phân bổ thời gian theo danh mục</div>
+        </div>
+        <div class="balance-month-nav">
+          <button class="bal-nav-btn" id="bal-prev-btn" title="Tháng trước">‹</button>
+          <span class="bal-month-label" id="bal-month-label">Tháng hiện tại</span>
+          <button class="bal-nav-btn" id="bal-next-btn" title="Tháng sau">›</button>
+        </div>
       </div>
       <div style="display:flex;align-items:center;gap:20px;padding:0 20px 20px">
         <div class="chart-canvas-wrap" style="height:260px;flex:1"><canvas id="chart-life-balance"></canvas></div>
