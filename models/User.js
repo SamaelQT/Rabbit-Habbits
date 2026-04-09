@@ -35,6 +35,12 @@ const userSchema = new mongoose.Schema({
     createdAt:   { type: Date, default: Date.now },
     seen:        { type: Boolean, default: false }
   }],
+  // Track consecutive days of sending fire to each friend
+  fireStreaks: [{
+    with:         { type: mongoose.Schema.Types.ObjectId },
+    streak:       { type: Number, default: 1 },
+    lastSentDate: { type: String, default: '' }
+  }],
   lastSeen:    { type: Date, default: null },
   createdAt:   { type: Date, default: Date.now }
 });

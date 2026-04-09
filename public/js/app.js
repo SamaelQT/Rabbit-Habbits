@@ -1226,15 +1226,28 @@ async function renderStats(stats,s,e,globalStreak){
   }
 }
 
-// Streak flames: more flames for longer streaks (max 31)
+// ─── STREAK TIER SYSTEM (milestones at 10, 20, 30 ...) ───────────────────────
+function getStreakTier(n) {
+  if (n >= 50) return 6;
+  if (n >= 40) return 5;
+  if (n >= 30) return 4;
+  if (n >= 20) return 3;
+  if (n >= 10) return 2;
+  return 1;
+}
+
+// Flame sizes per tier (px)
+const FLAME_SIZES = [20, 24, 28, 33, 38, 44];
+
+// Duolingo-style streak flame: single animated emoji + bold count
 function streakFlames(n) {
   if (n <= 0) return '<span style="color:var(--text3);font-size:12px">—</span>';
-  // 1-3: 🔥, 4-7: 🔥🔥, 8-14: 🔥🔥🔥, 15-21: 🔥🔥🔥🔥, 22-30: 🔥🔥🔥🔥🔥, 31: 🔥🔥🔥🔥🔥🔥
-  const flames = n >= 31 ? 6 : n >= 22 ? 5 : n >= 15 ? 4 : n >= 8 ? 3 : n >= 4 ? 2 : 1;
-  const size = Math.min(20, 12 + Math.floor(n / 5) * 2);
-  const animClass = n >= 30 ? 'streak-flame-epic' : n >= 7 ? 'streak-flame-hot' : '';
-  const badge = n >= 30 ? ` <span class="streak-milestone">🏆 ${n} ngày!</span>` : n >= 7 ? ` <span class="streak-milestone">${n}🔥</span>` : '';
-  return `<span class="${animClass}" style="font-size:${size}px;filter:brightness(${1 + n/40})" title="${n} ngày streak">${'🔥'.repeat(flames)}</span>${badge}`;
+  const tier = getStreakTier(n);
+  const sz   = FLAME_SIZES[tier - 1];
+  // milestone label at exact multiples of 10
+  const isMilestone = n > 0 && n % 10 === 0;
+  const milestone = isMilestone ? `<span class="sfl-milestone sfl-milestone-t${tier}">🏆 ${n} ngày!</span>` : '';
+  return `<span class="sfl sfl-t${tier}" style="font-size:${sz}px" title="${n} ngày streak">🔥</span><span class="sfl-count sfl-count-t${tier}">${n}</span>${milestone}`;
 }
 
 // Build the big horizontal fire streak bar
@@ -1249,15 +1262,15 @@ function buildFireBar(sd){
     <span class="fire-bar-label fire-bar-none">Chưa có</span>
   </div>`;
 
-  // pct = n/31, fill width
-  const pct = Math.min(100, Math.round((n / 31) * 100));
+  // pct fills to tier cap (50 days = 100%)
+  const pct = Math.min(100, Math.round((n / 50) * 100));
 
   // Color stops: 1 day = pale yellow, 31 days = deep red
   // We interpolate 5 color zones
   const stops = getFireStops(n);
 
-  // Glow intensity grows with n
-  const glowAlpha = Math.min(0.7, 0.15 + (n/31) * 0.55);
+  // Glow intensity grows with n (cap at 50 days)
+  const glowAlpha = Math.min(0.85, 0.15 + (n / 50) * 0.7);
   const glowColor = stops.glow;
 
   return `<div class="fire-bar-wrap ${alive?'fire-bar-alive':'fire-bar-dead'}">
@@ -1276,14 +1289,13 @@ function buildFireBar(sd){
 }
 
 function getFireStops(n){
-  // n: 1-31
-  // Returns gradient stops and glow color
-  if(n >= 28) return { left:'#ff0000', mid:'#ff4400', right:'#ff8800', glow:'rgba(255,60,0,.7)' };
-  if(n >= 21) return { left:'#ff2200', mid:'#ff6600', right:'#ffaa00', glow:'rgba(255,80,0,.6)' };
-  if(n >= 14) return { left:'#ff5500', mid:'#ff8800', right:'#ffcc00', glow:'rgba(255,120,0,.5)' };
-  if(n >= 7)  return { left:'#ff7700', mid:'#ffaa00', right:'#ffe044', glow:'rgba(255,160,0,.4)' };
-  if(n >= 3)  return { left:'#ffaa00', mid:'#ffcc44', right:'#ffee88', glow:'rgba(255,200,0,.3)' };
-                return { left:'#ffcc44', mid:'#ffee88', right:'#fffacc', glow:'rgba(255,230,100,.2)' };
+  // Tier-of-10 milestones
+  if(n >= 50) return { left:'#cc0000', mid:'#ff2200', right:'#ff8800', glow:'rgba(255,0,0,.85)' };
+  if(n >= 40) return { left:'#dd1100', mid:'#ff3300', right:'#ff8800', glow:'rgba(255,30,0,.75)' };
+  if(n >= 30) return { left:'#ff1100', mid:'#ff5500', right:'#ffaa00', glow:'rgba(255,50,0,.7)' };
+  if(n >= 20) return { left:'#ff4400', mid:'#ff7700', right:'#ffcc00', glow:'rgba(255,80,0,.6)' };
+  if(n >= 10) return { left:'#ff7700', mid:'#ffaa00', right:'#ffe044', glow:'rgba(255,140,0,.5)' };
+              return { left:'#ffaa00', mid:'#ffcc55', right:'#fff0aa', glow:'rgba(255,200,0,.35)' };
 }
 
 function getFlameEmoji(n){ return ''; } // kept for compat, unused
@@ -4678,6 +4690,7 @@ const apiGamification = {
   messages:         (fid, before) => API.g(`/api/gamification/messages/${fid}${before ? '?before=' + encodeURIComponent(before) : ''}`),
   sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
   unreadMessages:   () => API.g('/api/gamification/unread-messages'),
+  fireStreak:       (fid) => API.g(`/api/gamification/fire-streak/${fid}`),
 };
 
 // ═══════════════════════════════════════════
@@ -5285,6 +5298,11 @@ async function loadFriendsList() {
         const initials = name.slice(0,2).toUpperCase();
         const sentToday = f.fireSentToday;
         const online = f.isOnline;
+        const myFireStreak = f.myFireStreak || 0;
+        const streakTier = getStreakTier(Math.max(myFireStreak, 1));
+        const streakBadge = myFireStreak > 0
+          ? `<span class="gf-streak-badge gf-streak-t${streakTier}"><span class="sfl sfl-t${streakTier}" style="font-size:14px">🔥</span>${myFireStreak}</span>`
+          : '';
         const fireBtn = sentToday
           ? `<button class="gf-fl-fire-btn sent-today" data-id="${f._id}" data-name="${name}" disabled title="Đã gửi lửa hôm nay">✅</button>`
           : `<button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>`;
@@ -5295,8 +5313,8 @@ async function loadFriendsList() {
             ${online ? '<span class="gf-online-dot"></span>' : ''}
           </div>
           <div class="gf-fl-info">
-            <div class="gf-fl-name">${name}${online ? ' <span class="gf-online-label">Đang hoạt động</span>' : ''}</div>
-            <div class="gf-fl-sub">${sentToday ? '🔥 Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
+            <div class="gf-fl-name">${name}${online ? ' <span class="gf-online-label">Đang hoạt động</span>' : ''} ${streakBadge}</div>
+            <div class="gf-fl-sub">${sentToday ? '✅ Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
           </div>
           <div class="gf-fl-actions">
             ${fireBtn}
@@ -5916,6 +5934,59 @@ function timeAgoVi(date) {
 // ── CHAT / MESSAGING ──
 let _chatFriendId = null, _chatFriendName = null, _chatPollTimer = null;
 
+// ── FRIEND STREAK BANNER ──
+function getStreakMotivation(n) {
+  if (n === 0) return 'Hãy bắt đầu truyền lửa cho nhau! 🔥';
+  if (n >= 100) return '🌟 Huyền thoại! 100+ ngày rực cháy cùng nhau!';
+  if (n >= 50)  return '💎 Vĩ đại! Chuỗi lửa 50+ ngày bất diệt!';
+  if (n >= 30)  return '🏆 Phi thường! 1 tháng cùng nhau!';
+  if (n >= 20)  return '⚡ Mạnh mẽ! 20 ngày rực cháy cùng nhau!';
+  if (n >= 10)  return '🎯 Tuyệt vời! 10 ngày liên tiếp!';
+  if (n >= 5)   return '💪 Tiếp tục! Chuỗi lửa đang bùng cháy!';
+  return '🔥 Đang khởi động! Duy trì nhé!';
+}
+
+function buildFriendStreakBanner(data, friendName) {
+  const { myStreak = 0, theirStreak = 0, mutual = 0 } = data || {};
+  const display = mutual > 0 ? mutual : Math.max(myStreak, theirStreak);
+  const tier = getStreakTier(Math.max(display, 1));
+  const flameSz = [48, 56, 64, 74, 84, 96][tier - 1];
+  const motivation = getStreakMotivation(mutual);
+  const isMilestone = mutual > 0 && mutual % 10 === 0;
+
+  if (mutual === 0 && myStreak === 0 && theirStreak === 0) {
+    return `<div class="cfs-banner cfs-empty">
+      <span class="cfs-flame-idle">🔥</span>
+      <div class="cfs-info">
+        <div class="cfs-label-empty">Chưa có chuỗi lửa chung</div>
+        <div class="cfs-motivation">${motivation}</div>
+      </div>
+    </div>`;
+  }
+
+  const mutualLabel = mutual > 0
+    ? `<div class="cfs-mutual-wrap">
+        <span class="cfs-num cfs-num-t${tier}">${mutual}</span>
+        <span class="cfs-unit">ngày cùng nhau</span>
+        ${isMilestone ? `<span class="cfs-badge-milestone">🏆</span>` : ''}
+       </div>`
+    : `<div class="cfs-mutual-wrap"><span class="cfs-num-dim">—</span><span class="cfs-unit">chuỗi chung</span></div>`;
+
+  return `<div class="cfs-banner cfs-t${tier}">
+    <div class="cfs-flame-col">
+      <span class="sfl sfl-t${tier}" style="font-size:${flameSz}px">🔥</span>
+    </div>
+    <div class="cfs-center">
+      ${mutualLabel}
+      <div class="cfs-motivation">${motivation}</div>
+    </div>
+    <div class="cfs-stats">
+      <div class="cfs-stat-row"><span class="cfs-stat-you">Bạn</span><span class="cfs-stat-val cfs-stat-val-t${getStreakTier(myStreak||1)}">${myStreak}🔥</span></div>
+      <div class="cfs-stat-row"><span class="cfs-stat-they">${esc(friendName||'Họ')}</span><span class="cfs-stat-val cfs-stat-val-t${getStreakTier(theirStreak||1)}">${theirStreak}🔥</span></div>
+    </div>
+  </div>`;
+}
+
 async function loadConversations() {
   try {
     const convos = await apiGamification.conversations();
@@ -5974,6 +6045,16 @@ async function openChatWindow(friendId, friendName, isOnline) {
     status.style.color = isOnline ? '#5ef0a0' : 'var(--text3)';
   }
 
+  // Show streak banner
+  const streakEl = document.getElementById('chat-friend-streak');
+  if (streakEl) {
+    streakEl.style.display = 'block';
+    streakEl.innerHTML = '<div class="cfs-loading">🔥 Đang tải chuỗi lửa...</div>';
+    apiGamification.fireStreak(friendId).then(data => {
+      streakEl.innerHTML = buildFriendStreakBanner(data, friendName);
+    }).catch(() => { streakEl.style.display = 'none'; });
+  }
+
   const msgWrap = document.getElementById('chat-messages');
   msgWrap.innerHTML = '<div style="text-align:center;color:var(--text3);padding:40px">Đang tải...</div>';
   document.getElementById('chat-window').style.display = 'flex';
@@ -6015,6 +6096,8 @@ function closeChatWindow() {
   clearInterval(_chatPollTimer);
   _chatFriendId = null;
   document.getElementById('chat-window').style.display = 'none';
+  const streakEl = document.getElementById('chat-friend-streak');
+  if (streakEl) streakEl.style.display = 'none';
   loadConversations(); // Refresh unread counts
 }
 

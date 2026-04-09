@@ -1,9 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"require\\(''./routes/stats''\\)\")",
-      "Bash(node -e \":*)",
-      "Bash(node -e \"console.log\\(''''syntax check''''\\); require\\(''''./routes/shop.js''''\\)\")"
+      "Bash(grep -n \"currentStreak\\\\|maxStreak\\\\|getFriendStreak\\\\|streamStreak\" /d/Rabbit-Habbits/models/*.js)"
     ]
   }
 }

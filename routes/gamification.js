@@ -417,19 +417,27 @@ router.get('/leaderboard', async (req, res) => {
 router.get('/friends-list', async (req, res) => {
   try {
     const me = await User.findById(req.userId).populate('friends', 'username displayName lastSeen');
-    const today = todayKey();
+    const today     = todayKey();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     // Which friends already got fire today
     const sentToday = (me.sentFires || [])
       .filter(s => s.sentAt.toISOString().slice(0, 10) === today)
       .map(s => s.to.toString());
     const onlineThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes
-    const friends = (me.friends || []).map(f => ({
-      _id: f._id,
-      username: f.username,
-      displayName: f.displayName,
-      fireSentToday: sentToday.includes(f._id.toString()),
-      isOnline: f.lastSeen && f.lastSeen > onlineThreshold
-    }));
+    const isActive = d => d === today || d === yesterday;
+    const friends = (me.friends || []).map(f => {
+      const fid = f._id.toString();
+      const streakEntry = (me.fireStreaks || []).find(s => s.with?.toString() === fid);
+      const myFireStreak = (streakEntry && isActive(streakEntry.lastSentDate)) ? streakEntry.streak : 0;
+      return {
+        _id: f._id,
+        username: f.username,
+        displayName: f.displayName,
+        fireSentToday: sentToday.includes(fid),
+        isOnline: f.lastSeen && f.lastSeen > onlineThreshold,
+        myFireStreak,
+      };
+    });
     res.json(friends);
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -534,9 +542,52 @@ router.post('/send-fire', async (req, res) => {
 
     // Record that I sent fire today
     me.sentFires.push({ to: toUserId, sentAt: new Date() });
+
+    // ── Update fire streak toward this friend ──
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    if (!me.fireStreaks) me.fireStreaks = [];
+    const myStreakEntry = me.fireStreaks.find(s => s.with?.toString() === toUserId);
+    if (myStreakEntry) {
+      if (myStreakEntry.lastSentDate === yesterday) {
+        myStreakEntry.streak += 1;
+      } else if (myStreakEntry.lastSentDate !== today) {
+        myStreakEntry.streak = 1;
+      }
+      // if lastSentDate === today: already counted this day, no change
+      myStreakEntry.lastSentDate = today;
+    } else {
+      me.fireStreaks.push({ with: toUserId, streak: 1, lastSentDate: today });
+    }
+
     await me.save();
 
     res.json({ ok: true, message });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/fire-streak/:friendId — mutual fire streak between me and a friend
+router.get('/fire-streak/:friendId', async (req, res) => {
+  try {
+    const { friendId } = req.params;
+    const today     = todayKey();
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+    const [me, friend] = await Promise.all([
+      User.findById(req.userId).select('fireStreaks'),
+      User.findById(friendId).select('fireStreaks displayName username')
+    ]);
+    if (!friend) return res.status(404).json({ error: 'Không tìm thấy bạn bè' });
+
+    const myEntry     = (me.fireStreaks     || []).find(s => s.with?.toString() === friendId);
+    const theirEntry  = (friend.fireStreaks || []).find(s => s.with?.toString() === req.userId);
+
+    // Streak only counts if they sent fire today or yesterday (still active)
+    const isActive = d => d === today || d === yesterday;
+    const myStreak    = (myEntry    && isActive(myEntry.lastSentDate))   ? myEntry.streak    : 0;
+    const theirStreak = (theirEntry && isActive(theirEntry.lastSentDate)) ? theirEntry.streak : 0;
+    const mutual      = Math.min(myStreak, theirStreak);
+
+    res.json({ myStreak, theirStreak, mutual });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
