@@ -1746,6 +1746,41 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .notif-item.clickable:hover .notif-item-title{color:var(--accent);}
 .notif-item.clickable::after{content:'›';font-size:16px;color:var(--text3);margin-left:auto;padding-left:8px;flex-shrink:0;}
 
+/* Overdue tasks — amber left border */
+.notif-item.notif-overdue{border-left:3px solid #ffaa44;padding-left:15px;background:rgba(255,170,68,.04);}
+.notif-item.notif-overdue:hover{background:rgba(255,170,68,.09);}
+
+/* Fire notifications */
+.notif-item.notif-fire-item{border-left:3px solid #ff6600;padding-left:15px;background:rgba(255,100,0,.04);}
+.notif-item.notif-fire-item:hover{background:rgba(255,100,0,.09);}
+
+/* Message notifications */
+.notif-item.notif-msg-item{cursor:pointer;border-left:3px solid var(--accent);padding-left:15px;background:rgba(176,127,255,.04);}
+.notif-item.notif-msg-item:hover{background:rgba(176,127,255,.09);}
+.notif-msg-avatar{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,var(--accent),var(--cyan));
+  display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;color:#fff;
+}
+.notif-msg-count{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:#ff6b8a;color:#fff;
+  font-size:9px;font-weight:800;border-radius:8px;
+  padding:0 5px;min-width:16px;height:16px;
+  margin-left:3px;vertical-align:middle;
+  font-family:'JetBrains Mono',monospace;
+}
+
+/* Navigation arrow */
+.notif-arrow{font-size:16px;color:var(--text3);padding-left:4px;flex-shrink:0;}
+
+/* "More items" line */
+.notif-more{
+  padding:3px 18px 8px;font-size:11px;color:var(--text3);
+  font-style:italic;
+}
+
 /* Notif detail overlay */
 .notif-detail-overlay{
   position:fixed;inset:0;z-index:10001;
@@ -1924,9 +1959,109 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .pet-care-btn:disabled{opacity:.4;cursor:not-allowed;}
 .pet-dead-overlay{
   position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:rgba(10,11,15,.7);border-radius:var(--radius);
+  background:rgba(10,11,15,.75);border-radius:var(--radius);gap:6px;
 }
-.pet-dead-text{font-size:13px;color:var(--text3);margin-top:6px;}
+.pet-dead-text{font-size:12px;color:var(--text3);text-align:center;padding:0 8px;}
+
+/* Bury button on dead pet cards */
+.pet-bury-btn{
+  margin-top:8px;
+  padding:6px 16px;
+  border:1px solid rgba(150,150,180,.3);
+  border-radius:20px;
+  background:rgba(30,30,50,.8);
+  color:#aaa;
+  font-size:12px;font-weight:600;
+  cursor:pointer;
+  transition:all .2s;
+}
+.pet-bury-btn:hover{
+  background:rgba(80,60,120,.7);
+  border-color:rgba(176,127,255,.5);
+  color:#d0b8ff;
+  transform:scale(1.05);
+}
+
+/* ═══════════════════════════════════════════
+   BURIAL CEREMONY MODAL
+═══════════════════════════════════════════ */
+.bury-modal-backdrop{
+  position:fixed;inset:0;z-index:9000;
+  background:rgba(0,0,0,.6);
+  backdrop-filter:blur(6px);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .3s;
+}
+.bury-modal-backdrop.bury-show{opacity:1;}
+.bury-modal-card{
+  background:var(--bg2);
+  border:1px solid var(--border2);
+  border-radius:24px;
+  padding:32px 28px 24px;
+  width:min(340px,88vw);
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  animation:buryCardIn .35s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes buryCardIn{
+  from{transform:scale(.85) translateY(20px);opacity:0;}
+  to{transform:scale(1) translateY(0);opacity:1;}
+}
+.bury-modal-emoji{
+  font-size:64px;line-height:1;
+  filter:grayscale(.5) brightness(.8);
+  animation:buryEmojiFloat 2s ease-in-out infinite;
+}
+@keyframes buryEmojiFloat{
+  0%,100%{transform:translateY(0);}
+  50%{transform:translateY(-6px);}
+}
+.bury-modal-emoji.bury-ascend{
+  animation:buryAscend .8s ease-in forwards;
+}
+@keyframes buryAscend{
+  0%  {transform:translateY(0) scale(1);opacity:1;filter:grayscale(.5) brightness(.8);}
+  60% {transform:translateY(-40px) scale(1.1);opacity:.7;filter:grayscale(0) brightness(1.2);}
+  100%{transform:translateY(-80px) scale(.6);opacity:0;filter:grayscale(0) brightness(2);}
+}
+.bury-modal-title{
+  font-size:16px;font-weight:700;color:var(--text);text-align:center;
+}
+.bury-modal-sub{
+  font-size:13px;color:var(--text2);text-align:center;line-height:1.6;
+}
+.bury-modal-btns{
+  display:flex;gap:10px;width:100%;margin-top:4px;
+}
+.bury-cancel-btn{
+  flex:1;padding:10px;border:1px solid var(--border);border-radius:14px;
+  background:var(--bg3);color:var(--text2);font-size:13px;cursor:pointer;
+  transition:all .15s;
+}
+.bury-cancel-btn:hover{border-color:var(--border2);color:var(--text);}
+.bury-confirm-btn{
+  flex:2;padding:10px;border:none;border-radius:14px;
+  background:linear-gradient(135deg,#4a3060,#3a2550);
+  color:#c8a8ff;font-size:13px;font-weight:700;cursor:pointer;
+  border:1px solid rgba(150,100,255,.3);
+  transition:all .2s;
+}
+.bury-confirm-btn:hover:not(:disabled){
+  background:linear-gradient(135deg,#5a4070,#4a3560);
+  transform:translateY(-1px);
+  box-shadow:0 4px 16px rgba(100,60,200,.3);
+}
+.bury-confirm-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+/* Tombstone animation after burial */
+.bury-tombstone-anim{
+  font-size:72px;line-height:1;
+  animation:buryTombstoneIn .6s cubic-bezier(.34,1.56,.64,1) both;
+}
+@keyframes buryTombstoneIn{
+  0%{transform:scale(0) translateY(30px);opacity:0;}
+  100%{transform:scale(1) translateY(0);opacity:1;}
+}
 
 /* ── BACKPACK BAG TRAY ── */
 .pet-bag-btn{

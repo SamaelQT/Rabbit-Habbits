@@ -435,6 +435,17 @@ router.get('/pets', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /api/shop/pets/:id — bury (remove) a dead pet/plant
+router.delete('/pets/:id', async (req, res) => {
+  try {
+    const pet = await Pet.findOne({ _id: req.params.id, userId: req.userId });
+    if (!pet) return res.status(404).json({ error: 'Không tìm thấy thú cưng' });
+    if (pet.alive) return res.status(400).json({ error: 'Chỉ có thể chôn cất thú cưng/cây đã mất 😢' });
+    await Pet.deleteOne({ _id: pet._id });
+    res.json({ ok: true, buried: { id: pet._id, name: pet.name, type: pet.type } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 // ═══ FEED / WATER / FERTILIZE ═══
 
 // POST /api/shop/care  { petId, action: 'food'|'water'|'fertilizer' }

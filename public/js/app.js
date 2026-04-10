@@ -628,6 +628,8 @@ async function toggleTask(id,itemEl){
     toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
     updatePointsUI(Math.max(0, (_shopData.points||0) - pts));
   }
+  // Refresh notification badge (today's incomplete count changed)
+  quickNotifCheck();
 }
 async function deleteTask(id,itemEl){
   await apiTasks.del(id);
@@ -1692,6 +1694,7 @@ function renderHabitsPanel(wd){
           toast(`${h.emoji} Đã bỏ tích — trừ ${pts}⭐`);
           updatePointsUI(Math.max(0, (_shopData.points||0) - pts));
         }
+        quickNotifCheck();
       });
     });
     row.querySelector('.hrm-delete').addEventListener('click',async()=>{
@@ -2353,9 +2356,13 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 
   // Load floating pets after a short delay (let auth settle)
   setTimeout(() => loadFloatingPets(), 1500);
-  // Check fire/friend notifications on load
-  setTimeout(() => checkFireNotifications(), 3000);
-  setTimeout(() => checkGiftNotifications(), 4000);
+  // Initial notification badge check (fast, no panel render)
+  setTimeout(() => quickNotifCheck(), 2500);
+  // Check fire/friend notifications on load (shows overlay if needed)
+  setTimeout(() => checkFireNotifications(), 3500);
+  setTimeout(() => checkGiftNotifications(), 4500);
+  // Poll notification badge every 45 seconds
+  setInterval(() => quickNotifCheck(), 45000);
 
   // Fire overlay buttons + gift modal — init here so they work on ANY page
   initFireOverlay();
@@ -2458,109 +2465,207 @@ const USAGE_GUIDE = [
 ];
 
 async function loadNotifications() {
-  const body = document.getElementById('notif-panel-body');
+  const body  = document.getElementById('notif-panel-body');
   const badge = document.getElementById('notif-bell-badge');
   if (!body) return;
 
   let urgentCount = 0;
   let html = '';
+  const todayStr = tds(state.today);
 
-  // 1. Pets needing care + dead pets
-  try {
-    const pets = await apiShop.pets();
-    const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
-    const dead = pets.filter(p => !p.alive);
+  // ─── Fetch all social + task data in parallel ───────────────────────────────
+  const [notifRes, convosRes, firesRes, overdueRes, petsRes, todayTasksRes] = await Promise.allSettled([
+    apiGamification.notifications(),
+    apiGamification.conversations(),
+    apiGamification.getFires(),
+    API.g('/api/tasks/overdue'),
+    apiShop.pets(),
+    API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`)
+  ]);
+  const notifData    = notifRes.status    === 'fulfilled' ? notifRes.value    : {};
+  const convos       = convosRes.status   === 'fulfilled' ? convosRes.value   : [];
+  const fires        = firesRes.status    === 'fulfilled' ? firesRes.value    : [];
+  const overdue      = overdueRes.status  === 'fulfilled' ? overdueRes.value  : [];
+  const pets         = petsRes.status     === 'fulfilled' ? petsRes.value     : [];
+  const todayTasks   = todayTasksRes.status === 'fulfilled' ? todayTasksRes.value : [];
 
-    // Dead pets — show once per pet (tracked in localStorage)
-    const seenDead = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
-    const newDead  = dead.filter(p => !seenDead.includes(p._id));
-    if (newDead.length) {
-      urgentCount += newDead.length;
-      html += `<div class="notif-section-title">💀 Thú cưng/Cây đã mất</div>`;
-      newDead.forEach(p => {
-        const detailTitle = encodeURIComponent(`😢 ${p.name} đã qua đời`);
-        const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p><strong>${esc(p.name)}</strong> đã mất vì không được chăm sóc trong quá lâu.</p><p>Bạn có thể mua thú cưng/cây mới tại tab <strong>Cửa hàng</strong> và chăm sóc chúng mỗi ngày để tránh điều này xảy ra lần nữa.</p><p style="color:#ff6b8a;font-size:12px">💡 Nhớ rằng: động vật cần ăn mỗi ngày, cây cần tưới nước — bỏ bê 3 ngày sẽ mất điểm, 7 ngày thú cưng sẽ qua đời.</p>`);
-        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}" data-mark-dead="${p._id}">
-          <span class="notif-item-icon" style="opacity:.5">${p.emoji}</span>
-          <div class="notif-item-body">
-            <div class="notif-item-title" style="color:#ff6b8a">${esc(p.name)} đã qua đời 😢</div>
-            <div class="notif-item-sub">Không được chăm sóc — Nhấn để xem chi tiết</div>
-          </div>
-        </div>`;
-      });
-    }
+  // ─── 1. FRIEND REQUESTS ─────────────────────────────────────────────────────
+  const reqCount = notifData.requestCount || 0;
+  if (reqCount > 0) {
+    urgentCount += reqCount;
+    html += `<div class="notif-section-title">👥 Lời mời kết bạn</div>
+    <div class="notif-item notif-urgent notif-goto" data-goto-tab="game">
+      <span class="notif-item-icon">🤝</span>
+      <div class="notif-item-body">
+        <div class="notif-item-title">${reqCount} lời mời kết bạn đang chờ</div>
+        <div class="notif-item-sub">Nhấn để vào trang Bạn bè &amp; chấp nhận</div>
+      </div>
+      <span class="notif-arrow">›</span>
+    </div>`;
+  }
 
-    if (sick.length) {
-      urgentCount += sick.length;
-      html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
-      sick.forEach(p => {
-        const detailTitle = encodeURIComponent(`${p.emoji} ${p.name} cần chăm sóc`);
-        const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p>Sức khỏe hiện tại: <strong>${p.health}%</strong></p><p>${p.health < 30 ? '⚠️ <strong>Nguy hiểm!</strong> Thú cưng của bạn sắp qua đời.' : '⚠️ Thú cưng cần được chăm sóc ngay hôm nay.'}</p><p>Hãy vào tab <strong>Thú cưng</strong> để cho ${['rabbit','cat','dog','hamster','bird'].includes(p.type) ? 'ăn 🍎' : 'uống nước 💧'}.</p>`);
-        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
-          <span class="notif-item-icon">${p.emoji}</span>
-          <div class="notif-item-body">
-            <div class="notif-item-title">${esc(p.name)}</div>
-            <div class="notif-item-sub">Sức khỏe: ${p.health}% — Cần chăm sóc ngay!</div>
-          </div>
-        </div>`;
-      });
-    }
-  } catch(e) {}
+  // ─── 2. RECEIVED FIRES ──────────────────────────────────────────────────────
+  if (fires.length > 0) {
+    urgentCount += fires.length;
+    html += `<div class="notif-section-title">🔥 Lửa nhận được (${fires.length})</div>`;
+    fires.slice(0, 4).forEach(f => {
+      const msg = (f.message || '').slice(0, 60);
+      const detailTitle = encodeURIComponent(`🔥 ${esc(f.fromName)} truyền lửa!`);
+      const detailBody  = encodeURIComponent(
+        `<p><span class="notif-detail-badge">🔥 Ngọn lửa từ ${esc(f.fromName)}</span></p>` +
+        `<p><strong>${esc(f.fromName)}</strong> ${esc(f.message)}</p>` +
+        `<p style="font-size:12px;color:#aaa">Hãy truyền lửa lại để giữ chuỗi lửa chung!</p>`
+      );
+      const alreadySent = f.alreadySentBack
+        ? `<span style="font-size:10px;color:#5ef0a0">✅ Đã gửi lại</span>`
+        : `<span style="font-size:10px;color:#ffaa44">🔥 Gửi lại ngay</span>`;
+      html += `<div class="notif-item notif-urgent notif-fire-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
+        <span class="notif-item-icon">🔥</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(f.fromName)} truyền lửa cho bạn!</div>
+          <div class="notif-item-sub">${esc(msg)}${f.message.length > 60 ? '…' : ''}</div>
+        </div>
+        <div style="flex-shrink:0;text-align:right">${alreadySent}</div>
+      </div>`;
+    });
+    if (fires.length > 4) html += `<div class="notif-more">+${fires.length-4} lửa khác…</div>`;
+  }
 
-  // 2. Today's incomplete tasks
-  try {
-    const todayStr = tds(state.today);
-    const tasks = await API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`);
-    const incomplete = (tasks||[]).filter(t => !t.completed);
-    if (incomplete.length) {
-      urgentCount += incomplete.length;
-      html += `<div class="notif-section-title">📋 Task hôm nay chưa xong</div>`;
-      incomplete.slice(0, 5).forEach(t => {
-        const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
-        const prioIcons = ['⚪','🟡','🟠','🔴'];
-        const pts = [5,5,8,12];
-        const detailTitle = encodeURIComponent(`📋 ${esc(t.title)}`);
-        const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${prioIcons[t.priority]||'⚪'} Độ ưu tiên: ${prioLabels[t.priority]||'Bình thường'}</span></p><p>Task <strong>"${esc(t.title)}"</strong> chưa được hoàn thành hôm nay.</p><p>Hoàn thành để nhận <strong>+${pts[t.priority]||5} điểm</strong>.</p>${t.dueDate?`<p>Hạn chót: ${t.dueDate}</p>`:''}`);
-        html += `<div class="notif-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
-          <span class="notif-item-icon">⬜</span>
-          <div class="notif-item-body">
-            <div class="notif-item-title">${esc(t.title)}</div>
-            <div class="notif-item-sub">${prioLabels[t.priority]||'Bình thường'}</div>
-          </div>
-        </div>`;
-      });
-      if (incomplete.length > 5) {
-        html += `<div style="padding:4px 16px 8px;font-size:11px;color:var(--text3)">+${incomplete.length-5} task khác...</div>`;
-      }
-    }
-  } catch(e) {}
+  // ─── 3. UNREAD MESSAGES ─────────────────────────────────────────────────────
+  const unreadConvos = convos.filter(c => c.unread > 0);
+  if (unreadConvos.length > 0) {
+    const totalMsg = unreadConvos.reduce((s, c) => s + c.unread, 0);
+    urgentCount += totalMsg;
+    html += `<div class="notif-section-title">💬 Tin nhắn chưa đọc (${totalMsg})</div>`;
+    unreadConvos.slice(0, 5).forEach(c => {
+      const lastMsg = c.lastMessage?.content || '';
+      const initials = (c.friendName||'?').slice(0,2).toUpperCase();
+      html += `<div class="notif-item notif-urgent notif-msg-item" data-open-chat="${c.friendId}" data-fname="${esc(c.friendName)}" data-online="${c.isOnline}">
+        <div class="notif-msg-avatar">${initials}</div>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(c.friendName)} <span class="notif-msg-count">${c.unread}</span></div>
+          <div class="notif-item-sub">${esc(lastMsg).slice(0,55)}${lastMsg.length>55?'…':''}</div>
+        </div>
+        <span class="notif-arrow">›</span>
+      </div>`;
+    });
+  }
 
-  // 3. Pending gifts (unopened)
-  try {
-    const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
-    if (pendingGifts.length) {
-      urgentCount += pendingGifts.length;
-      html += `<div class="notif-section-title">🎁 Quà chưa mở</div>`;
-      pendingGifts.forEach((g, idx) => {
-        html += `<div class="notif-item notif-urgent" data-pending-gift="${idx}" style="cursor:pointer">
-          <span class="notif-item-icon">${g.itemEmoji}</span>
-          <div class="notif-item-body">
-            <div class="notif-item-title">${esc(g.fromName)} tặng ${g.qty}x ${g.itemName}</div>
-            <div class="notif-item-sub">Nhấn để mở quà ✨</div>
-          </div>
-          <span style="font-size:16px;color:var(--text3);padding-left:4px">›</span>
-        </div>`;
-      });
-    }
-  } catch(e) {}
+  // ─── 4. DEAD PETS ───────────────────────────────────────────────────────────
+  const dead = pets.filter(p => !p.alive);
+  const seenDead = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
+  const newDead  = dead.filter(p => !seenDead.includes(p._id));
+  if (newDead.length) {
+    urgentCount += newDead.length;
+    html += `<div class="notif-section-title">💀 Thú cưng/Cây đã mất</div>`;
+    newDead.forEach(p => {
+      const detailTitle = encodeURIComponent(`😢 ${p.name} đã qua đời`);
+      const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p><strong>${esc(p.name)}</strong> đã mất vì không được chăm sóc trong quá lâu.</p><p>Bạn có thể mua thú cưng/cây mới tại tab <strong>Cửa hàng</strong> và chăm sóc chúng mỗi ngày để tránh điều này xảy ra lần nữa.</p><p style="color:#ff6b8a;font-size:12px">💡 Động vật cần ăn mỗi ngày, cây cần tưới nước — bỏ bê 3 ngày mất điểm, 7 ngày thú cưng qua đời.</p>`);
+      html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}" data-mark-dead="${p._id}">
+        <span class="notif-item-icon" style="opacity:.5">${p.emoji}</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title" style="color:#ff6b8a">${esc(p.name)} đã qua đời 😢</div>
+          <div class="notif-item-sub">Không được chăm sóc — Nhấn để xem chi tiết</div>
+        </div>
+      </div>`;
+    });
+  }
 
-  // 4. Changelog / New features
+  // ─── 5. SICK PETS ───────────────────────────────────────────────────────────
+  const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
+  if (sick.length) {
+    urgentCount += sick.length;
+    html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
+    sick.forEach(p => {
+      const detailTitle = encodeURIComponent(`${p.emoji} ${p.name} cần chăm sóc`);
+      const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${p.emoji} ${esc(p.name)}</span></p><p>Sức khỏe hiện tại: <strong>${p.health}%</strong></p><p>${p.health < 30 ? '⚠️ <strong>Nguy hiểm!</strong> Thú cưng sắp qua đời.' : '⚠️ Thú cưng cần được chăm sóc ngay hôm nay.'}</p><p>Hãy vào tab <strong>Thú cưng</strong> để cho ${['rabbit','cat','dog','hamster','bird'].includes(p.type)?'ăn 🍎':'uống nước 💧'}.</p>`);
+      html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
+        <span class="notif-item-icon">${p.emoji}</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(p.name)}</div>
+          <div class="notif-item-sub">Sức khỏe: ${p.health}% — Cần chăm sóc ngay!</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  // ─── 6. OVERDUE TASKS (các ngày trước chưa hoàn thành) ──────────────────────
+  if (overdue.length > 0) {
+    urgentCount += overdue.length;
+    html += `<div class="notif-section-title">⚠️ Task quá hạn chưa hoàn thành (${overdue.length})</div>`;
+    const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
+    const prioIcons  = ['⚪','🟡','🟠','🔴'];
+    overdue.slice(0, 6).forEach(t => {
+      const d = new Date(t.date + 'T00:00:00');
+      const daysAgo = Math.round((state.today - d) / 86400000);
+      const dLabel  = daysAgo === 1 ? 'Hôm qua' : `${daysAgo} ngày trước`;
+      const detailTitle = encodeURIComponent(`⚠️ ${esc(t.title)}`);
+      const detailBody  = encodeURIComponent(
+        `<p><span class="notif-detail-badge">${prioIcons[t.priority]||'⚪'} ${prioLabels[t.priority]||'Bình thường'} · ${dLabel}</span></p>` +
+        `<p>Task <strong>"${esc(t.title)}"</strong> từ <strong>${dLabel}</strong> vẫn chưa hoàn thành.</p>` +
+        `<p>Bạn có thể hoàn thành task này trong tab <strong>Hôm nay</strong> hoặc xoá nếu không còn phù hợp.</p>`
+      );
+      html += `<div class="notif-item notif-overdue clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
+        <span class="notif-item-icon">${prioIcons[t.priority]||'⚪'}</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(t.title)}</div>
+          <div class="notif-item-sub">${dLabel} · ${prioLabels[t.priority]||'Bình thường'}</div>
+        </div>
+      </div>`;
+    });
+    if (overdue.length > 6) html += `<div class="notif-more">+${overdue.length-6} task khác…</div>`;
+  }
+
+  // ─── 7. TODAY'S INCOMPLETE TASKS ────────────────────────────────────────────
+  const incomplete = (todayTasks||[]).filter(t => !t.completed);
+  if (incomplete.length) {
+    urgentCount += incomplete.length;
+    const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
+    const prioIcons  = ['⚪','🟡','🟠','🔴'];
+    const pts        = [5,5,8,12];
+    html += `<div class="notif-section-title">📋 Task hôm nay chưa xong (${incomplete.length})</div>`;
+    incomplete.slice(0, 5).forEach(t => {
+      const detailTitle = encodeURIComponent(`📋 ${esc(t.title)}`);
+      const detailBody  = encodeURIComponent(
+        `<p><span class="notif-detail-badge">${prioIcons[t.priority]||'⚪'} Độ ưu tiên: ${prioLabels[t.priority]||'Bình thường'}</span></p>` +
+        `<p>Task <strong>"${esc(t.title)}"</strong> chưa được hoàn thành hôm nay.</p>` +
+        `<p>Hoàn thành để nhận <strong>+${pts[t.priority]||5} điểm</strong>.</p>`
+      );
+      html += `<div class="notif-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
+        <span class="notif-item-icon">⬜</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(t.title)}</div>
+          <div class="notif-item-sub">${prioLabels[t.priority]||'Bình thường'} · +${pts[t.priority]||5} điểm</div>
+        </div>
+      </div>`;
+    });
+    if (incomplete.length > 5) html += `<div class="notif-more">+${incomplete.length-5} task khác…</div>`;
+  }
+
+  // ─── 8. PENDING GIFTS (UNOPENED) ────────────────────────────────────────────
+  const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
+  if (pendingGifts.length) {
+    urgentCount += pendingGifts.length;
+    html += `<div class="notif-section-title">🎁 Quà chưa mở</div>`;
+    pendingGifts.forEach((g, idx) => {
+      html += `<div class="notif-item notif-urgent" data-pending-gift="${idx}" style="cursor:pointer">
+        <span class="notif-item-icon">${g.itemEmoji}</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(g.fromName)} tặng ${g.qty}× ${g.itemName}</div>
+          <div class="notif-item-sub">Nhấn để mở quà ✨</div>
+        </div>
+        <span class="notif-arrow">›</span>
+      </div>`;
+    });
+  }
+
+  // ─── 9. CHANGELOG / NEW FEATURES ────────────────────────────────────────────
   html += `<div class="notif-section-title">✨ Bản cập nhật</div>`;
   CHANGELOG.forEach(c => {
-    const newBadge = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
-    const verBadge = `<span class="notif-version-badge">${c.version}</span>`;
+    const newBadge    = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
+    const verBadge    = `<span class="notif-version-badge">${c.version}</span>`;
     const detailTitle = encodeURIComponent(`${c.icon} ${c.title} — ${c.version}`);
-    const detailBody = encodeURIComponent(`<p><span class="notif-detail-badge">${c.icon} ${c.version} · ${c.date}${c.isNew?' · <strong style="color:#5ef0a0">MỚI</strong>':''}</span></p><p>${c.desc}</p>`);
+    const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${c.icon} ${c.version} · ${c.date}${c.isNew?' · <strong style="color:#5ef0a0">MỚI</strong>':''}</span></p><p>${c.desc}</p>`);
     html += `<div class="notif-item${c.isNew?' notif-update-new':''} clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
       <span class="notif-item-icon">${c.icon}</span>
       <div class="notif-item-body">
@@ -2571,11 +2676,11 @@ async function loadNotifications() {
     </div>`;
   });
 
-  // 5. Usage guide
+  // ─── 10. USAGE GUIDE ─────────────────────────────────────────────────────────
   html += `<div class="notif-section-title">📖 Hướng dẫn sử dụng</div>`;
   USAGE_GUIDE.forEach(g => {
     const detailTitle = encodeURIComponent(`${g.icon} ${g.title}`);
-    const detailBody = encodeURIComponent(`<p>${g.desc}</p>`);
+    const detailBody  = encodeURIComponent(`<p>${g.desc}</p>`);
     html += `<div class="notif-item notif-guide-item clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}">
       <div class="notif-item-icon">${g.icon}</div>
       <div class="notif-item-body">
@@ -2585,28 +2690,24 @@ async function loadNotifications() {
     </div>`;
   });
 
-  body.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3)">Không có thông báo</div>';
+  // ─── RENDER ──────────────────────────────────────────────────────────────────
+  body.innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--text3)">Không có thông báo nào 🎉</div>';
 
   // Wire up detail overlay clicks
   body.querySelectorAll('.clickable[data-detail-title]').forEach(el => {
     el.addEventListener('click', () => {
-      const title = decodeURIComponent(el.dataset.detailTitle || '');
+      const title   = decodeURIComponent(el.dataset.detailTitle || '');
       const bodyHtml = decodeURIComponent(el.dataset.detailBody || '');
-      const overlay = document.getElementById('notif-detail-overlay');
-      const titleEl = document.getElementById('notif-detail-title');
-      const bodyEl  = document.getElementById('notif-detail-body');
-      if (!overlay || !titleEl || !bodyEl) return;
+      const overlay  = document.getElementById('notif-detail-overlay');
+      const titleEl  = document.getElementById('notif-detail-title');
+      const bodyEl   = document.getElementById('notif-detail-body');
+      if (!overlay||!titleEl||!bodyEl) return;
       titleEl.textContent = title;
-      bodyEl.innerHTML = bodyHtml;
+      bodyEl.innerHTML    = bodyHtml;
       overlay.style.display = 'flex';
-      // Mark dead pet as seen so it won't reappear in future sessions
       if (el.dataset.markDead) {
         const seen = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
-        if (!seen.includes(el.dataset.markDead)) {
-          seen.push(el.dataset.markDead);
-          localStorage.setItem('rh-seen-dead-pets', JSON.stringify(seen));
-        }
-        // Fade out the item after a moment
+        if (!seen.includes(el.dataset.markDead)) { seen.push(el.dataset.markDead); localStorage.setItem('rh-seen-dead-pets', JSON.stringify(seen)); }
         el.style.transition = 'opacity .4s';
         setTimeout(() => { el.style.opacity = '0.35'; }, 300);
       }
@@ -2616,35 +2717,84 @@ async function loadNotifications() {
   // Wire up pending gift clicks
   body.querySelectorAll('[data-pending-gift]').forEach(el => {
     el.addEventListener('click', () => {
-      const idx = parseInt(el.dataset.pendingGift);
+      const idx     = parseInt(el.dataset.pendingGift);
       const pending = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
-      const g = pending[idx];
+      const g       = pending[idx];
       if (!g) return;
-      // Remove from pending
       pending.splice(idx, 1);
       localStorage.setItem('rh-pending-gifts', JSON.stringify(pending));
-      // Close panel and show effect
       document.getElementById('notif-panel').style.display = 'none';
       showGiftReceivedEffect(g);
-      // Refresh badge
       loadNotifications();
     });
   });
 
-  // Bell visual state
-  const bellBtn = document.getElementById('notif-bell-btn');
-  if (bellBtn) {
-    if (urgentCount > 0) { bellBtn.classList.add('has-notif'); }
-    else { bellBtn.classList.remove('has-notif'); }
-  }
+  // Wire up chat opens from message notifications
+  body.querySelectorAll('.notif-msg-item[data-open-chat]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('notif-panel').style.display = 'none';
+      const page = document.getElementById('page-game');
+      if (page && page.style.display === 'none') document.querySelector('[data-tab="game"]')?.click();
+      setTimeout(() => openChatWindow(el.dataset.openChat, el.dataset.fname, el.dataset.online === 'true'), 150);
+    });
+  });
 
-  if (badge) {
-    if (urgentCount > 0) {
-      badge.textContent = urgentCount;
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
+  // Wire up tab-navigation shortcuts
+  body.querySelectorAll('.notif-goto[data-goto-tab]').forEach(el => {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      document.getElementById('notif-panel').style.display = 'none';
+      document.querySelector(`[data-tab="${el.dataset.gotoTab}"]`)?.click();
+    });
+  });
+
+  // Mark fires as seen after showing them in panel
+  if (fires.length > 0) apiGamification.markFiresSeen().catch(() => {});
+
+  // ─── BELL VISUAL STATE ───────────────────────────────────────────────────────
+  _updateBellBadge(urgentCount);
+}
+
+/** Lightweight badge update — called from polling & after user actions */
+async function quickNotifCheck() {
+  try {
+    const notifData   = await apiGamification.notifications();
+    const petsRaw     = await apiShop.pets().catch(() => []);
+    const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
+    const sick    = petsRaw.filter(p => p.alive && !p.hidden && p.health < 70).length;
+    const newDead = petsRaw.filter(p => !p.alive && !JSON.parse(localStorage.getItem('rh-seen-dead-pets')||'[]').includes(p._id)).length;
+    const todayStr = tds(state.today);
+    const todayTasks = await API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`).catch(() => []);
+    const overdueCount = await API.g('/api/tasks/overdue').catch(() => []);
+    const incomplete  = (todayTasks||[]).filter(t => !t.completed).length;
+    const urgentCount =
+      (notifData.requestCount||0) +
+      (notifData.fireCount||0) +
+      (notifData.messageCount||0) +
+      sick + newDead + pendingGifts.length +
+      incomplete + (overdueCount?.length||0);
+    _updateBellBadge(urgentCount);
+    // Update tab dot
+    const dot = document.getElementById('tnav-notif-dot');
+    if (dot) dot.style.display = notifData.total > 0 ? 'inline-block' : 'none';
+    updateFriendNotifBadge(notifData.requestCount||0);
+    // Update chat unread badge
+    const chatBadge = document.getElementById('gf-chat-unread-badge');
+    if (chatBadge) {
+      const mc = notifData.messageCount || 0;
+      chatBadge.textContent = mc;
+      chatBadge.style.display = mc > 0 ? 'inline-flex' : 'none';
     }
+  } catch(e) {}
+}
+
+function _updateBellBadge(count) {
+  const badge   = document.getElementById('notif-bell-badge');
+  const bellBtn = document.getElementById('notif-bell-btn');
+  if (bellBtn) bellBtn.classList.toggle('has-notif', count > 0);
+  if (badge) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.style.display = count > 0 ? '' : 'none';
   }
 }
 
@@ -3362,6 +3512,7 @@ const apiShop = {
   pets:        ()       => API.g('/api/shop/pets'),
   care:        (petId, action) => API.p('/api/shop/care', { petId, action }),
   setPetVisibility: (id, hidden) => API.pa(`/api/shop/pet/${id}/visibility`, { hidden }),
+  buryPet:     (id)    => API.d(`/api/shop/pets/${id}`).then(r => r.json()),
   badgesCatalog: ()     => API.g('/api/shop/badges-catalog'),
   checkBadges: (stats)  => API.p('/api/shop/check-badges', { stats }),
   addPoints:   (amt)    => API.p('/api/shop/add-points', { amount: amt }),
@@ -3928,6 +4079,96 @@ function buildBagTray(pet, category) {
     </div>`;
 }
 
+// ── BURIAL (chôn cất thú cưng/cây đã mất) ──
+async function buryPetAction(petId, petName, petEmoji, cardEl) {
+  // Show confirmation modal
+  const existing = document.getElementById('bury-modal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'bury-modal';
+  modal.className = 'bury-modal-backdrop';
+  modal.innerHTML = `
+    <div class="bury-modal-card">
+      <div class="bury-modal-emoji" id="bury-modal-emoji">${petEmoji}</div>
+      <div class="bury-modal-title">Chôn cất ${esc(petName)}</div>
+      <div class="bury-modal-sub">
+        Bạn muốn tiễn đưa <strong>${esc(petName)}</strong> về nơi an nghỉ cuối cùng?<br>
+        <span style="font-size:11px;color:var(--text3)">Hành động này không thể hoàn tác.</span>
+      </div>
+      <div class="bury-modal-btns">
+        <button class="bury-cancel-btn" id="bury-cancel">Để sau</button>
+        <button class="bury-confirm-btn" id="bury-confirm">🪦 Chôn cất</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  requestAnimationFrame(() => modal.classList.add('bury-show'));
+
+  document.getElementById('bury-cancel').addEventListener('click', () => {
+    modal.classList.remove('bury-show');
+    setTimeout(() => modal.remove(), 300);
+  });
+  modal.addEventListener('click', e => {
+    if (e.target === modal) {
+      modal.classList.remove('bury-show');
+      setTimeout(() => modal.remove(), 300);
+    }
+  });
+
+  document.getElementById('bury-confirm').addEventListener('click', async () => {
+    const confirmBtn = document.getElementById('bury-confirm');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = '⏳';
+
+    // Animate the emoji ascending
+    const emojiEl = document.getElementById('bury-modal-emoji');
+    if (emojiEl) emojiEl.classList.add('bury-ascend');
+
+    setTimeout(async () => {
+      try {
+        await apiShop.buryPet(petId);
+
+        // Update modal to tombstone
+        modal.querySelector('.bury-modal-card').innerHTML = `
+          <div class="bury-tombstone-anim">🪦</div>
+          <div class="bury-modal-title" style="color:var(--text2)">Nghỉ bình yên, ${esc(petName)}</div>
+          <div class="bury-modal-sub" style="font-size:12px">
+            Cảm ơn những kỷ niệm đẹp 🌸<br>
+            <span style="font-size:11px;color:var(--text3)">Bạn có thể mua thú cưng mới tại Cửa hàng.</span>
+          </div>`;
+
+        // Also remove from dead-pets localStorage
+        const seen = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
+        const idx = seen.indexOf(petId);
+        if (idx > -1) { seen.splice(idx, 1); localStorage.setItem('rh-seen-dead-pets', JSON.stringify(seen)); }
+
+        // Animate card out
+        if (cardEl) {
+          cardEl.style.transition = 'all .5s ease';
+          cardEl.style.opacity = '0';
+          cardEl.style.transform = 'scale(.85)';
+          setTimeout(() => cardEl.remove(), 500);
+        }
+
+        // Close modal after showing tombstone
+        setTimeout(() => {
+          modal.classList.remove('bury-show');
+          setTimeout(() => modal.remove(), 300);
+        }, 2200);
+
+        // Refresh
+        loadMyPets();
+        quickNotifCheck();
+        toast(`🪦 ${petName} đã được an táng.`);
+      } catch(e) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '🪦 Chôn cất';
+        toast('❌ ' + (e.message || 'Lỗi khi chôn cất'));
+      }
+    }, 800);
+  });
+}
+
 // ── MY PETS ──
 async function loadMyPets() {
   try {
@@ -3972,7 +4213,11 @@ async function loadMyPets() {
         <div class="pet-health-status"><span class="pet-health-dot ${healthStatus}"></span> ${healthLabel}</div>
         <div class="pet-level-bar"><div class="pet-level-fill" style="width:${pet.level >= 10 ? 100 : pctLevel}%"></div></div>
         <div class="pet-level-text">${pet.totalPoints} pts${pet.level >= 10 ? ' · MAX' : ` · ${50 - ptsInLevel} pts đến Lv.${pet.level + 1}`}</div>
-        ${!pet.alive ? `<div class="pet-dead-overlay"><div style="font-size:36px">😢</div><div class="pet-dead-text">Đã mất do không được chăm sóc</div></div>` : ''}
+        ${!pet.alive ? `<div class="pet-dead-overlay">
+          <div style="font-size:36px">😢</div>
+          <div class="pet-dead-text">Đã mất do không được chăm sóc</div>
+          <button class="pet-bury-btn" data-pet-id="${pet._id}" data-pet-name="${esc(pet.name)}" data-pet-emoji="${pet.emoji}" title="Chôn cất ${esc(pet.name)}">🪦 Chôn cất</button>
+        </div>` : ''}
       `;
 
       const emojiEl = card.querySelector('.pet-emoji');
@@ -4010,6 +4255,15 @@ async function loadMyPets() {
         } catch(err) { toast('❌ Lỗi: ' + (err.message || 'Không thể thay đổi!')); }
       });
 
+
+      // Bury button — only on dead pets
+      const buryBtn = card.querySelector('.pet-bury-btn');
+      if (buryBtn) {
+        buryBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          buryPetAction(buryBtn.dataset.petId, buryBtn.dataset.petName, buryBtn.dataset.petEmoji, card);
+        });
+      }
 
       grid.appendChild(card);
     });
@@ -5370,11 +5624,17 @@ async function loadFriendsList() {
 async function checkFireNotifications() {
   try {
     const notif = await apiGamification.notifications();
-    // Update tab badge
+    // Update tab dot + friend badge
     const dot = document.getElementById('tnav-notif-dot');
     if (dot) dot.style.display = notif.total > 0 ? 'inline-block' : 'none';
-    // Update section badge
     updateFriendNotifBadge(notif.requestCount);
+    // Update chat unread badge
+    const chatBadge = document.getElementById('gf-chat-unread-badge');
+    if (chatBadge) {
+      const mc = notif.messageCount || 0;
+      chatBadge.textContent = mc;
+      chatBadge.style.display = mc > 0 ? 'inline-flex' : 'none';
+    }
     // Show fire overlay for unseen fires
     if (notif.fireCount > 0) {
       const fires = await apiGamification.getFires();
@@ -5383,6 +5643,8 @@ async function checkFireNotifications() {
         showFireReceivedOverlay(latest.fromName, latest.message, fires.length, latest.from, latest.alreadySentBack);
       }
     }
+    // Refresh bell badge to include everything
+    quickNotifCheck();
   } catch(e) {}
 }
 

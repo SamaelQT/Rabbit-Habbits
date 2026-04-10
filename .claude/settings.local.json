@@ -1,7 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -n \"currentStreak\\\\|maxStreak\\\\|getFriendStreak\\\\|streamStreak\" /d/Rabbit-Habbits/models/*.js)"
+      "Bash(grep -n \"currentStreak\\\\|maxStreak\\\\|getFriendStreak\\\\|streamStreak\" /d/Rabbit-Habbits/models/*.js)",
+      "Bash(grep -n \"notification\\\\|notify\" /d/Rabbit-Habbits/routes/*.js)",
+      "Bash(node scripts/add-points.js samaelqt 1000)",
+      "Bash(where node:*)",
+      "Read(//usr/local/**)",
+      "Read(//c/Users/quang.ho/.nvm/versions/**)",
+      "Read(//c/Program Files/**)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Read(//c/Users/quang.ho/AppData/Roaming/**)",
+      "Bash(cmd /c \"where node\")",
+      "Bash(cmd /c \"where node 2>&1\")",
+      "Bash(cmd /c \"node -v\")",
+      "Bash(cmd /c \"npm -v\")",
+      "Read(//c//**)",
+      "Read(//d//**)",
+      "Read(//c/Users/quang.ho/**)",
+      "Bash(powershell -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell -Command \"\\(Get-Item 'HKLM:\\\\SOFTWARE\\\\Node.js' -ErrorAction SilentlyContinue\\).GetValue\\('InstallPath'\\)\")",
+      "Bash(cmd /c 'for %i in \\(node.exe\\) do @echo %~__TRACKED_VAR__:i')",
+      "Bash(npm --version)",
+      "Bash(mongosh --version)",
+      "Bash(mongo --version)",
+      "Bash(powershell.exe -NoProfile -Command ':*)",
+      "Bash(powershell.exe -NoProfile -Command \" [System.Environment]::GetEnvironmentVariable\\('Path','Machine'\\) + ';' + [System.Environment]::GetEnvironmentVariable\\('Path','User'\\) \")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\\\Program Files\\\\' -ErrorAction SilentlyContinue | Select-Object Name\")"
     ]
   }
 }

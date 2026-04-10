@@ -35,26 +35,59 @@ const userPointsSchema = new mongoose.Schema({
 // Level thresholds: level N requires LEVEL_THRESHOLDS[N-1] total points
 // Exponential curve: each level needs more points
 const LEVEL_THRESHOLDS = [
-  0,      // Lv1: 0
-  50,     // Lv2: 50
-  120,    // Lv3: 120
-  220,    // Lv4: 220
-  350,    // Lv5: 350
-  520,    // Lv6: 520
-  740,    // Lv7: 740
-  1020,   // Lv8: 1020
-  1380,   // Lv9: 1380
-  1820,   // Lv10: 1820
-  2360,   // Lv11
-  3020,   // Lv12
-  3820,   // Lv13
-  4780,   // Lv14
-  5920,   // Lv15
-  7260,   // Lv16
-  8820,   // Lv17
-  10620,  // Lv18
-  12680,  // Lv19
-  15000,  // Lv20
+  0,       // Lv1
+  50,      // Lv2
+  120,     // Lv3
+  220,     // Lv4
+  350,     // Lv5
+  520,     // Lv6
+  740,     // Lv7
+  1020,    // Lv8
+  1380,    // Lv9
+  1820,    // Lv10
+  2360,    // Lv11
+  3020,    // Lv12
+  3820,    // Lv13
+  4780,    // Lv14
+  5920,    // Lv15
+  7260,    // Lv16
+  8820,    // Lv17
+  10620,   // Lv18
+  12680,   // Lv19
+  15000,   // Lv20
+  // ── Tier Huyền Thoại (21-30) ──
+  18000,   // Lv21
+  21500,   // Lv22
+  25500,   // Lv23
+  30000,   // Lv24
+  35200,   // Lv25
+  41000,   // Lv26
+  47500,   // Lv27
+  54800,   // Lv28
+  63000,   // Lv29
+  72200,   // Lv30
+  // ── Tier Thần Thánh (31-40) ──
+  82500,   // Lv31
+  94000,   // Lv32
+  107000,  // Lv33
+  121500,  // Lv34
+  137500,  // Lv35
+  155500,  // Lv36
+  175500,  // Lv37
+  198000,  // Lv38
+  223000,  // Lv39
+  251000,  // Lv40
+  // ── Tier Vũ Trụ (41-50) ──
+  282000,  // Lv41
+  317000,  // Lv42
+  356000,  // Lv43
+  400000,  // Lv44
+  449000,  // Lv45
+  504000,  // Lv46
+  566000,  // Lv47
+  635000,  // Lv48
+  712000,  // Lv49
+  800000,  // Lv50
 ];
 
 userPointsSchema.statics.LEVEL_THRESHOLDS = LEVEL_THRESHOLDS;

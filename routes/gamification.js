@@ -16,35 +16,79 @@ router.use(requireAuth);
 // ═══ LEVEL SYSTEM ═══
 
 const LEVEL_NAMES = [
+  // ── Tier Người Thường (1-10) ──
   'Tân binh',          // 1
   'Khởi động',         // 2
   'Chăm chỉ',          // 3
-  'Kiên trì',           // 4
-  'Chiến binh',         // 5
-  'Dũng sĩ',            // 6
-  'Anh hùng',           // 7
-  'Huyền thoại',        // 8
-  'Bậc thầy',           // 9
-  'Đại sư',             // 10
-  'Thiên tài',          // 11
-  'Siêu nhân',          // 12
-  'Thần thoại',         // 13
-  'Bất tử',             // 14
-  'Vũ trụ',             // 15
-  'Thượng đế',          // 16
-  'Huyền bí',           // 17
+  'Kiên trì',          // 4
+  'Chiến binh',        // 5
+  'Dũng sĩ',           // 6
+  'Anh hùng',          // 7
+  'Huyền thoại',       // 8
+  'Bậc thầy',          // 9
+  'Đại sư',            // 10
+  // ── Tier Phi Thường (11-20) ──
+  'Thiên tài',         // 11
+  'Siêu nhân',         // 12
+  'Thần thoại',        // 13
+  'Bất tử',            // 14
+  'Vũ trụ',            // 15
+  'Thượng đế',         // 16
+  'Huyền bí',          // 17
   'Vĩnh cửu',          // 18
-  'Tối thượng',         // 19
-  'Rabbit Master',      // 20
+  'Tối thượng',        // 19
+  'Rabbit Master',     // 20
+  // ── Tier Huyền Thoại (21-30) ──
+  'Thiên Sứ',          // 21
+  'Địa Linh',          // 22
+  'Nhân Kiệt',         // 23
+  'Hoàng Đế',          // 24
+  'Thần Vương',        // 25
+  'Thánh Nhân',        // 26
+  'Tiên Giới',         // 27
+  'Ma Vương',          // 28
+  'Thần Long',         // 29
+  'Ngũ Đế',            // 30
+  // ── Tier Thần Thánh (31-40) ──
+  'Cửu Thiên',         // 31
+  'Vạn Thần',          // 32
+  'Địa Tôn',           // 33
+  'Thiên Tôn',         // 34
+  'Vô Cực',            // 35
+  'Hư Không',          // 36
+  'Hỗn Độn',           // 37
+  'Nguyên Thủy',       // 38
+  'Khai Thiên',        // 39
+  'Phán Trái Đất',     // 40
+  // ── Tier Vũ Trụ (41-50) ──
+  'Vũ Trụ Vương',      // 41
+  'Đa Chiều',          // 42
+  'Siêu Vũ Trụ',       // 43
+  'Thái Cực',          // 44
+  'Vô Biên',           // 45
+  'Toàn Tri',          // 46
+  'Toàn Năng',         // 47
+  'Tuyệt Đối',         // 48
+  'Hư Vô',             // 49
+  'Rabbit God',        // 50
 ];
 
 const LEVEL_EMOJIS = [
+  // Tier Người Thường (1-10)
   '🌱','🌿','🍀','🌸','⚔️','🛡️','🦸','🏆','👑','💎',
-  '🌟','⚡','🐉','🔮','🌌','🏛️','🦅','💫','🌈','🐰'
+  // Tier Phi Thường (11-20)
+  '🌟','⚡','🐉','🔮','🌌','🏛️','🦅','💫','🌈','🐰',
+  // Tier Huyền Thoại (21-30)
+  '🌠','🗺️','🌊','👸','🔱','🕊️','🌺','😈','🐲','🏯',
+  // Tier Thần Thánh (31-40)
+  '☁️','🌀','⛰️','🌤️','♾️','🌑','🌪️','🌋','💥','🌍',
+  // Tier Vũ Trụ (41-50)
+  '🪐','🌐','🌌','☯️','♾️','👁️','⚡','💫','🌫️','🐰'
 ];
 
 // Level-up rewards: free items given when reaching each level
 const LEVEL_REWARDS = {
+  // Tier Người Thường
   2:  { food: 3, water: 2 },
   3:  { food: 3, water: 3, seed: 2 },
   4:  { food: 5, water: 3, meat: 2 },
@@ -54,6 +98,18 @@ const LEVEL_REWARDS = {
   8:  { food: 8, water: 8, meat: 5, fish: 5, seed: 3 },
   9:  { food: 10, water: 8, treat: 5, fertilizer: 5 },
   10: { food: 10, water: 10, meat: 8, fish: 8, treat: 5, seed: 5, fertilizer: 5 },
+  // Tier Phi Thường
+  15: { food: 15, water: 15, meat: 10, fish: 10, treat: 8, seed: 8, fertilizer: 8 },
+  20: { food: 20, water: 20, meat: 15, fish: 15, treat: 10, seed: 10, fertilizer: 10, coffee: 5 },
+  // Tier Huyền Thoại
+  25: { food: 25, water: 25, meat: 20, fish: 20, treat: 15, seed: 15, fertilizer: 15, coffee: 8, rose: 5 },
+  30: { food: 30, water: 30, meat: 25, fish: 25, treat: 20, seed: 20, fertilizer: 20, coffee: 12, rose: 8, chocolate: 5 },
+  // Tier Thần Thánh
+  35: { food: 40, water: 40, meat: 30, fish: 30, treat: 25, seed: 25, fertilizer: 25, coffee: 15, rose: 12, chocolate: 8, star: 5 },
+  40: { food: 50, water: 50, meat: 40, fish: 40, treat: 30, seed: 30, fertilizer: 30, coffee: 20, rose: 15, chocolate: 12, star: 8 },
+  // Tier Vũ Trụ
+  45: { food: 60, water: 60, meat: 50, fish: 50, treat: 40, seed: 40, fertilizer: 40, coffee: 25, rose: 20, chocolate: 18, star: 15 },
+  50: { food: 99, water: 99, meat: 99, fish: 99, treat: 99, seed: 99, fertilizer: 99, coffee: 50, rose: 50, chocolate: 50, star: 50 },
 };
 
 // GET /api/gamification/level — current level info
@@ -617,14 +673,17 @@ router.post('/fires/seen', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/gamification/notifications — badge counts
+// GET /api/gamification/notifications — badge counts (includes unread messages)
 router.get('/notifications', async (req, res) => {
   try {
-    const me = await User.findById(req.userId).select('friendRequests receivedFires receivedGifts');
+    const [me, messageCount] = await Promise.all([
+      User.findById(req.userId).select('friendRequests receivedFires receivedGifts'),
+      Message.countDocuments({ to: req.userId, seen: false })
+    ]);
     const requestCount = (me.friendRequests || []).length;
-    const fireCount = (me.receivedFires || []).filter(f => !f.seen).length;
-    const giftCount = (me.receivedGifts || []).filter(g => !g.seen).length;
-    res.json({ requestCount, fireCount, giftCount, total: requestCount + fireCount + giftCount });
+    const fireCount    = (me.receivedFires  || []).filter(f => !f.seen).length;
+    const giftCount    = (me.receivedGifts  || []).filter(g => !g.seen).length;
+    res.json({ requestCount, fireCount, giftCount, messageCount, total: requestCount + fireCount + giftCount + messageCount });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

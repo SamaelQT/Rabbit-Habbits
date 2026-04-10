@@ -53,6 +53,22 @@ Auth middleware (`middleware/auth.js`) reads `token` from cookies and attaches `
 - Tasks award 5–12 pts based on priority; habits award 5 pts; goals award 8 pts
 - Streak freeze cards can be purchased to protect daily streaks
 - Pet growth stage is derived from accumulated `totalPoints`
+- Friend fire streaks tracked in `User.fireStreaks[]` — increments on consecutive days
+
+### Notification System
+
+The bell icon (`#notif-bell-btn`) in the header aggregates **all** alerts. Key rules:
+
+- `loadNotifications()` — full panel render (call when panel opens)
+- `quickNotifCheck()` — lightweight badge-only refresh (polling + post-action)
+- **Always call `quickNotifCheck()` after any user action that changes data** (task toggle, habit log, goal update, journal save, pet care, shop purchase, etc.)
+- Badge count includes: friend requests + unseen fires + unread messages + sick/dead pets + overdue tasks + today's incomplete tasks + unopened gifts
+- Polling runs every 45 s via `setInterval`
+
+### Development Rules (IMPORTANT)
+
+1. **After every feature/fix, call `quickNotifCheck()`** wherever the relevant data changes so the badge stays live.
+2. **Update `README.md`** to reflect any new features, endpoints, or behaviour changes.
 
 ### Frontend (`public/`)
 

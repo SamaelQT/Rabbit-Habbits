@@ -10,6 +10,7 @@ Nền tảng năng suất cá nhân và gamification bằng tiếng Việt. Theo
 - Tạo, hoàn thành, xoá task với 4 mức độ ưu tiên
 - Tiền thưởng điểm tăng theo level của người dùng (×1.1 mỗi level)
 - Thống kê tuần/tháng/năm: tỉ lệ hoàn thành, top tasks, giờ làm việc hiệu quả
+- Thông báo nhắc nhở task **quá hạn** (từ 7 ngày trước chưa hoàn thành)
 
 ### 🐇 Thói quen (Habits)
 - Theo dõi thói quen hàng ngày với streak
@@ -42,7 +43,22 @@ Nền tảng năng suất cá nhân và gamification bằng tiếng Việt. Theo
 - Kết bạn qua mã bạn bè
 - **Truyền lửa** (🔥): gửi một trong 50 câu động viên ngẫu nhiên cho bạn; bạn nhận hiệu ứng lửa toàn màn hình
   - Người nhận có thể gửi lại lửa 1 lần; người gửi đầu tiên chỉ thấy nút Đóng (tránh vòng lặp vô hạn)
+- **Chuỗi lửa bạn bè** (Fire Streak): đếm số ngày liên tiếp 2 người đã truyền lửa cho nhau
+  - 6 cấp độ ngọn lửa theo Duolingo (mốc 10/20/30/40/50+ ngày)
+  - Hiển thị trong header cửa sổ chat với animation ngọn lửa tương ứng
 - **Nhắn tin**: chat trực tiếp với từng người bạn (polling mỗi 4 giây)
+
+### 🔔 Hệ thống Thông báo
+- **Chuông thông báo** (header) tổng hợp mọi loại cảnh báo với badge đếm:
+  - 👥 Lời mời kết bạn chờ phê duyệt
+  - 🔥 Lửa nhận được chưa xem (kèm nội dung câu động viên)
+  - 💬 Tin nhắn chưa đọc (click mở chat ngay)
+  - 💀 Thú cưng/Cây đã chết
+  - 🐾 Thú cưng cần chăm sóc (sức khỏe < 70%)
+  - ⚠️ Task quá hạn từ 7 ngày trước chưa hoàn thành
+  - 📋 Task hôm nay chưa xong
+  - 🎁 Quà chưa mở
+- Badge cập nhật tự động mỗi 45 giây và sau mỗi thao tác (hoàn thành task, log thói quen…)
 
 ### 📊 Thống kê & Phân tích
 - Báo cáo tuần (tasks, streak, tâm trạng)
@@ -90,7 +106,7 @@ rabbit-habits/
 ├── server.js
 ├── .env
 ├── models/
-│   ├── User.js
+│   ├── User.js          # + fireStreaks[] cho chuỗi lửa bạn bè
 │   ├── Task.js
 │   ├── Habit.js + HabitLog.js
 │   ├── Goal.js
@@ -100,12 +116,12 @@ rabbit-habits/
 │   └── Message.js
 ├── routes/
 │   ├── auth.js
-│   ├── tasks.js
+│   ├── tasks.js         # + GET /overdue
 │   ├── habits.js
 │   ├── journal.js
 │   ├── goals.js
 │   ├── shop.js
-│   └── gamification.js
+│   └── gamification.js  # + GET /fire-streak/:friendId
 ├── middleware/
 │   └── auth.js
 └── public/
@@ -120,8 +136,11 @@ rabbit-habits/
 |--------|--------|-------|
 | `*` | `/api/auth` | Đăng ký, đăng nhập, đăng xuất |
 | `*` | `/api/tasks` | CRUD tasks, thống kê, giờ hiệu quả |
+| `GET` | `/api/tasks/overdue` | Tasks chưa xong từ 7 ngày trước |
 | `*` | `/api/habits` | CRUD habits, log hàng ngày |
 | `*` | `/api/goals` | CRUD goals, toggle ngày, kho lưu trữ |
 | `*` | `/api/journal` | Nhật ký tâm trạng |
 | `*` | `/api/shop` | Thú cưng, vật phẩm, điểm |
 | `*` | `/api/gamification` | Level, thử thách, bạn bè, truyền lửa, nhắn tin |
+| `GET` | `/api/gamification/fire-streak/:friendId` | Chuỗi lửa giữa 2 người bạn |
+| `GET` | `/api/gamification/notifications` | Badge counts (incl. messageCount) |

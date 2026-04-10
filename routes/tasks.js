@@ -175,6 +175,20 @@ router.get('/stats', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// GET /api/tasks/overdue — incomplete tasks from the past 7 days (not today)
+router.get('/overdue', async (req, res) => {
+  try {
+    const today      = new Date().toISOString().slice(0, 10);
+    const sevenAgo   = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const tasks = await Task.find({
+      userId:    req.userId,
+      completed: false,
+      date:      { $gte: sevenAgo, $lt: today }
+    }).sort({ date: -1, priority: -1 }).limit(15);
+    res.json(tasks);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 router.get('/streak', async (req, res) => {
   try {
     const { title } = req.query;
