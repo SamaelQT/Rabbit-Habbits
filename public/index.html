@@ -6,6 +6,7 @@
   <title>Rabbit Habits 🐰</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
   <link rel="stylesheet" href="/css/style.css"/>
+  <link rel="stylesheet" href="/css/garden.css"/>
   <script src="/js/chart.umd.min.js"></script>
 </head>
 <body>
@@ -22,7 +23,8 @@
     <button class="tnav-btn active" data-page="home">🏠 Trang chủ</button>
     <button class="tnav-btn" data-page="stats">📊 Thống kê</button>
     <button class="tnav-btn" data-page="shop">🛒 Cửa hàng</button>
-    <button class="tnav-btn" data-page="gamification" id="tnav-gamification">🎮 Game<span class="tnav-notif-dot" id="tnav-notif-dot" style="display:none"></span></button>
+    <button class="tnav-btn" data-page="garden">🌿 Vườn</button>
+    <button class="tnav-btn" data-page="gamification" id="tnav-gamification">🕹️ Arcade<span class="tnav-notif-dot" id="tnav-notif-dot" style="display:none"></span></button>
     <button class="tnav-btn" data-page="profile">👤 Hồ sơ</button>
   </nav>
 
@@ -515,6 +517,168 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- ──────────────────────────────────
+     PAGE: GARDEN (Vườn Sinh Thái)
+────────────────────────────────── -->
+<div class="page-content" id="page-garden" style="display:none">
+  <div class="page-inner garden-page-inner">
+
+    <!-- Header bar -->
+    <div class="garden-header">
+      <div class="garden-title-row">
+        <span class="garden-title">🌿 Vườn Sinh Thái</span>
+        <div class="garden-time-badge" id="garden-time-badge">☀️ Buổi sáng</div>
+      </div>
+      <div class="garden-points-row">
+        <span class="garden-pts-label">💰 Điểm của bạn:</span>
+        <span class="garden-pts-val" id="garden-pts-val">—</span>
+      </div>
+    </div>
+
+    <!-- Migration notice (shown once) -->
+    <div class="garden-migration-notice" id="garden-migration-notice" style="display:none">
+      <span class="gmn-icon">🌿</span>
+      <div class="gmn-body">
+        <div class="gmn-title">Vườn mới mở!</div>
+        <div class="gmn-msg" id="gmn-msg">Cây cũ đã được chuyển về vườn. Bạn được hoàn lại <strong id="gmn-pts"></strong> điểm.</div>
+      </div>
+      <button class="gmn-close" id="gmn-close">✕</button>
+    </div>
+
+    <!-- View tabs: Grid vs Shop -->
+    <div class="garden-view-tabs">
+      <button class="gvt-btn active" data-gview="grid">🌱 Vườn của tôi</button>
+      <button class="gvt-btn" data-gview="shop">🛒 Mua cây & chậu</button>
+    </div>
+
+    <!-- ── GRID VIEW ─────────────────────────── -->
+    <div id="garden-view-grid">
+      <div class="garden-grid-wrap">
+        <div class="garden-grid" id="garden-grid">
+          <!-- cells injected by JS -->
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="garden-legend">
+        <span class="gl-item"><span class="gl-dot gl-locked"></span>Chưa mua</span>
+        <span class="gl-item"><span class="gl-dot gl-empty"></span>Trống</span>
+        <span class="gl-item"><span class="gl-dot gl-planted"></span>Đang trồng</span>
+        <span class="gl-item"><span class="gl-dot gl-harvest"></span>Sẵn thu hoạch</span>
+        <span class="gl-item"><span class="gl-dot gl-dead"></span>Cây chết</span>
+      </div>
+    </div>
+
+    <!-- ── SHOP VIEW ─────────────────────────── -->
+    <div id="garden-view-shop" style="display:none">
+      <div class="garden-shop-tabs">
+        <button class="gst-btn active" data-gshop="plants">🌱 Cây giống</button>
+        <button class="gst-btn" data-gshop="pots">🪴 Chậu cây</button>
+      </div>
+
+      <!-- Plant filter -->
+      <div class="gshop-filter" id="gshop-plant-filter">
+        <button class="gf-btn active" data-cat="all">Tất cả</button>
+        <button class="gf-btn" data-cat="vegetable">🥬 Rau</button>
+        <button class="gf-btn" data-cat="fruit">🍎 Quả</button>
+        <button class="gf-btn" data-cat="flower">🌸 Hoa</button>
+        <button class="gf-btn" data-cat="fengshui">🎍 Phong thủy</button>
+      </div>
+
+      <div class="garden-shop-grid" id="gshop-items">
+        <!-- injected by JS -->
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── PLANT CARE PANEL (slide-up) ────────────────────────── -->
+<div class="garden-care-backdrop" id="garden-care-backdrop" style="display:none"></div>
+<div class="garden-care-panel" id="garden-care-panel" style="display:none">
+  <div class="gcp-handle"></div>
+  <div class="gcp-header">
+    <div class="gcp-plant-emoji" id="gcp-emoji">🌿</div>
+    <div class="gcp-plant-info">
+      <div class="gcp-plant-name" id="gcp-name">—</div>
+      <div class="gcp-stage-badge" id="gcp-stage">—</div>
+    </div>
+    <button class="gcp-close" id="gcp-close">✕</button>
+  </div>
+
+  <!-- Health bars -->
+  <div class="gcp-bars">
+    <div class="gcp-bar-row">
+      <span class="gcp-bar-label">❤️ Sức khỏe</span>
+      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-health-bar" id="gcp-health-bar"></div></div>
+      <span class="gcp-bar-val" id="gcp-health-val">—</span>
+    </div>
+    <div class="gcp-bar-row">
+      <span class="gcp-bar-label">💧 Độ ẩm</span>
+      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-water-bar" id="gcp-water-bar"></div></div>
+      <span class="gcp-bar-val" id="gcp-water-val">—</span>
+    </div>
+    <div class="gcp-bar-row">
+      <span class="gcp-bar-label">🌿 Dinh dưỡng</span>
+      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-nutrient-bar" id="gcp-nutrient-bar"></div></div>
+      <span class="gcp-bar-val" id="gcp-nutrient-val">—</span>
+    </div>
+  </div>
+
+  <!-- Status badges -->
+  <div class="gcp-status-row" id="gcp-status-row"></div>
+
+  <!-- Stage progress -->
+  <div class="gcp-stage-row">
+    <div class="gcp-stage-label">Giai đoạn tiếp theo:</div>
+    <div class="gcp-stage-progress-wrap">
+      <div class="gcp-stage-progress" id="gcp-stage-progress"></div>
+    </div>
+    <div class="gcp-stage-eta" id="gcp-stage-eta">—</div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="gcp-actions">
+    <button class="gcp-btn gcp-btn-water"   id="gcp-btn-water">💧 Tưới nước</button>
+    <button class="gcp-btn gcp-btn-fert"    id="gcp-btn-fert">🌿 Bón phân</button>
+    <button class="gcp-btn gcp-btn-bug"     id="gcp-btn-bug">🐛 Bắt sâu</button>
+    <button class="gcp-btn gcp-btn-leaf"    id="gcp-btn-leaf">🍂 Ngắt lá hư</button>
+    <button class="gcp-btn gcp-btn-harvest" id="gcp-btn-harvest" style="display:none">🌾 Thu hoạch</button>
+    <button class="gcp-btn gcp-btn-uproot"  id="gcp-btn-uproot">🗑️ Nhổ cây</button>
+  </div>
+
+  <!-- Pot info -->
+  <div class="gcp-pot-row" id="gcp-pot-row"></div>
+</div>
+
+<!-- ── PLANT SELECTOR MODAL (choose plant & pot when clicking empty cell) ── -->
+<div class="garden-plant-modal-backdrop" id="gpm-backdrop" style="display:none"></div>
+<div class="garden-plant-modal" id="gpm-modal" style="display:none">
+  <div class="gpm-header">
+    <div class="gpm-title">🌱 Trồng cây tại ô (<span id="gpm-cell-pos"></span>)</div>
+    <button class="gpm-close" id="gpm-close">✕</button>
+  </div>
+
+  <div class="gpm-section-label">Chọn cây giống:</div>
+  <div class="gpm-plant-filter">
+    <button class="gpf-btn active" data-cat="all">Tất cả</button>
+    <button class="gpf-btn" data-cat="vegetable">🥬 Rau</button>
+    <button class="gpf-btn" data-cat="fruit">🍎 Quả</button>
+    <button class="gpf-btn" data-cat="flower">🌸 Hoa</button>
+    <button class="gpf-btn" data-cat="fengshui">🎍 Phong thủy</button>
+  </div>
+  <div class="gpm-plant-list" id="gpm-plant-list"></div>
+
+  <div class="gpm-section-label" style="margin-top:12px">Chọn chậu cây:</div>
+  <div class="gpm-pot-list" id="gpm-pot-list"></div>
+
+  <div class="gpm-cost-row">
+    <span class="gpm-cost-label">Tổng chi phí:</span>
+    <span class="gpm-cost-val" id="gpm-cost-val">— điểm</span>
+  </div>
+  <button class="gpm-confirm-btn" id="gpm-confirm" disabled>🌱 Trồng ngay!</button>
 </div>
 
 <!-- ──────────────────────────────────

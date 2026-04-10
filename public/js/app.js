@@ -6487,4 +6487,543 @@ navigateTo = function(page) {
   if (page === 'gamification') {
     initGamification();
   }
+  if (page === 'garden') {
+    initGarden();
+  }
 };
+
+// ═══════════════════════════════════════════════════════════════
+// 🌿 VƯỜN SINH THÁI — PHASE 1
+// ═══════════════════════════════════════════════════════════════
+
+const apiGarden = {
+  load:        ()              => API.g('/api/garden'),
+  catalog:     ()              => API.g('/api/garden/catalog'),
+  buyPlot:     (row, col)      => API.p('/api/garden/plots/buy', { row, col }),
+  plant:       (row, col, plantTypeId, potTypeId) =>
+                                  API.p('/api/garden/plant', { row, col, plantTypeId, potTypeId }),
+  water:       (id)            => API.p(`/api/garden/water/${id}`, {}),
+  fertilize:   (id)            => API.p(`/api/garden/fertilize/${id}`, {}),
+  catchBug:    (id)            => API.p(`/api/garden/catch-bug/${id}`, {}),
+  removeLeaf:  (id)            => API.p(`/api/garden/remove-leaf/${id}`, {}),
+  harvest:     (id)            => API.p(`/api/garden/harvest/${id}`, {}),
+  uproot:      (id)            => API.d(`/api/garden/plant/${id}`).then(r => r.json()),
+};
+
+// ── Garden state ──────────────────────────────────────────────
+let _gardenInited   = false;
+let _gardenData     = null;   // { purchasedCells, plants, gridConfig, cellPrices, gameTime }
+let _gardenCatalog  = null;   // { plants, pots }
+let _gpmSelectedPlant = null;
+let _gpmSelectedPot   = null;
+let _gpmTargetCell    = null; // { row, col }
+let _gcpPlantId       = null; // currently open care panel plant id
+
+// ── Stage display info ────────────────────────────────────────
+const STAGE_INFO = {
+  seed:      { label:'Hạt giống',    emoji:'🌰', color:'#a0844c' },
+  sprout:    { label:'Nảy mầm',      emoji:'🌱', color:'#5ef0a0' },
+  leafing:   { label:'Ra lá',        emoji:'🌿', color:'#4caf50' },
+  growing:   { label:'Đang lớn',     emoji:'🪴', color:'#66bb6a' },
+  flowering: { label:'Ra hoa',       emoji:'🌸', color:'#ff85c8' },
+  fruiting:  { label:'Kết trái',     emoji:'🍎', color:'#ff6b5b' },
+  dormant:   { label:'Nghỉ đông',    emoji:'🍂', color:'#c8954a' },
+};
+
+const CAT_INFO = {
+  vegetable: { label:'Rau',        emoji:'🥬', color:'#5ef0a0' },
+  fruit:     { label:'Ăn quả',     emoji:'🍎', color:'#ff9900' },
+  flower:    { label:'Hoa',        emoji:'🌸', color:'#ff85c8' },
+  fengshui:  { label:'Phong thủy', emoji:'🎍', color:'#b07fff' },
+};
+
+// ── Init ──────────────────────────────────────────────────────
+async function initGarden() {
+  if (_gardenInited) { _refreshGardenUI(); return; }
+  _gardenInited = true;
+
+  // Load catalog + garden in parallel
+  try {
+    [_gardenCatalog, _gardenData] = await Promise.all([
+      apiGarden.catalog(),
+      apiGarden.load(),
+    ]);
+  } catch(e) {
+    console.error('initGarden:', e);
+    return;
+  }
+
+  _setupGardenViewTabs();
+  _setupGardenShopTabs();
+  _setupGardenShopFilter();
+  _setupPlantModalFilter();
+  _setupCarePanelButtons();
+
+  _refreshGardenUI();
+
+  // Show migration notice if refund happened
+  if (_gardenData.migrationRefund) {
+    const notice = document.getElementById('garden-migration-notice');
+    const ptsEl  = document.getElementById('gmn-pts');
+    if (notice && ptsEl) {
+      ptsEl.textContent = _gardenData.migrationRefund + ' điểm';
+      notice.style.display = 'flex';
+    }
+    document.getElementById('gmn-close')?.addEventListener('click', () => {
+      document.getElementById('garden-migration-notice').style.display = 'none';
+    });
+  }
+}
+
+function _refreshGardenUI() {
+  if (!_gardenData) return;
+  _updateGardenTimeLabel();
+  _updateGardenPoints();
+  _renderGardenGrid();
+  _renderGardenShop();
+}
+
+function _updateGardenTimeLabel() {
+  const t  = _gardenData.gameTime || {};
+  const el = document.getElementById('garden-time-badge');
+  if (el) el.textContent = `${t.icon || '☀️'} ${t.label || ''}`;
+}
+
+function _updateGardenPoints() {
+  // Re-use the header points value
+  const hdr = document.getElementById('header-points-val');
+  const el  = document.getElementById('garden-pts-val');
+  if (el && hdr) el.textContent = hdr.textContent + ' điểm';
+}
+
+// ── Render grid ───────────────────────────────────────────────
+function _renderGardenGrid() {
+  const grid = document.getElementById('garden-grid');
+  if (!grid || !_gardenData) return;
+
+  const { gridConfig, cellPrices, purchasedCells, plants } = _gardenData;
+  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
+
+  // Build lookup maps
+  const purchasedSet = new Set(purchasedCells.map(c => `${c.row},${c.col}`));
+  const plantMap     = {};
+  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
+
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const key      = `${r},${c}`;
+      const owned    = purchasedSet.has(key);
+      const plant    = plantMap[key];
+      const price    = cellPrices?.[r]?.[c] || 50;
+      const cell     = document.createElement('div');
+      cell.className = 'garden-cell';
+      cell.dataset.row = r;
+      cell.dataset.col = c;
+
+      if (!owned) {
+        cell.classList.add('gc-locked');
+        cell.innerHTML = `<div class="gc-lock-icon">🔒</div><div class="gc-price">${price}đ</div>`;
+        cell.addEventListener('click', () => _buyCell(r, c, price));
+
+      } else if (!plant || !plant.isAlive) {
+        cell.classList.add(plant ? 'gc-dead' : 'gc-empty');
+        if (plant && !plant.isAlive) {
+          const si = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+          cell.innerHTML = `<div class="gc-dead-emoji">💀</div>
+            <div class="gc-dead-name">${esc(plant.plantType?.name || '')}</div>
+            <div class="gc-cell-action">Nhổ cây</div>`;
+          cell.addEventListener('click', () => _openCarePanel(plant));
+        } else {
+          cell.innerHTML = `<div class="gc-empty-plus">+</div><div class="gc-empty-label">Trồng cây</div>`;
+          cell.addEventListener('click', () => _openPlantModal(r, c));
+        }
+
+      } else {
+        // Living plant
+        const si   = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+        const hp   = Math.round(plant.health);
+        const hpColor = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
+        cell.classList.add('gc-planted');
+        if (plant.readyToHarvest)  cell.classList.add('gc-harvest');
+        if (plant.health < 30)     cell.classList.add('gc-sick');
+        if (plant.bugs > 0)        cell.classList.add('gc-has-bugs');
+
+        cell.innerHTML = `
+          <div class="gc-plant-emoji">${si.emoji}</div>
+          <div class="gc-plant-name">${esc(plant.plantType?.name?.split(' ').slice(-1)[0] || '')}</div>
+          <div class="gc-hp-bar-wrap">
+            <div class="gc-hp-bar" style="width:${hp}%;background:${hpColor}"></div>
+          </div>
+          ${plant.readyToHarvest ? '<div class="gc-harvest-badge">🌾</div>' : ''}
+          ${plant.bugs > 0       ? `<div class="gc-bug-badge">🐛${plant.bugs}</div>` : ''}
+          ${plant.deadLeaves > 3 ? '<div class="gc-leaf-badge">🍂</div>' : ''}
+        `;
+        cell.addEventListener('click', () => _openCarePanel(plant));
+      }
+      grid.appendChild(cell);
+    }
+  }
+}
+
+// ── Buy cell ──────────────────────────────────────────────────
+async function _buyCell(row, col, price) {
+  if (!confirm(`Mua ô đất này với giá ${price} điểm?`)) return;
+  try {
+    const r = await apiGarden.buyPlot(row, col);
+    if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); return; }
+    toast(`✅ Đã mua ô đất! Còn ${r.points} điểm`);
+    updatePointsUI(r.points);
+    // Refresh garden data
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── Plant modal ───────────────────────────────────────────────
+function _openPlantModal(row, col) {
+  _gpmTargetCell    = { row, col };
+  _gpmSelectedPlant = null;
+  _gpmSelectedPot   = null;
+  _updateGpmCost();
+
+  document.getElementById('gpm-cell-pos').textContent = `${row + 1}×${col + 1}`;
+  _renderGpmPlants('all');
+  _renderGpmPots();
+
+  document.getElementById('gpm-backdrop').style.display = '';
+  document.getElementById('gpm-modal').style.display = '';
+}
+
+function _closeGpmModal() {
+  document.getElementById('gpm-backdrop').style.display = 'none';
+  document.getElementById('gpm-modal').style.display = 'none';
+}
+
+function _renderGpmPlants(cat) {
+  const list = document.getElementById('gpm-plant-list');
+  if (!list || !_gardenCatalog) return;
+  const plants = cat === 'all'
+    ? _gardenCatalog.plants
+    : _gardenCatalog.plants.filter(p => p.category === cat);
+  list.innerHTML = plants.map(p => {
+    const ci = CAT_INFO[p.category] || {};
+    const sel = _gpmSelectedPlant?.id === p.id ? 'gpm-item-selected' : '';
+    return `<div class="gpm-plant-item ${sel}" data-pid="${p.id}">
+      <div class="gpm-item-emoji">${p.emoji}</div>
+      <div class="gpm-item-info">
+        <div class="gpm-item-name">${esc(p.name)}</div>
+        <div class="gpm-item-sub">${ci.emoji||''} ${ci.label||''} · ${p.harvestable ? '🌾 Thu hoạch được' : '🌀 Cây cảnh'}</div>
+      </div>
+      <div class="gpm-item-price">${p.price}đ</div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.gpm-plant-item').forEach(el => {
+    el.addEventListener('click', () => {
+      _gpmSelectedPlant = _gardenCatalog.plants.find(p => p.id === el.dataset.pid);
+      list.querySelectorAll('.gpm-plant-item').forEach(e => e.classList.remove('gpm-item-selected'));
+      el.classList.add('gpm-item-selected');
+      _updateGpmCost();
+    });
+  });
+}
+
+function _renderGpmPots() {
+  const list = document.getElementById('gpm-pot-list');
+  if (!list || !_gardenCatalog) return;
+  list.innerHTML = _gardenCatalog.pots.map(p => {
+    const sel = _gpmSelectedPot?.id === p.id ? 'gpm-item-selected' : '';
+    return `<div class="gpm-pot-item ${sel}" data-potid="${p.id}">
+      <div class="gpm-item-emoji">${p.emoji}</div>
+      <div class="gpm-item-info">
+        <div class="gpm-item-name">${esc(p.name)}</div>
+        <div class="gpm-item-sub">${esc(p.desc)}</div>
+      </div>
+      <div class="gpm-item-price">${p.price}đ</div>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.gpm-pot-item').forEach(el => {
+    el.addEventListener('click', () => {
+      _gpmSelectedPot = _gardenCatalog.pots.find(p => p.id === el.dataset.potid);
+      list.querySelectorAll('.gpm-pot-item').forEach(e => e.classList.remove('gpm-item-selected'));
+      el.classList.add('gpm-item-selected');
+      _updateGpmCost();
+    });
+  });
+}
+
+function _updateGpmCost() {
+  const costEl   = document.getElementById('gpm-cost-val');
+  const confirmBtn = document.getElementById('gpm-confirm');
+  const total = (_gpmSelectedPlant?.price || 0) + (_gpmSelectedPot?.price || 0);
+  if (costEl) costEl.textContent = total ? `${total} điểm` : '— điểm';
+  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot);
+}
+
+function _setupPlantModalFilter() {
+  document.querySelectorAll('.gpf-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gpf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _renderGpmPlants(btn.dataset.cat);
+    });
+  });
+
+  document.getElementById('gpm-close')?.addEventListener('click', _closeGpmModal);
+  document.getElementById('gpm-backdrop')?.addEventListener('click', _closeGpmModal);
+
+  document.getElementById('gpm-confirm')?.addEventListener('click', async () => {
+    if (!_gpmSelectedPlant || !_gpmSelectedPot || !_gpmTargetCell) return;
+    const btn = document.getElementById('gpm-confirm');
+    btn.disabled = true; btn.textContent = '⏳';
+    try {
+      const r = await apiGarden.plant(
+        _gpmTargetCell.row, _gpmTargetCell.col,
+        _gpmSelectedPlant.id, _gpmSelectedPot.id
+      );
+      if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.disabled = false; btn.textContent = '🌱 Trồng ngay!'; return; }
+      toast(`🌱 Đã trồng ${_gpmSelectedPlant.name}!`);
+      updatePointsUI(r.points);
+      _closeGpmModal();
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+      quickNotifCheck();
+    } catch(e) { toast('❌ ' + e.message); }
+    btn.disabled = false; btn.textContent = '🌱 Trồng ngay!';
+  });
+}
+
+// ── Care panel ────────────────────────────────────────────────
+function _openCarePanel(plant) {
+  _gcpPlantId = plant._id;
+  _renderCarePanel(plant);
+  document.getElementById('garden-care-backdrop').style.display = '';
+  const panel = document.getElementById('garden-care-panel');
+  panel.style.display = '';
+  requestAnimationFrame(() => panel.classList.add('gcp-open'));
+}
+
+function _closeCarePanel() {
+  const panel = document.getElementById('garden-care-panel');
+  panel.classList.remove('gcp-open');
+  setTimeout(() => {
+    panel.style.display = 'none';
+    document.getElementById('garden-care-backdrop').style.display = 'none';
+  }, 300);
+}
+
+function _renderCarePanel(plant) {
+  const pt  = plant.plantType  || {};
+  const pot = plant.potType    || {};
+  const si  = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+
+  // Header
+  const emojiEl = document.getElementById('gcp-emoji');
+  const nameEl  = document.getElementById('gcp-name');
+  const stageEl = document.getElementById('gcp-stage');
+  if (emojiEl) emojiEl.textContent = si.emoji;
+  if (nameEl)  nameEl.textContent  = pt.name || '—';
+  if (stageEl) { stageEl.textContent = si.label; stageEl.style.background = si.color + '33'; stageEl.style.color = si.color; }
+
+  // Bars
+  function setBar(barId, valId, pct, color) {
+    const b = document.getElementById(barId), v = document.getElementById(valId);
+    if (b) { b.style.width = pct + '%'; b.style.background = color; }
+    if (v) v.textContent = Math.round(pct) + '%';
+  }
+  const hp = plant.health || 0, wl = plant.waterLevel || 0, nl = plant.nutrientLevel || 0;
+  setBar('gcp-health-bar',   'gcp-health-val',   hp, hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a');
+  setBar('gcp-water-bar',    'gcp-water-val',    wl, wl > 50 ? '#5ee8f0' : '#ffcf5c');
+  setBar('gcp-nutrient-bar', 'gcp-nutrient-val', nl, nl > 50 ? '#b07fff' : '#ffcf5c');
+
+  // Status badges
+  const statusRow = document.getElementById('gcp-status-row');
+  if (statusRow) {
+    const badges = [];
+    if (!plant.isAlive)          badges.push('<span class="gcp-badge gcp-badge-dead">💀 Đã chết</span>');
+    if (plant.readyToHarvest)    badges.push('<span class="gcp-badge gcp-badge-harvest">🌾 Sẵn thu hoạch!</span>');
+    if (plant.bugs > 0)          badges.push(`<span class="gcp-badge gcp-badge-bug">🐛 ${plant.bugs} con sâu</span>`);
+    if (plant.deadLeaves > 0)    badges.push(`<span class="gcp-badge gcp-badge-leaf">🍂 ${plant.deadLeaves} lá hư</span>`);
+    if (plant.health < 30 && plant.isAlive) badges.push('<span class="gcp-badge gcp-badge-warn">⚠️ Cần chăm sóc gấp!</span>');
+    if (plant.cycleCount > 0)    badges.push(`<span class="gcp-badge gcp-badge-cycle">🔄 Chu kỳ ${plant.cycleCount}</span>`);
+    statusRow.innerHTML = badges.join('');
+  }
+
+  // Stage progress
+  const stageProg  = document.getElementById('gcp-stage-progress');
+  const stageEta   = document.getElementById('gcp-stage-eta');
+  if (stageProg && pt.stages) {
+    const durGD     = pt.stages[plant.stage] || 1; // game days for this stage
+    const durHours  = durGD * 12;                   // real hours
+    const elapsed   = plant.stageStartedAt
+      ? (Date.now() - new Date(plant.stageStartedAt).getTime()) / 3600000
+      : 0;
+    const pct       = Math.min(100, Math.round((elapsed / durHours) * 100));
+    const hoursLeft = Math.max(0, durHours - elapsed);
+    const dLeft     = Math.floor(hoursLeft / 24);
+    const hLeft     = Math.round(hoursLeft % 24);
+    stageProg.style.width = pct + '%';
+    if (stageEta) stageEta.textContent = pct >= 100
+      ? 'Sẵn sàng chuyển giai đoạn!'
+      : (dLeft > 0 ? `${dLeft}n ` : '') + `${hLeft}h nữa`;
+  }
+
+  // Action button states
+  const alive = plant.isAlive;
+  document.getElementById('gcp-btn-water').disabled   = !alive;
+  document.getElementById('gcp-btn-fert').disabled    = !alive;
+  document.getElementById('gcp-btn-bug').disabled     = !alive || plant.bugs === 0;
+  document.getElementById('gcp-btn-leaf').disabled    = !alive || plant.deadLeaves === 0;
+  const harvestBtn = document.getElementById('gcp-btn-harvest');
+  if (harvestBtn) {
+    harvestBtn.style.display = (plant.readyToHarvest && alive) ? '' : 'none';
+  }
+
+  // Pot info
+  const potRow = document.getElementById('gcp-pot-row');
+  if (potRow && pot.name) {
+    const matchWarn = _potMatchWarning(pt.size, pot.size);
+    potRow.innerHTML = `<span class="gcp-pot-icon">${pot.emoji || '🪴'}</span>
+      <span class="gcp-pot-name">${esc(pot.name)}</span>
+      ${matchWarn ? `<span class="gcp-pot-warn">${matchWarn}</span>` : '<span class="gcp-pot-ok">✅ Kích thước phù hợp</span>'}`;
+  }
+}
+
+function _potMatchWarning(plantSize, potSize) {
+  const idx  = { small:0, medium:1, large:2, xl:3 };
+  const diff = Math.abs((idx[plantSize]||1) - (idx[potSize]||1));
+  if (potSize === 'xl') return '';
+  if (diff === 0) return '';
+  if (diff === 1) return '⚠️ Chậu hơi lệch, -15% tốc độ';
+  if (diff === 2) return '❌ Chậu sai size, -40% tốc độ';
+  return '❌ Chậu rất sai size, -60% tốc độ';
+}
+
+function _setupCarePanelButtons() {
+  document.getElementById('gcp-close')?.addEventListener('click', _closeCarePanel);
+  document.getElementById('garden-care-backdrop')?.addEventListener('click', _closeCarePanel);
+
+  async function careAction(apiFn, successMsg, reloadFn) {
+    if (!_gcpPlantId) return;
+    try {
+      const r = await apiFn(_gcpPlantId);
+      if (r.error) { toast('❌ ' + r.error); return; }
+      toast(successMsg);
+      if (r.points !== undefined) updatePointsUI(r.points);
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+      // Re-render care panel with updated plant
+      const updated = (_gardenData.plants || []).find(p => p._id === _gcpPlantId);
+      if (updated) _renderCarePanel(updated);
+      else _closeCarePanel();
+      quickNotifCheck();
+    } catch(e) { toast('❌ ' + e.message); }
+  }
+
+  document.getElementById('gcp-btn-water')?.addEventListener('click',
+    () => careAction(apiGarden.water,      '💧 Đã tưới nước!',      null));
+  document.getElementById('gcp-btn-fert')?.addEventListener('click',
+    () => careAction(apiGarden.fertilize,  '🌿 Đã bón phân!',       null));
+  document.getElementById('gcp-btn-bug')?.addEventListener('click',
+    () => careAction(apiGarden.catchBug,   '🐛 Đã bắt sâu!',        null));
+  document.getElementById('gcp-btn-leaf')?.addEventListener('click',
+    () => careAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!',     null));
+  document.getElementById('gcp-btn-harvest')?.addEventListener('click',
+    () => careAction(apiGarden.harvest,    '🌾 Thu hoạch thành công!', null));
+
+  document.getElementById('gcp-btn-uproot')?.addEventListener('click', async () => {
+    if (!_gcpPlantId) return;
+    const plant = (_gardenData?.plants || []).find(p => p._id === _gcpPlantId);
+    const name  = plant?.plantType?.name || 'cây này';
+    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    try {
+      const r = await apiGarden.uproot(_gcpPlantId);
+      if (r.error) { toast('❌ ' + r.error); return; }
+      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund} điểm.`);
+      if (r.points !== undefined) updatePointsUI(r.points);
+      _closeCarePanel();
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+      quickNotifCheck();
+    } catch(e) { toast('❌ ' + e.message); }
+  });
+}
+
+// ── Garden shop (full catalog page) ──────────────────────────
+function _setupGardenViewTabs() {
+  document.querySelectorAll('.gvt-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gvt-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const view = btn.dataset.gview;
+      document.getElementById('garden-view-grid').style.display  = view === 'grid'  ? '' : 'none';
+      document.getElementById('garden-view-shop').style.display  = view === 'shop'  ? '' : 'none';
+      if (view === 'shop') _renderGardenShop();
+    });
+  });
+}
+
+function _setupGardenShopTabs() {
+  document.querySelectorAll('.gst-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gst-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.gshop;
+      document.getElementById('gshop-plant-filter').style.display = tab === 'plants' ? '' : 'none';
+      _renderGardenShop(tab);
+    });
+  });
+}
+
+function _setupGardenShopFilter() {
+  document.querySelectorAll('.gf-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _renderGardenShop('plants', btn.dataset.cat);
+    });
+  });
+}
+
+function _renderGardenShop(tab = 'plants', cat = 'all') {
+  const container = document.getElementById('gshop-items');
+  if (!container || !_gardenCatalog) return;
+
+  if (tab === 'pots') {
+    container.innerHTML = _gardenCatalog.pots.map(p => `
+      <div class="gshop-item">
+        <div class="gshop-item-emoji">${p.emoji}</div>
+        <div class="gshop-item-name">${esc(p.name)}</div>
+        <div class="gshop-item-sub">${esc(p.desc)}</div>
+        <div class="gshop-item-price">${p.price} điểm</div>
+        <div class="gshop-item-note">Mua khi trồng cây</div>
+      </div>`).join('');
+    return;
+  }
+
+  // Plants tab
+  const plants = cat === 'all'
+    ? _gardenCatalog.plants
+    : _gardenCatalog.plants.filter(p => p.category === cat);
+
+  container.innerHTML = plants.map(p => {
+    const ci = CAT_INFO[p.category] || {};
+    const stageSummary = Object.entries(p.stages || {})
+      .map(([s, d]) => `${STAGE_INFO[s]?.emoji||''} ${d}n`)
+      .join(' → ');
+    return `<div class="gshop-item gshop-plant-item">
+      <div class="gshop-item-emoji">${p.emoji}</div>
+      <div class="gshop-item-name">${esc(p.name)}</div>
+      <div class="gshop-cat-badge" style="background:${ci.color||'#b07fff'}22;color:${ci.color||'#b07fff'}">${ci.emoji} ${ci.label}</div>
+      <div class="gshop-item-sub">${esc(p.desc)}</div>
+      <div class="gshop-stage-timeline">${stageSummary}</div>
+      ${p.harvestable ? `<div class="gshop-harvest-badge">🌾 Thu hoạch: ${p.harvestItem} (+${p.harvestPoints}đ)</div>` : '<div class="gshop-ornamental-badge">🌀 Cây cảnh</div>'}
+      <div class="gshop-item-price">${p.price} điểm</div>
+    </div>`;
+  }).join('');
+}
