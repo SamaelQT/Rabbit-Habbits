@@ -36,7 +36,8 @@
       "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits && node --check routes/garden.js 2>&1 && node --check routes/gamification.js 2>&1 && echo ALL OK\")",
       "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits && node --check routes/garden.js && echo garden_ok && node --check routes/gamification.js && echo gamification_ok\")",
       "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits & node --check routes\\\\\\\\garden.js & echo DONE_GARDEN\")",
-      "Bash(powershell -Command \"cd D:\\\\\\\\Rabbit-Habbits; node --check routes\\\\\\\\garden.js; Write-Host 'garden_done'; node --check routes\\\\\\\\gamification.js; Write-Host 'gamification_done'\")"
+      "Bash(powershell -Command \"cd D:\\\\\\\\Rabbit-Habbits; node --check routes\\\\\\\\garden.js; Write-Host 'garden_done'; node --check routes\\\\\\\\gamification.js; Write-Host 'gamification_done'\")",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }

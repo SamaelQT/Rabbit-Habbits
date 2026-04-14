@@ -6914,18 +6914,24 @@ function _renderGpmPlants(cat) {
   const plants = cat === 'all'
     ? _gardenCatalog.plants
     : _gardenCatalog.plants.filter(p => p.category === cat);
-  list.innerHTML = plants.map(p => {
+  // Sort: in-stock first
+  const sorted = [...plants].sort((a, b) => {
+    const ao = _shopData.gardenSeeds[a.id] || 0;
+    const bo = _shopData.gardenSeeds[b.id] || 0;
+    return bo - ao;
+  });
+
+  list.innerHTML = sorted.map(p => {
     const ci = CAT_INFO[p.category] || {};
     const owned = _shopData.gardenSeeds[p.id] || 0;
     const sel = _gpmSelectedPlant?.id === p.id ? 'gpm-item-selected' : '';
     const noStock = owned < 1 ? 'gpm-item-disabled' : '';
+    const invLabel = owned > 0 ? `Có: ${owned}` : 'Hết';
     return `<div class="gpm-plant-item ${sel} ${noStock}" data-pid="${p.id}">
       <div class="gpm-item-emoji">${p.emoji}</div>
-      <div class="gpm-item-info">
-        <div class="gpm-item-name">${esc(p.name)}</div>
-        <div class="gpm-item-sub">${ci.emoji||''} ${ci.label||''} · ${p.harvestable ? '🌾 Thu hoạch được' : '🌀 Cây cảnh'}</div>
-      </div>
-      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">Có: ${owned}</div>
+      <div class="gpm-item-name">${esc(p.name)}</div>
+      <div class="gpm-item-sub">${ci.emoji||''} ${ci.label||''}</div>
+      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">${invLabel}</div>
     </div>`;
   }).join('');
 
@@ -6942,17 +6948,26 @@ function _renderGpmPlants(cat) {
 function _renderGpmPots() {
   const list = document.getElementById('gpm-pot-list');
   if (!list || !_gardenCatalog) return;
-  list.innerHTML = _gardenCatalog.pots.map(p => {
+
+  // Sort: in-stock first
+  const sorted = [..._gardenCatalog.pots].sort((a, b) => {
+    const ao = _shopData.gardenPots[a.id] || 0;
+    const bo = _shopData.gardenPots[b.id] || 0;
+    return bo - ao;
+  });
+
+  list.innerHTML = sorted.map(p => {
     const owned = _shopData.gardenPots[p.id] || 0;
     const sel = _gpmSelectedPot?.id === p.id ? 'gpm-item-selected' : '';
     const noStock = owned < 1 ? 'gpm-item-disabled' : '';
+    const invLabel = owned > 0 ? `Có: ${owned}` : 'Hết';
     return `<div class="gpm-pot-item ${sel} ${noStock}" data-potid="${p.id}">
       <div class="gpm-item-emoji">${p.emoji}</div>
       <div class="gpm-item-info">
         <div class="gpm-item-name">${esc(p.name)}</div>
         <div class="gpm-item-sub">${esc(p.desc)}</div>
       </div>
-      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">Có: ${owned}</div>
+      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">${invLabel}</div>
     </div>`;
   }).join('');
 
@@ -6967,26 +6982,32 @@ function _renderGpmPots() {
 }
 
 function _updateGpmCost() {
-  const costEl   = document.getElementById('gpm-cost-val');
+  const statusEl  = document.getElementById('gpm-cost-val');
   const confirmBtn = document.getElementById('gpm-confirm');
   const seedOk = _gpmSelectedPlant && (_shopData.gardenSeeds[_gpmSelectedPlant.id] || 0) > 0;
-  const potOk  = _gpmSelectedPot  && (_shopData.gardenPots[_gpmSelectedPot.id]   || 0) > 0;
-  if (costEl) {
+  const potOk  = _gpmSelectedPot   && (_shopData.gardenPots[_gpmSelectedPot.id]   || 0) > 0;
+
+  if (statusEl) {
     if (!_gpmSelectedPlant && !_gpmSelectedPot) {
-      costEl.textContent = '— Chọn cây & chậu';
-    } else if (_gpmSelectedPlant && _gpmSelectedPot) {
-      costEl.textContent = seedOk && potOk ? '✅ Sẵn sàng trồng!' : '❌ Không đủ hàng tồn kho';
+      statusEl.textContent = '← Chọn cây & chậu để trồng';
+    } else if (_gpmSelectedPlant && !_gpmSelectedPot) {
+      statusEl.textContent = `${_gpmSelectedPlant.name} · chọn chậu →`;
+    } else if (!_gpmSelectedPlant && _gpmSelectedPot) {
+      statusEl.textContent = `${_gpmSelectedPot.name} · chọn cây ←`;
     } else {
-      costEl.textContent = '— Chưa chọn đủ';
+      statusEl.textContent = seedOk && potOk
+        ? `✅ ${_gpmSelectedPlant.name} + ${_gpmSelectedPot.name}`
+        : '❌ Hết hàng — mua thêm trong Cửa hàng';
     }
   }
   if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot && seedOk && potOk);
 }
 
 function _setupPlantModalFilter() {
-  document.querySelectorAll('.gpf-btn').forEach(btn => {
+  const modal = document.getElementById('gpm-modal');
+  modal?.querySelectorAll('.gpf-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.gpf-btn').forEach(b => b.classList.remove('active'));
+      modal.querySelectorAll('.gpf-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       _renderGpmPlants(btn.dataset.cat);
     });
