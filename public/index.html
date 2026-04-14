@@ -553,10 +553,14 @@
       <button class="gmn-close" id="gmn-close">✕</button>
     </div>
 
-    <!-- View tabs: Grid vs Shop -->
+    <!-- Weather banner -->
+    <div class="garden-weather-banner" id="garden-weather-banner" style="display:none"></div>
+
+    <!-- View tabs: Grid / Shop / Friends -->
     <div class="garden-view-tabs">
       <button class="gvt-btn active" data-gview="grid">🌱 Vườn của tôi</button>
       <button class="gvt-btn" data-gview="shop">🛒 Mua cây & chậu</button>
+      <button class="gvt-btn" data-gview="friends">👥 Bạn bè</button>
     </div>
 
     <!-- ── GRID VIEW ─────────────────────────── -->
@@ -566,6 +570,9 @@
           <!-- cells injected by JS -->
         </div>
       </div>
+
+      <!-- Ecosystem panel -->
+      <div class="garden-eco-panel" id="garden-eco-panel" style="display:none"></div>
 
       <!-- Legend -->
       <div class="garden-legend">
@@ -595,6 +602,34 @@
 
       <div class="garden-shop-grid" id="gshop-items">
         <!-- injected by JS -->
+      </div>
+    </div>
+
+    <!-- ── FRIENDS VIEW ─────────────────────── -->
+    <div id="garden-view-friends" style="display:none">
+      <!-- Friends list (default) -->
+      <div id="gfv-list">
+        <div class="gfv-title">👥 Chọn bạn bè để thăm vườn</div>
+        <div class="gfv-friends" id="gfv-friends-list">
+          <!-- injected by JS -->
+        </div>
+      </div>
+
+      <!-- Friend's garden (shown when visiting) -->
+      <div id="gfv-garden" style="display:none">
+        <div class="gfv-garden-header">
+          <button class="gfv-back-btn" id="gfv-back-btn">← Quay lại</button>
+          <div class="gfv-garden-owner" id="gfv-garden-owner">—</div>
+        </div>
+        <!-- Weather banner for friend's garden -->
+        <div class="garden-weather-banner" id="gfv-weather-banner" style="display:none"></div>
+        <!-- Ecosystem panel for friend's garden -->
+        <div class="garden-eco-panel" id="gfv-eco-panel" style="display:none"></div>
+        <div class="garden-grid-wrap">
+          <div class="garden-grid" id="gfv-grid">
+            <!-- cells injected by JS -->
+          </div>
+        </div>
       </div>
     </div>
 

@@ -6565,27 +6565,31 @@ navigateTo = function(page) {
 // ═══════════════════════════════════════════════════════════════
 
 const apiGarden = {
-  load:        ()              => API.g('/api/garden'),
-  catalog:     ()              => API.g('/api/garden/catalog'),
-  buyPlot:     (row, col)      => API.p('/api/garden/plots/buy', { row, col }),
-  plant:       (row, col, plantTypeId, potTypeId) =>
-                                  API.p('/api/garden/plant', { row, col, plantTypeId, potTypeId }),
-  water:       (id)            => API.p(`/api/garden/water/${id}`, {}),
-  fertilize:   (id)            => API.p(`/api/garden/fertilize/${id}`, {}),
-  catchBug:    (id)            => API.p(`/api/garden/catch-bug/${id}`, {}),
-  removeLeaf:  (id)            => API.p(`/api/garden/remove-leaf/${id}`, {}),
-  harvest:     (id)            => API.p(`/api/garden/harvest/${id}`, {}),
-  uproot:      (id)            => API.d(`/api/garden/plant/${id}`).then(r => r.json()),
+  load:             ()                        => API.g('/api/garden'),
+  catalog:          ()                        => API.g('/api/garden/catalog'),
+  buyPlot:          (row, col)                => API.p('/api/garden/plots/buy', { row, col }),
+  plant:            (row, col, plantTypeId, potTypeId) =>
+                                                 API.p('/api/garden/plant', { row, col, plantTypeId, potTypeId }),
+  water:            (id)                      => API.p(`/api/garden/water/${id}`, {}),
+  fertilize:        (id)                      => API.p(`/api/garden/fertilize/${id}`, {}),
+  catchBug:         (id)                      => API.p(`/api/garden/catch-bug/${id}`, {}),
+  removeLeaf:       (id)                      => API.p(`/api/garden/remove-leaf/${id}`, {}),
+  harvest:          (id)                      => API.p(`/api/garden/harvest/${id}`, {}),
+  uproot:           (id)                      => API.d(`/api/garden/plant/${id}`).then(r => r.json()),
+  mushroomHarvest:  ()                        => API.p('/api/garden/mushroom-harvest', {}),
+  loadFriendGarden: (friendId)               => API.g(`/api/garden/friend/${friendId}`),
+  giftWater:        (friendId, plantId)      => API.p(`/api/garden/friend/${friendId}/water/${plantId}`, {}),
 };
 
 // ── Garden state ──────────────────────────────────────────────
-let _gardenInited   = false;
-let _gardenData     = null;   // { purchasedCells, plants, gridConfig, cellPrices, gameTime }
-let _gardenCatalog  = null;   // { plants, pots }
+let _gardenInited     = false;
+let _gardenData       = null;   // { purchasedCells, plants, gridConfig, cellPrices, gameTime, weather, ecosystem }
+let _gardenCatalog    = null;   // { plants, pots }
 let _gpmSelectedPlant = null;
 let _gpmSelectedPot   = null;
-let _gpmTargetCell    = null; // { row, col }
-let _gcpPlantId       = null; // currently open care panel plant id
+let _gpmTargetCell    = null;   // { row, col }
+let _gcpPlantId       = null;   // currently open care panel plant id
+let _gardenFriendData = null;   // { friend, plants, ... } when visiting a friend's garden
 
 // ── Stage display info ────────────────────────────────────────
 const STAGE_INFO = {
@@ -6626,6 +6630,7 @@ async function initGarden() {
   _setupGardenShopFilter();
   _setupPlantModalFilter();
   _setupCarePanelButtons();
+  _setupGardenFriendsView();
 
   _refreshGardenUI();
 
@@ -6647,6 +6652,8 @@ function _refreshGardenUI() {
   if (!_gardenData) return;
   _updateGardenTimeLabel();
   _updateGardenPoints();
+  _renderWeatherBanner(_gardenData.weatherInfo, _gardenData.weather, 'garden-weather-banner');
+  _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
   _renderGardenGrid();
   _renderGardenShop();
 }
@@ -7029,9 +7036,11 @@ function _setupGardenViewTabs() {
       document.querySelectorAll('.gvt-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       const view = btn.dataset.gview;
-      document.getElementById('garden-view-grid').style.display  = view === 'grid'  ? '' : 'none';
-      document.getElementById('garden-view-shop').style.display  = view === 'shop'  ? '' : 'none';
-      if (view === 'shop') _renderGardenShop();
+      document.getElementById('garden-view-grid').style.display    = view === 'grid'    ? '' : 'none';
+      document.getElementById('garden-view-shop').style.display    = view === 'shop'    ? '' : 'none';
+      document.getElementById('garden-view-friends').style.display = view === 'friends' ? '' : 'none';
+      if (view === 'shop')    _renderGardenShop();
+      if (view === 'friends') _loadGardenFriendsList();
     });
   });
 }
@@ -7094,4 +7103,196 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
       <div class="gshop-item-price">${p.price} điểm</div>
     </div>`;
   }).join('');
+}
+
+// ── Weather banner ────────────────────────────────────────────
+function _renderWeatherBanner(info, weatherId, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (!info || !weatherId) { el.style.display = 'none'; return; }
+
+  const WEATHER_ANIM_CLASS = {
+    sunny: 'gwb-sunny', cloudy: 'gwb-cloudy', rainy: 'gwb-rainy',
+    stormy: 'gwb-stormy', foggy: 'gwb-foggy', windy: 'gwb-windy',
+  };
+  el.className = `garden-weather-banner ${WEATHER_ANIM_CLASS[weatherId] || ''}`;
+  el.innerHTML = `
+    <div class="gwb-content">
+      <span class="gwb-emoji">${info.emoji}</span>
+      <div class="gwb-info">
+        <span class="gwb-label">${esc(info.label)}</span>
+        <span class="gwb-desc">${esc(info.desc)}</span>
+      </div>
+    </div>
+    <div class="gwb-particles" aria-hidden="true"></div>`;
+  el.style.display = '';
+}
+
+// ── Ecosystem panel ───────────────────────────────────────────
+function _renderEcosystemPanel(eco, elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+
+  if (!eco) { el.style.display = 'none'; return; }
+
+  const { bees = 0, birds = false, bats = false, mushrooms = 0, worms = 0 } = eco;
+  const hasAnything = bees > 0 || birds || bats || mushrooms > 0 || worms > 0;
+  if (!hasAnything) { el.style.display = 'none'; return; }
+
+  const creatures = [];
+  if (bees > 0)     creatures.push(`<div class="geo-card" title="Ong thụ phấn, tăng tốc cây đang ra hoa">🐝<span>${bees} ong</span></div>`);
+  if (birds)        creatures.push(`<div class="geo-card" title="Chim ăn sâu bọ, giảm sâu xuất hiện">🐦<span>Chim</span></div>`);
+  if (bats)         creatures.push(`<div class="geo-card" title="Dơi ăn sâu ban đêm, giảm sâu xuất hiện">🦇<span>Dơi</span></div>`);
+  if (worms > 0)    creatures.push(`<div class="geo-card" title="Giun cải thiện đất, giảm tiêu hao dinh dưỡng">🪱<span>${worms} giun</span></div>`);
+  if (mushrooms > 0) {
+    creatures.push(`<div class="geo-card geo-card-harvest" id="geo-mushroom-btn" title="Thu hoạch nấm lấy phân bón">🍄<span>${mushrooms} nấm</span><span class="geo-harvest-hint">Thu hoạch</span></div>`);
+  }
+
+  el.innerHTML = `<div class="geo-title">🌿 Hệ sinh thái</div><div class="geo-cards">${creatures.join('')}</div>`;
+  el.style.display = '';
+
+  // Mushroom harvest button
+  document.getElementById('geo-mushroom-btn')?.addEventListener('click', async () => {
+    try {
+      const r = await apiGarden.mushroomHarvest();
+      if (r.error) { toast('❌ ' + r.error); return; }
+      toast(`🍄 Thu hoạch ${r.mushrooms} nấm → +${r.fertilizer} phân bón, +${r.pts} điểm!`);
+      if (r.points !== undefined) updatePointsUI(r.points);
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+      quickNotifCheck();
+    } catch(e) { toast('❌ ' + e.message); }
+  });
+}
+
+// ── Friends garden view ───────────────────────────────────────
+function _setupGardenFriendsView() {
+  document.getElementById('gfv-back-btn')?.addEventListener('click', () => {
+    document.getElementById('gfv-garden').style.display = 'none';
+    document.getElementById('gfv-list').style.display   = '';
+    _gardenFriendData = null;
+  });
+}
+
+async function _loadGardenFriendsList() {
+  const container = document.getElementById('gfv-friends-list');
+  if (!container) return;
+  container.innerHTML = '<div class="gfv-loading">⏳ Đang tải...</div>';
+  try {
+    const data = await API.g('/api/gamification/friends-list');
+    const friends = data.friends || [];
+    if (!friends.length) {
+      container.innerHTML = '<div class="gfv-empty">Chưa có bạn bè nào. Thêm bạn bè để thăm vườn!</div>';
+      return;
+    }
+    container.innerHTML = friends.map(f => `
+      <div class="gfv-friend-card" data-fid="${esc(f._id)}">
+        <div class="gfv-friend-avatar">${esc((f.displayName || f.username || '?').charAt(0).toUpperCase())}</div>
+        <div class="gfv-friend-info">
+          <div class="gfv-friend-name">${esc(f.displayName || f.username)}</div>
+          <div class="gfv-friend-sub">Cấp ${f.level || 1} · ${f.online ? '🟢 Online' : '⚫ Offline'}</div>
+        </div>
+        <button class="gfv-visit-btn" data-fid="${esc(f._id)}">Thăm vườn →</button>
+      </div>`).join('');
+
+    container.querySelectorAll('.gfv-visit-btn').forEach(btn => {
+      btn.addEventListener('click', () => _openFriendGarden(btn.dataset.fid));
+    });
+  } catch(e) {
+    container.innerHTML = `<div class="gfv-empty">❌ ${esc(e.message)}</div>`;
+  }
+}
+
+async function _openFriendGarden(friendId) {
+  const listEl   = document.getElementById('gfv-list');
+  const gardenEl = document.getElementById('gfv-garden');
+  const ownerEl  = document.getElementById('gfv-garden-owner');
+  if (!listEl || !gardenEl) return;
+
+  listEl.style.display   = 'none';
+  gardenEl.style.display = '';
+  if (ownerEl) ownerEl.textContent = '⏳ Đang tải vườn...';
+
+  try {
+    _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
+    const f = _gardenFriendData.friend || {};
+    if (ownerEl) ownerEl.textContent = `🌿 Vườn của ${f.displayName || f.username}`;
+
+    _renderWeatherBanner(_gardenFriendData.weatherInfo, _gardenFriendData.weather, 'gfv-weather-banner');
+    _renderEcosystemPanel(_gardenFriendData.ecosystem, 'gfv-eco-panel');
+    _renderFriendGardenGrid(_gardenFriendData, friendId);
+  } catch(e) {
+    if (ownerEl) ownerEl.textContent = '❌ Không thể tải vườn';
+    toast('❌ ' + e.message);
+  }
+}
+
+function _renderFriendGardenGrid(data, friendId) {
+  const grid = document.getElementById('gfv-grid');
+  if (!grid || !data) return;
+
+  const { gridConfig, cellPrices, purchasedCells, plants } = data;
+  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
+
+  const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
+  const plantMap = {};
+  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
+
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const key   = `${r},${c}`;
+      const owned = purchasedSet.has(key);
+      const plant = plantMap[key];
+      const cell  = document.createElement('div');
+      cell.className = 'garden-cell';
+
+      if (!owned) {
+        cell.classList.add('gc-locked');
+        cell.innerHTML = `<div class="gc-lock-icon">🔒</div>`;
+      } else if (!plant || !plant.isAlive) {
+        cell.classList.add(plant ? 'gc-dead' : 'gc-empty');
+        if (plant && !plant.isAlive) {
+          cell.innerHTML = `<div class="gc-dead-emoji">💀</div>
+            <div class="gc-dead-name">${esc(plant.plantType?.name || '')}</div>`;
+        } else {
+          cell.innerHTML = `<div class="gc-empty-plus" style="color:#5ef0a033">·</div>`;
+        }
+      } else {
+        const si    = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+        const hp    = Math.round(plant.health);
+        const hpColor = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
+        cell.classList.add('gc-planted');
+        if (plant.readyToHarvest) cell.classList.add('gc-harvest');
+        if (plant.health < 30)    cell.classList.add('gc-sick');
+
+        cell.innerHTML = `
+          <div class="gc-plant-emoji">${si.emoji}</div>
+          <div class="gc-plant-name">${esc(plant.plantType?.name?.split(' ').slice(-1)[0] || '')}</div>
+          <div class="gc-hp-bar-wrap"><div class="gc-hp-bar" style="width:${hp}%;background:${hpColor}"></div></div>
+          ${plant.readyToHarvest ? '<div class="gc-harvest-badge">🌾</div>' : ''}
+          ${plant.bugs > 0 ? `<div class="gc-bug-badge">🐛${plant.bugs}</div>` : ''}
+          <div class="gfv-gift-btn" data-pid="${esc(plant._id)}" title="Tặng tưới nước">💧</div>`;
+
+        cell.querySelector('.gfv-gift-btn')?.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const btn = e.currentTarget;
+          btn.textContent = '⏳';
+          try {
+            const r = await apiGarden.giftWater(friendId, plant._id);
+            if (r.error) { toast('❌ ' + r.error); btn.textContent = '💧'; return; }
+            toast('💧 Đã tặng tưới nước! Bạn được +3 điểm.');
+            if (r.points !== undefined) updatePointsUI(r.points);
+            // Refresh friend garden
+            _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
+            _renderFriendGardenGrid(_gardenFriendData, friendId);
+            quickNotifCheck();
+          } catch(err) { toast('❌ ' + err.message); btn.textContent = '💧'; }
+        });
+      }
+      grid.appendChild(cell);
+    }
+  }
 }

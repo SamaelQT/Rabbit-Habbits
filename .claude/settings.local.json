@@ -26,7 +26,9 @@
       "Bash(powershell.exe -NoProfile -Command ':*)",
       "Bash(powershell.exe -NoProfile -Command \" [System.Environment]::GetEnvironmentVariable\\('Path','Machine'\\) + ';' + [System.Environment]::GetEnvironmentVariable\\('Path','User'\\) \")",
       "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\\\Program Files\\\\' -ErrorAction SilentlyContinue | Select-Object Name\")",
-      "Bash(curl -L \"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\" -o \"D:/Rabbit-Habbits/public/js/chart.umd.min.js\" --max-time 30)"
+      "Bash(curl -L \"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\" -o \"D:/Rabbit-Habbits/public/js/chart.umd.min.js\" --max-time 30)",
+      "Bash(xargs basename:*)",
+      "Bash(grep -n \"friend\\\\|social\\\\|visit\\\\|message\\\\|send\" /d/Rabbit-Habbits/routes/*.js)"
     ]
   }
 }

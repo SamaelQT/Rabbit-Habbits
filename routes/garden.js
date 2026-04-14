@@ -5,6 +5,7 @@ const GardenPlot  = require('../models/GardenPlot');
 const GardenPlant = require('../models/GardenPlant');
 const UserPoints  = require('../models/UserPoints');
 const Pet         = require('../models/Pet');
+const User        = require('../models/User');
 const requireAuth = require('../middleware/auth');
 
 router.use(requireAuth);
@@ -197,6 +198,106 @@ function getNextStage(stage, plantType) {
 function getPlantType(id) { return PLANT_TYPES.find(p => p.id === id) || null; }
 function getPotType(id)   { return POT_TYPES.find(p => p.id === id) || null;   }
 
+// ═══════════════════════════════════════════════════════
+// WEATHER SYSTEM
+// ═══════════════════════════════════════════════════════
+
+const WEATHER_TYPES = [
+  { id:'sunny',  label:'Nắng đẹp',  emoji:'☀️',  desc:'Nước bay hơi nhanh hơn, cây phát triển tốt.',    prob:0.35 },
+  { id:'cloudy', label:'Nhiều mây', emoji:'⛅',   desc:'Thời tiết trung tính, không ảnh hưởng đặc biệt.', prob:0.25 },
+  { id:'rainy',  label:'Mưa nhẹ',   emoji:'🌧️',  desc:'Mưa tự tưới nước, nhưng sâu xuất hiện nhiều hơn.',prob:0.20 },
+  { id:'stormy', label:'Giông bão', emoji:'⛈️',  desc:'Cây dễ bị thương, lá rụng nhiều, nhưng mưa lớn tưới no.',prob:0.05 },
+  { id:'foggy',  label:'Sương mù',  emoji:'🌫️', desc:'Sâu xuất hiện nhiều, cây lớn chậm hơn.',          prob:0.10 },
+  { id:'windy',  label:'Gió mạnh',  emoji:'💨',  desc:'Lá dễ rụng, nước bay hơi nhanh hơn chút.',       prob:0.05 },
+];
+
+function rollWeather() {
+  const r = Math.random();
+  let cum = 0;
+  for (const w of WEATHER_TYPES) {
+    cum += w.prob;
+    if (r < cum) return w.id;
+  }
+  return 'sunny';
+}
+
+function getWeatherInfo(id) {
+  return WEATHER_TYPES.find(w => w.id === id) || WEATHER_TYPES[0];
+}
+
+// Returns true if gardenDoc was modified (caller should save)
+function updateWeather(gardenDoc) {
+  const now   = Date.now();
+  const setAt = gardenDoc.weatherSetAt ? new Date(gardenDoc.weatherSetAt).getTime() : 0;
+  if (now - setAt > 12 * 3_600_000) {
+    gardenDoc.weather    = rollWeather();
+    gardenDoc.weatherSetAt = new Date(now);
+    return true;
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════
+// ECOSYSTEM SYSTEM
+// ═══════════════════════════════════════════════════════
+
+// Updates ecosystem creature presence based on current plant states + time of day.
+// Returns true if gardenDoc.ecosystem was modified.
+function updateEcosystem(gardenDoc, plants, gameTime) {
+  const now       = Date.now();
+  const eco       = gardenDoc.ecosystem || {};
+  const lastUpd   = eco.lastEcoUpdate ? new Date(eco.lastEcoUpdate).getTime() : 0;
+
+  // Rate-limit to every 6 real hours
+  if (now - lastUpd < 6 * 3_600_000) return false;
+
+  const alive    = plants.filter(p => p.isAlive);
+  const blooming = alive.filter(p => ['flowering','fruiting'].includes(p.stage));
+  const sick     = alive.filter(p => p.health < 40 || p.deadLeaves >= 5);
+  const buggy    = alive.filter(p => p.bugs > 0);
+  const lush     = alive.filter(p => p.waterLevel > 60 && p.nutrientLevel > 60);
+
+  // ── Ong (Bees): appear near flowering plants ─────────────────
+  if (blooming.length > 0) {
+    const chance = Math.min(0.8, 0.25 * blooming.length);
+    if (Math.random() < chance) eco.bees = Math.min(5, (eco.bees || 0) + 1);
+  } else {
+    eco.bees = Math.max(0, (eco.bees || 0) - 1);
+  }
+
+  // ── Chim (Birds): appear in morning if bugs present ──────────
+  if (gameTime.phase === 'morning' && buggy.length > 0) {
+    eco.birds = Math.random() < 0.45;
+  } else if (['evening','night'].includes(gameTime.phase)) {
+    eco.birds = false;
+  }
+
+  // ── Dơi (Bats): appear at night ──────────────────────────────
+  if (gameTime.phase === 'night') {
+    eco.bats = Math.random() < 0.4;
+  } else if (gameTime.phase !== 'evening') {
+    eco.bats = false;
+  }
+
+  // ── Nấm (Mushrooms): appear near sick/struggling plants ──────
+  if (sick.length > 0) {
+    if (Math.random() < 0.30) eco.mushrooms = Math.min(5, (eco.mushrooms || 0) + 1);
+  } else {
+    eco.mushrooms = Math.max(0, (eco.mushrooms || 0) - 1);
+  }
+
+  // ── Giun (Worms): appear when soil is lush ───────────────────
+  if (lush.length >= 2) {
+    if (Math.random() < 0.35) eco.worms = Math.min(3, (eco.worms || 0) + 1);
+  } else {
+    eco.worms = Math.max(0, (eco.worms || 0) - 1);
+  }
+
+  eco.lastEcoUpdate   = new Date(now);
+  gardenDoc.ecosystem = eco;
+  return true;
+}
+
 function getGameTime() {
   const now = new Date();
   const h   = now.getHours() + now.getMinutes() / 60;
@@ -210,38 +311,77 @@ function getGameTime() {
 }
 
 // ── Growth Tick (lazy — runs on every GET /api/garden) ──────
-function applyTick(plant, plantType, potType) {
+function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {}) {
   if (!plant.isAlive) return false;
 
   const now       = Date.now();
   const lastTick  = plant.lastTickAt ? new Date(plant.lastTickAt).getTime() : now;
-  const hoursElapsed = Math.min((now - lastTick) / 3_600_000, 48); // cap 48h to prevent huge jumps
-  if (hoursElapsed < 0.25) return false; // skip if less than 15 min
+  const hoursElapsed = Math.min((now - lastTick) / 3_600_000, 48); // cap 48h
+  if (hoursElapsed < 0.25) return false; // skip < 15 min
 
   const gameDays = hoursElapsed / GAME_DAY_HOURS;
-  const speedMult = getPotMult(plantType.size, potType?.size || 'medium');
+  const baseMult = getPotMult(plantType.size, potType?.size || 'medium');
 
-  // ── Water decay ──────────────────────────────────────────
-  plant.waterLevel = Math.max(0, plant.waterLevel - plantType.waterDecay * gameDays);
+  // ── Weather modifiers ────────────────────────────────────
+  let waterDecayMult  = 1;
+  let bugChanceMult   = 1;
+  let autoWaterPerGD  = 0;   // auto-water from rain (per game day)
+  let stormDmgPerGD   = 0;   // storm health damage
+  let leafChanceBase  = 0.08;
 
-  // ── Nutrient decay ───────────────────────────────────────
-  plant.nutrientLevel = Math.max(0, plant.nutrientLevel - plantType.nutrientDecay * gameDays);
+  switch (weather) {
+    case 'sunny':  waterDecayMult = 1.3;                                        break;
+    case 'cloudy': /* neutral */                                                 break;
+    case 'rainy':  waterDecayMult = 0.5; autoWaterPerGD = 8;  bugChanceMult = 1.2; break;
+    case 'stormy': waterDecayMult = 0.5; autoWaterPerGD = 15; bugChanceMult = 1.5;
+                   stormDmgPerGD  = 4;   leafChanceBase = 0.18;                 break;
+    case 'foggy':  bugChanceMult  = 1.6; waterDecayMult = 0.9;                  break;
+    case 'windy':  waterDecayMult = 1.1; leafChanceBase = 0.14;                 break;
+  }
 
-  // ── Bug spawn (~15% chance per game day) ─────────────────
-  if (Math.random() < 0.15 * gameDays) {
+  // ── Ecosystem modifiers ──────────────────────────────────
+  // Birds & bats reduce bug chance; worms reduce nutrient decay
+  if (ecosystem.birds) bugChanceMult *= 0.55;
+  if (ecosystem.bats)  bugChanceMult *= 0.50;
+  const wormNutrMult = ecosystem.worms > 0 ? Math.max(0.6, 1 - (ecosystem.worms * 0.13)) : 1;
+
+  // Bees boost speed on flowering/fruiting stages
+  const beesSpeedBonus = (ecosystem.bees || 0) * 0.04; // +4% per bee
+  const inBloom = ['flowering','fruiting'].includes(plant.stage);
+  const speedMult = baseMult * (inBloom ? (1 + beesSpeedBonus) : 1);
+
+  // ── Water decay (weather-modified) ──────────────────────
+  plant.waterLevel = Math.max(0, plant.waterLevel - plantType.waterDecay * waterDecayMult * gameDays);
+
+  // ── Auto-water from rain ─────────────────────────────────
+  if (autoWaterPerGD > 0) {
+    plant.waterLevel = Math.min(100, plant.waterLevel + autoWaterPerGD * gameDays);
+  }
+
+  // ── Nutrient decay (worm-modified) ──────────────────────
+  plant.nutrientLevel = Math.max(0, plant.nutrientLevel - plantType.nutrientDecay * wormNutrMult * gameDays);
+
+  // ── Bug spawn ────────────────────────────────────────────
+  if (Math.random() < 0.15 * bugChanceMult * gameDays) {
     plant.bugs = Math.min(10, plant.bugs + 1);
   }
 
-  // ── Dead leaves accumulate slowly ────────────────────────
-  if (Math.random() < 0.08 * gameDays) {
+  // ── Birds / bats eat existing bugs ──────────────────────
+  if (plant.bugs > 0) {
+    if (ecosystem.birds && Math.random() < 0.40 * gameDays) plant.bugs = Math.max(0, plant.bugs - 1);
+    if (ecosystem.bats  && Math.random() < 0.45 * gameDays) plant.bugs = Math.max(0, plant.bugs - 1);
+  }
+
+  // ── Dead leaves accumulate (weather-modified) ────────────
+  if (Math.random() < leafChanceBase * gameDays) {
     plant.deadLeaves = Math.min(10, plant.deadLeaves + 1);
   }
 
   // ── Health penalties ─────────────────────────────────────
-  let dmg = 0;
-  if (plant.waterLevel    < 20) dmg += 6  * gameDays;
-  if (plant.waterLevel    ===0) dmg += 12 * gameDays;
-  if (plant.nutrientLevel < 20) dmg += 3  * gameDays;
+  let dmg = stormDmgPerGD * gameDays;
+  if (plant.waterLevel    < 20)  dmg += 6  * gameDays;
+  if (plant.waterLevel   === 0)  dmg += 12 * gameDays;
+  if (plant.nutrientLevel < 20)  dmg += 3  * gameDays;
   if (plant.bugs          >= 3)  dmg += 8  * gameDays;
   if (plant.bugs          >= 6)  dmg += 15 * gameDays;
   if (plant.deadLeaves    >= 5)  dmg += 5  * gameDays;
@@ -254,7 +394,7 @@ function applyTick(plant, plantType, potType) {
   plant.health = Math.max(0, plant.health - dmg);
 
   if (plant.health <= 0) {
-    plant.isAlive = false;
+    plant.isAlive    = false;
     plant.lastTickAt = new Date(now);
     return true;
   }
@@ -269,13 +409,12 @@ function applyTick(plant, plantType, potType) {
       const next = getNextStage(plant.stage, plantType);
 
       if (plantType.harvestable && plant.stage === 'fruiting') {
-        // Must wait for player to harvest — don't auto-advance
         plant.readyToHarvest = true;
       } else {
-        plant.stage         = next;
-        plant.stageStartedAt= new Date(now);
-        plant.readyToHarvest= false;
-        if (next === 'seed') plant.cycleCount++; // completed a full cycle (vegetable restart)
+        plant.stage          = next;
+        plant.stageStartedAt = new Date(now);
+        plant.readyToHarvest = false;
+        if (next === 'seed') plant.cycleCount++;
       }
     }
   }
@@ -334,22 +473,29 @@ router.get('/', async (req, res) => {
       const refunded = await migrateOldPlants(uid);
       gardenDoc.migrationDone = true;
       if (refunded > 0) migrationMsg = refunded;
-      await gardenDoc.save();
     }
 
-    // 2. Load plants + apply tick
+    // 2. Update weather + ecosystem (may mark gardenDoc dirty)
+    const gameTime = getGameTime();
+    updateWeather(gardenDoc);
     const plants = await GardenPlant.find({ userId: uid });
-    const dirty  = [];
+    updateEcosystem(gardenDoc, plants, gameTime);
+    await gardenDoc.save();
+
+    // 3. Apply tick to each plant using current weather + ecosystem
+    const weather = gardenDoc.weather || 'sunny';
+    const eco     = gardenDoc.ecosystem || {};
+    const dirty   = [];
     for (const p of plants) {
       const pt  = getPlantType(p.plantTypeId);
       const pot = getPotType(p.potTypeId);
       if (!pt) continue;
-      const changed = applyTick(p, pt, pot);
+      const changed = applyTick(p, pt, pot, weather, eco);
       if (changed) dirty.push(p.save());
     }
     if (dirty.length) await Promise.all(dirty);
 
-    // 3. Build cell price grid
+    // 4. Build cell price grid
     const cellPrices = [];
     for (let r = 0; r < GRID_ROWS; r++) {
       cellPrices[r] = [];
@@ -358,7 +504,7 @@ router.get('/', async (req, res) => {
       }
     }
 
-    // 4. Enrich plants with type info
+    // 5. Enrich plants with type info
     const enriched = plants.map(p => ({
       ...p.toObject(),
       plantType: getPlantType(p.plantTypeId),
@@ -370,7 +516,10 @@ router.get('/', async (req, res) => {
       plants: enriched,
       gridConfig: { rows: GRID_ROWS, cols: GRID_COLS },
       cellPrices,
-      gameTime: getGameTime(),
+      gameTime,
+      weather,
+      weatherInfo: getWeatherInfo(weather),
+      ecosystem: eco,
       migrationRefund: migrationMsg,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
@@ -609,6 +758,133 @@ router.delete('/plant/:id', async (req, res) => {
 
     await GardenPlant.deleteOne({ _id: plant._id });
     res.json({ success: true, refund, points: up?.points });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════
+// MUSHROOM HARVEST
+// ══════════════════════════════════════════════════════════════
+
+// POST /api/garden/mushroom-harvest — harvest mushrooms from ecosystem
+router.post('/mushroom-harvest', async (req, res) => {
+  try {
+    const uid = req.userId;
+    const gardenDoc = await GardenPlot.findOne({ userId: uid });
+    const mushrooms = gardenDoc?.ecosystem?.mushrooms || 0;
+    if (mushrooms === 0) return res.status(400).json({ error: 'Không có nấm để thu hoạch' });
+
+    // 2 nấm → 1 phân bón; mỗi nấm = 3 điểm
+    const fertilizer = Math.max(1, Math.floor(mushrooms / 2));
+    const pts        = mushrooms * 3;
+
+    gardenDoc.ecosystem.mushrooms = 0;
+    await gardenDoc.save();
+
+    const up = await UserPoints.findOne({ userId: uid });
+    if (up) {
+      up.fertilizer  = (up.fertilizer  || 0) + fertilizer;
+      up.points      = (up.points      || 0) + pts;
+      up.totalEarned = (up.totalEarned || 0) + pts;
+      await up.save();
+    }
+
+    res.json({ success: true, mushrooms, fertilizer, pts, points: up?.points,
+               inventory: { fertilizer: up?.fertilizer } });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════
+// FRIEND GARDEN — view & gift
+// ══════════════════════════════════════════════════════════════
+
+// GET /api/garden/friend/:friendId — read-only view of a friend's garden
+router.get('/friend/:friendId', async (req, res) => {
+  try {
+    const uid      = req.userId;
+    const friendId = req.params.friendId;
+
+    // Must be friends
+    const me = await User.findById(uid).select('friends');
+    if (!me?.friends?.map(f => f.toString()).includes(friendId)) {
+      return res.status(403).json({ error: 'Chỉ có thể xem vườn của bạn bè' });
+    }
+
+    const [friendUser, gardenDoc, plants, friendUp] = await Promise.all([
+      User.findById(friendId).select('displayName username'),
+      GardenPlot.findOne({ userId: friendId }),
+      GardenPlant.find({ userId: friendId }),
+      UserPoints.findOne({ userId: friendId }).select('points level'),
+    ]);
+    if (!friendUser) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+
+    const cellPrices = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      cellPrices[r] = [];
+      for (let c = 0; c < GRID_COLS; c++) cellPrices[r][c] = cellPrice(r, c);
+    }
+
+    const enriched = plants.map(p => ({
+      ...p.toObject(),
+      plantType: getPlantType(p.plantTypeId),
+      potType:   getPotType(p.potTypeId),
+    }));
+
+    res.json({
+      friend: {
+        _id: friendId,
+        displayName: friendUser.displayName,
+        username:    friendUser.username,
+        level:       friendUp?.level || 1,
+      },
+      purchasedCells: gardenDoc?.purchasedCells || [],
+      plants:    enriched,
+      gridConfig:{ rows: GRID_ROWS, cols: GRID_COLS },
+      cellPrices,
+      gameTime:  getGameTime(),
+      weather:   gardenDoc?.weather     || 'sunny',
+      weatherInfo: getWeatherInfo(gardenDoc?.weather || 'sunny'),
+      ecosystem: gardenDoc?.ecosystem   || {},
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/friend/:friendId/water/:plantId — gift 1 water to friend's plant
+router.post('/friend/:friendId/water/:plantId', async (req, res) => {
+  try {
+    const uid      = req.userId;
+    const { friendId, plantId } = req.params;
+
+    // Must be friends
+    const me = await User.findById(uid).select('friends');
+    if (!me?.friends?.map(f => f.toString()).includes(friendId)) {
+      return res.status(403).json({ error: 'Chỉ có thể tặng cho bạn bè' });
+    }
+
+    // Visitor needs ≥1 water item
+    const myUp = await UserPoints.findOne({ userId: uid });
+    if (!myUp || myUp.water < 1) {
+      return res.status(400).json({ error: 'Cần 1 💧 nước để tặng' });
+    }
+
+    // Target plant must belong to friend and be alive
+    const plant = await GardenPlant.findOne({ _id: plantId, userId: friendId });
+    if (!plant || !plant.isAlive) return res.status(404).json({ error: 'Không tìm thấy cây' });
+
+    // Deduct visitor's water, water the plant, reward friend 3 pts
+    myUp.water--;
+    plant.waterLevel    = Math.min(100, plant.waterLevel + 35);
+    plant.lastWateredAt = new Date();
+    plant.health        = Math.min(100, plant.health + 2);
+
+    const friendUp = await UserPoints.findOne({ userId: friendId });
+    if (friendUp) {
+      friendUp.points      = (friendUp.points      || 0) + 3;
+      friendUp.totalEarned = (friendUp.totalEarned || 0) + 3;
+    }
+
+    await Promise.all([myUp.save(), plant.save(), friendUp?.save()].filter(Boolean));
+
+    res.json({ success: true, waterLevel: plant.waterLevel, health: plant.health, points: myUp.points });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
