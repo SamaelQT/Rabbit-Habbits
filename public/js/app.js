@@ -7139,24 +7139,27 @@ function _renderCarePanel(plant) {
   const pot = plant.potType    || {};
   const si  = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
 
-  // Header
+  // Hero
   const emojiEl = document.getElementById('gcp-emoji');
   const nameEl  = document.getElementById('gcp-name');
   const stageEl = document.getElementById('gcp-stage');
+  const glowEl  = document.getElementById('gcp-hero-glow');
   if (emojiEl) emojiEl.textContent = si.emoji;
   if (nameEl)  nameEl.textContent  = pt.name || '—';
-  if (stageEl) { stageEl.textContent = si.label; stageEl.style.background = si.color + '33'; stageEl.style.color = si.color; }
+  if (stageEl) { stageEl.textContent = si.label; stageEl.style.background = si.color + '2a'; stageEl.style.color = si.color; stageEl.style.border = `1px solid ${si.color}44`; }
+  if (glowEl)  glowEl.style.background = `radial-gradient(ellipse 100% 100% at 30% 0%, ${si.color}22 0%, transparent 70%)`;
 
-  // Bars
-  function setBar(barId, valId, pct, color) {
-    const b = document.getElementById(barId), v = document.getElementById(valId);
-    if (b) { b.style.width = pct + '%'; b.style.background = color; }
+  // Circular gauges
+  function setGauge(gaugeId, valId, pct, color) {
+    const g = document.getElementById(gaugeId), v = document.getElementById(valId);
+    const deg = Math.round(pct * 3.6);
+    if (g) g.style.background = `conic-gradient(${color} ${deg}deg, rgba(255,255,255,0.05) ${deg}deg)`;
     if (v) v.textContent = Math.round(pct) + '%';
   }
   const hp = plant.health || 0, wl = plant.waterLevel || 0, nl = plant.nutrientLevel || 0;
-  setBar('gcp-health-bar',   'gcp-health-val',   hp, hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a');
-  setBar('gcp-water-bar',    'gcp-water-val',    wl, wl > 50 ? '#5ee8f0' : '#ffcf5c');
-  setBar('gcp-nutrient-bar', 'gcp-nutrient-val', nl, nl > 50 ? '#b07fff' : '#ffcf5c');
+  setGauge('gcp-gauge-health',   'gcp-health-val',   hp, hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a');
+  setGauge('gcp-gauge-water',    'gcp-water-val',    wl, wl > 50 ? '#5ee8f0' : '#ffcf5c');
+  setGauge('gcp-gauge-nutrient', 'gcp-nutrient-val', nl, nl > 50 ? '#b07fff' : '#ffcf5c');
 
   // Status badges
   const statusRow = document.getElementById('gcp-status-row');

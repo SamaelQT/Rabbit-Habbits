@@ -565,8 +565,10 @@
     <!-- ── GRID VIEW ─────────────────────────── -->
     <div id="garden-view-grid">
       <div class="garden-grid-wrap">
-        <div class="garden-grid" id="garden-grid">
-          <!-- cells injected by JS -->
+        <div class="garden-grid-3d">
+          <div class="garden-grid" id="garden-grid">
+            <!-- cells injected by JS -->
+          </div>
         </div>
       </div>
 
@@ -644,36 +646,45 @@
 <div class="garden-care-backdrop" id="garden-care-backdrop" style="display:none"></div>
 <div class="garden-care-panel" id="garden-care-panel" style="display:none">
   <div class="gcp-handle"></div>
-  <div class="gcp-header">
-    <div class="gcp-plant-emoji" id="gcp-emoji">🌿</div>
-    <div class="gcp-plant-info">
+
+  <!-- Hero -->
+  <div class="gcp-hero">
+    <div class="gcp-hero-glow" id="gcp-hero-glow"></div>
+    <div class="gcp-hero-emoji" id="gcp-emoji">🌿</div>
+    <div class="gcp-hero-info">
       <div class="gcp-plant-name" id="gcp-name">—</div>
       <div class="gcp-stage-badge" id="gcp-stage">—</div>
     </div>
     <button class="gcp-close" id="gcp-close">✕</button>
   </div>
 
-  <!-- Health bars -->
-  <div class="gcp-bars">
-    <div class="gcp-bar-row">
-      <span class="gcp-bar-label">❤️ Sức khỏe</span>
-      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-health-bar" id="gcp-health-bar"></div></div>
-      <span class="gcp-bar-val" id="gcp-health-val">—</span>
-    </div>
-    <div class="gcp-bar-row">
-      <span class="gcp-bar-label">💧 Độ ẩm</span>
-      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-water-bar" id="gcp-water-bar"></div></div>
-      <span class="gcp-bar-val" id="gcp-water-val">—</span>
-    </div>
-    <div class="gcp-bar-row">
-      <span class="gcp-bar-label">🌿 Dinh dưỡng</span>
-      <div class="gcp-bar-track"><div class="gcp-bar-fill gcp-nutrient-bar" id="gcp-nutrient-bar"></div></div>
-      <span class="gcp-bar-val" id="gcp-nutrient-val">—</span>
-    </div>
-  </div>
-
   <!-- Status badges -->
   <div class="gcp-status-row" id="gcp-status-row"></div>
+
+  <!-- Circular vitals -->
+  <div class="gcp-vitals">
+    <div class="gcp-vital-item">
+      <div class="gcp-gauge-wrap">
+        <div class="gcp-gauge" id="gcp-gauge-health"></div>
+        <div class="gcp-gauge-inner"><span id="gcp-health-val">—</span></div>
+      </div>
+      <div class="gcp-vital-label">❤️ Sức khỏe</div>
+    </div>
+    <div class="gcp-vital-item">
+      <div class="gcp-gauge-wrap">
+        <div class="gcp-gauge" id="gcp-gauge-water"></div>
+        <div class="gcp-gauge-inner"><span id="gcp-water-val">—</span></div>
+      </div>
+      <div class="gcp-vital-label">💧 Độ ẩm</div>
+    </div>
+    <div class="gcp-vital-item">
+      <div class="gcp-gauge-wrap">
+        <div class="gcp-gauge" id="gcp-gauge-nutrient"></div>
+        <div class="gcp-gauge-inner"><span id="gcp-nutrient-val">—</span></div>
+      </div>
+      <div class="gcp-vital-label">🌿 Dinh dưỡng</div>
+    </div>
+  </div>
 
   <!-- Stage progress -->
   <div class="gcp-stage-row">
@@ -686,12 +697,24 @@
 
   <!-- Action buttons -->
   <div class="gcp-actions">
-    <button class="gcp-btn gcp-btn-water"   id="gcp-btn-water">💧 Tưới nước</button>
-    <button class="gcp-btn gcp-btn-fert"    id="gcp-btn-fert">🌿 Bón phân</button>
-    <button class="gcp-btn gcp-btn-bug"     id="gcp-btn-bug">🐛 Bắt sâu</button>
-    <button class="gcp-btn gcp-btn-leaf"    id="gcp-btn-leaf">🍂 Ngắt lá hư</button>
-    <button class="gcp-btn gcp-btn-harvest" id="gcp-btn-harvest" style="display:none">🌾 Thu hoạch</button>
-    <button class="gcp-btn gcp-btn-uproot"  id="gcp-btn-uproot">🗑️ Nhổ cây</button>
+    <button class="gcp-btn gcp-btn-water"   id="gcp-btn-water">
+      <span class="gcp-btn-icon">💧</span><span>Tưới nước</span>
+    </button>
+    <button class="gcp-btn gcp-btn-fert"    id="gcp-btn-fert">
+      <span class="gcp-btn-icon">🌿</span><span>Bón phân</span>
+    </button>
+    <button class="gcp-btn gcp-btn-bug"     id="gcp-btn-bug">
+      <span class="gcp-btn-icon">🐛</span><span>Bắt sâu</span>
+    </button>
+    <button class="gcp-btn gcp-btn-leaf"    id="gcp-btn-leaf">
+      <span class="gcp-btn-icon">🍂</span><span>Ngắt lá hư</span>
+    </button>
+    <button class="gcp-btn gcp-btn-harvest" id="gcp-btn-harvest" style="display:none">
+      <span class="gcp-btn-icon">🌾</span><span>Thu hoạch</span>
+    </button>
+    <button class="gcp-btn gcp-btn-uproot"  id="gcp-btn-uproot">
+      <span class="gcp-btn-icon">🗑️</span><span>Nhổ cây</span>
+    </button>
   </div>
 
   <!-- Pot info -->
