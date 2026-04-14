@@ -278,16 +278,58 @@ router.get('/points', async (req, res) => {
       streakFreezes: up.streakFreezes,
       freezeActive: up.isFreezeActive(),
       freezeActiveUntil: up.freezeActiveUntil,
-      badges: up.badges
+      badges: up.badges,
+      gardenSeeds: Object.fromEntries(up.gardenSeeds || new Map()),
+      gardenPots:  Object.fromEntries(up.gardenPots  || new Map()),
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
 // ═══ SHOP CATALOG ═══
 
+// ── Garden seed & pot catalog ──
+const GARDEN_SEEDS = [
+  // Phong thủy
+  { id:'kim_tien',  name:'Cây Kim Tiền',    emoji:'🌿', category:'fengshui', price:40, harvestable:false, desc:'Cây phong thủy hút tài lộc, lá tròn xanh bóng mang may mắn' },
+  { id:'kim_ngan',  name:'Cây Kim Ngân',    emoji:'🌳', category:'fengshui', price:50, harvestable:false, desc:'Tượng trưng sự giàu có, đặt bàn làm việc chiêu tài' },
+  { id:'ngoc_bich', name:'Cây Ngọc Bích',   emoji:'🎍', category:'fengshui', price:55, harvestable:false, desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
+  { id:'phat_tai',  name:'Cây Phát Tài',    emoji:'🎋', category:'fengshui', price:45, harvestable:false, desc:'Biểu tượng may mắn, phú quý, phát đạt' },
+  { id:'truc_may',  name:'Trúc May Mắn',    emoji:'🪴', category:'fengshui', price:30, harvestable:false, desc:'Tre trúc nhỏ xinh, mang lại bình an và may mắn' },
+  { id:'sen_da',    name:'Cây Sen Đá',       emoji:'🌵', category:'fengshui', price:25, harvestable:false, desc:'Sức khỏe dồi dào, rất dễ chăm, chịu khô hạn tốt' },
+  // Rau
+  { id:'ca_chua',   name:'Cà Chua',          emoji:'🍅', category:'vegetable', price:20, harvestable:true,  harvestItem:'food',  harvestPoints:8,  desc:'Cà chua chín đỏ, thu hoạch được thức ăn cho thú cưng' },
+  { id:'dua_leo',   name:'Dưa Leo',          emoji:'🥒', category:'vegetable', price:20, harvestable:true,  harvestItem:'food',  harvestPoints:8,  desc:'Dưa leo xanh mát, cần tưới nhiều nước' },
+  { id:'cai_xanh',  name:'Cải Xanh',         emoji:'🥬', category:'vegetable', price:15, harvestable:true,  harvestItem:'food',  harvestPoints:6,  desc:'Rau cải ngọt mau thu hoạch, rất dễ trồng' },
+  { id:'ca_rot',    name:'Cà Rốt',           emoji:'🥕', category:'vegetable', price:18, harvestable:true,  harvestItem:'food',  harvestPoints:8,  desc:'Cà rốt ngọt bùi, rất được thỏ yêu thích' },
+  { id:'hanh_la',   name:'Hành Lá',          emoji:'🧅', category:'vegetable', price:12, harvestable:true,  harvestItem:'seed',  harvestPoints:5,  desc:'Hành lá nhanh thu hoạch nhất, chu kỳ ngắn' },
+  { id:'rau_muong', name:'Rau Muống',        emoji:'🌱', category:'vegetable', price:12, harvestable:true,  harvestItem:'food',  harvestPoints:5,  desc:'Rau muống tươi, cần nhiều nước, lớn rất nhanh' },
+  // Ăn quả
+  { id:'dau_tay',   name:'Dâu Tây',          emoji:'🍓', category:'fruit',    price:45, harvestable:true,  harvestItem:'treat', harvestPoints:15, desc:'Dâu tây ngọt chua, quý hiếm và ngon miệng' },
+  { id:'chanh',     name:'Cây Chanh',        emoji:'🍋', category:'fruit',    price:50, harvestable:true,  harvestItem:'food',  harvestPoints:18, desc:'Chanh tươi chua ngọt, trồng một lần thu hoạch nhiều mùa' },
+  { id:'oi',        name:'Cây Ổi',           emoji:'🍈', category:'fruit',    price:55, harvestable:true,  harvestItem:'treat', harvestPoints:20, desc:'Ổi thơm ngon, cây lớn cần chậu rộng để phát triển' },
+  { id:'cam',       name:'Cây Cam',          emoji:'🍊', category:'fruit',    price:60, harvestable:true,  harvestItem:'treat', harvestPoints:22, desc:'Cam chín vàng óng, mọng nước, thú cưng rất thích' },
+  { id:'xoai',      name:'Cây Xoài',         emoji:'🥭', category:'fruit',    price:70, harvestable:true,  harvestItem:'treat', harvestPoints:25, desc:'Xoài ngọt đặc trưng, cây lớn đẹp, quả nhiều' },
+  { id:'chuoi',     name:'Cây Chuối',        emoji:'🍌', category:'fruit',    price:65, harvestable:true,  harvestItem:'food',  harvestPoints:22, desc:'Chuối vàng ngọt bùi, cây nhanh cho trái nhất trong nhóm to' },
+  // Hoa
+  { id:'huong_duong',name:'Hướng Dương',     emoji:'🌻', category:'flower',   price:35, harvestable:false, desc:'Hoa hướng dương rực rỡ, luôn quay về phía mặt trời' },
+  { id:'hoa_hong',  name:'Hoa Hồng',         emoji:'🌹', category:'flower',   price:40, harvestable:true,  harvestItem:'rose',  harvestPoints:12, desc:'Hoa hồng tươi thắm, thu hoạch được hoa tặng bạn bè' },
+  { id:'tulip',     name:'Hoa Tulip',        emoji:'🌷', category:'flower',   price:30, harvestable:false, desc:'Tulip sắc màu rực rỡ, thanh lịch và sang trọng' },
+  { id:'cuc_vang',  name:'Hoa Cúc Vàng',    emoji:'🌼', category:'flower',   price:25, harvestable:false, desc:'Cúc vàng tươi sáng, biểu tượng của niềm vui' },
+  { id:'lavender',  name:'Hoa Lavender',     emoji:'💜', category:'flower',   price:35, harvestable:false, desc:'Lavender tím thơm nhẹ, giúp thư giãn và dễ chịu' },
+  { id:'hoa_giay',  name:'Hoa Giấy',         emoji:'🌸', category:'flower',   price:45, harvestable:false, desc:'Hoa giấy đỏ rực, leo giàn đẹp, nở hoa quanh năm' },
+];
+
+const GARDEN_POTS = [
+  { id:'pot_s',  name:'Chậu Đất Nhỏ',  emoji:'🪴', size:'small',  price:20,  desc:'Phù hợp cây nhỏ. Cây vừa/lớn sẽ bị bó rễ, chậm lớn.' },
+  { id:'pot_m',  name:'Chậu Gốm',      emoji:'🏺', size:'medium', price:40,  desc:'Phù hợp cây vừa. Đa năng nhất cho hầu hết loại cây.' },
+  { id:'pot_l',  name:'Chậu Gỗ',       emoji:'🪵', size:'large',  price:80,  desc:'Phù hợp cây to. Cây nhỏ dễ bị úng rễ vì quá ẩm.' },
+  { id:'pot_xl', name:'Chậu Sứ Lớn',   emoji:'🏛️', size:'xl',    price:150, desc:'Cây ăn quả lớn. Bonus +5% tốc độ tất cả cây. Đẹp nhất.' },
+];
+
 // GET /api/shop/catalog
 router.get('/catalog', (req, res) => {
-  res.json({ pets: SHOP_PETS, items: SHOP_ITEMS, streakFreezePrice: STREAK_FREEZE_PRICE });
+  res.json({ pets: SHOP_PETS, items: SHOP_ITEMS, streakFreezePrice: STREAK_FREEZE_PRICE,
+             gardenSeeds: GARDEN_SEEDS, gardenPots: GARDEN_POTS });
 });
 
 // ═══ BUY PET ═══
@@ -369,6 +411,52 @@ router.post('/buy-freeze', async (req, res) => {
     await up.save();
 
     res.json({ points: up.points, streakFreezes: up.streakFreezes });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ═══ BUY GARDEN SEED ═══
+
+// POST /api/shop/buy-garden-seed  { seedId, qty? }
+router.post('/buy-garden-seed', async (req, res) => {
+  try {
+    const { seedId } = req.body;
+    const qty = parseInt(req.body.qty) || 1;
+    if (qty < 1 || qty > 99) return res.status(400).json({ error: 'Số lượng không hợp lệ' });
+    const seed = GARDEN_SEEDS.find(s => s.id === seedId);
+    if (!seed) return res.status(400).json({ error: 'Loại hạt không hợp lệ' });
+
+    const totalCost = seed.price * qty;
+    const up = await getUP(req.userId);
+    if (!up.spendPoints(totalCost)) return res.status(400).json({ error: 'Không đủ điểm!' });
+
+    const current = up.gardenSeeds.get(seedId) || 0;
+    up.gardenSeeds.set(seedId, current + qty);
+    up.markModified('gardenSeeds');
+    await up.save();
+
+    res.json({ success: true, points: up.points, gardenSeeds: Object.fromEntries(up.gardenSeeds) });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/shop/buy-garden-pot  { potId, qty? }
+router.post('/buy-garden-pot', async (req, res) => {
+  try {
+    const { potId } = req.body;
+    const qty = parseInt(req.body.qty) || 1;
+    if (qty < 1 || qty > 99) return res.status(400).json({ error: 'Số lượng không hợp lệ' });
+    const pot = GARDEN_POTS.find(p => p.id === potId);
+    if (!pot) return res.status(400).json({ error: 'Loại chậu không hợp lệ' });
+
+    const totalCost = pot.price * qty;
+    const up = await getUP(req.userId);
+    if (!up.spendPoints(totalCost)) return res.status(400).json({ error: 'Không đủ điểm!' });
+
+    const current = up.gardenPots.get(potId) || 0;
+    up.gardenPots.set(potId, current + qty);
+    up.markModified('gardenPots');
+    await up.save();
+
+    res.json({ success: true, points: up.points, gardenPots: Object.fromEntries(up.gardenPots) });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

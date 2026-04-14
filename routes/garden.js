@@ -579,13 +579,20 @@ router.post('/plant', async (req, res) => {
       return res.status(400).json({ error: 'Ô này đã có cây rồi' });
     }
 
-    // Deduct cost (plant + pot)
-    const totalCost = pt.price + pot.price;
+    // Check & deduct from inventory (seeds and pots bought in shop)
     const up = await UserPoints.findOne({ userId: req.userId });
-    if (!up || up.points < totalCost) {
-      return res.status(400).json({ error: `Không đủ điểm (cần ${totalCost} điểm)` });
+    const seedCount = (up?.gardenSeeds?.get(plantTypeId)) || 0;
+    const potCount  = (up?.gardenPots?.get(potTypeId))    || 0;
+    if (seedCount < 1) {
+      return res.status(400).json({ error: `Bạn chưa có hạt giống ${pt.name}. Hãy mua trong Cửa hàng!` });
     }
-    up.points -= totalCost;
+    if (potCount < 1) {
+      return res.status(400).json({ error: `Bạn chưa có ${pot.name}. Hãy mua trong Cửa hàng!` });
+    }
+    up.gardenSeeds.set(plantTypeId, seedCount - 1);
+    up.gardenPots.set(potTypeId,  potCount  - 1);
+    up.markModified('gardenSeeds');
+    up.markModified('gardenPots');
     await up.save();
 
     // Remove dead plant in slot if any
@@ -601,6 +608,8 @@ router.post('/plant', async (req, res) => {
 
     res.status(201).json({
       success: true, points: up.points,
+      gardenSeeds: Object.fromEntries(up.gardenSeeds),
+      gardenPots:  Object.fromEntries(up.gardenPots),
       plant: { ...plant.toObject(), plantType: pt, potType: pot }
     });
   } catch(e) { res.status(500).json({ error: e.message }); }

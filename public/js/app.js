@@ -3600,6 +3600,8 @@ const apiShop = {
   buyItem:     (id,qty) => API.p('/api/shop/buy-item', { itemId: id, qty }),
   buyFreeze:   ()       => API.p('/api/shop/buy-freeze', {}),
   activateFreeze: ()    => API.p('/api/shop/activate-freeze', {}),
+  buyGardenSeed: (id, qty=1) => API.p('/api/shop/buy-garden-seed', { seedId: id, qty }),
+  buyGardenPot:  (id, qty=1) => API.p('/api/shop/buy-garden-pot',  { potId:  id, qty }),
   pets:        ()       => API.g('/api/shop/pets'),
   care:        (petId, action) => API.p('/api/shop/care', { petId, action }),
   setPetVisibility: (id, hidden) => API.pa(`/api/shop/pet/${id}/visibility`, { hidden }),
@@ -3610,7 +3612,7 @@ const apiShop = {
 };
 
 let _shopInited = false;
-let _shopData = { points:0, food:0, meat:0, fish:0, seed:0, treat:0, water:0, fertilizer:0, streakFreezes:0, badges:[] };
+let _shopData = { points:0, food:0, meat:0, fish:0, seed:0, treat:0, water:0, fertilizer:0, streakFreezes:0, badges:[], gardenSeeds:{}, gardenPots:{} };
 
 // Update points display everywhere — animates the badge on change
 function updatePointsUI(pts) {
@@ -3745,14 +3747,36 @@ async function initShop() {
   if (_shopInited) return;
   _shopInited = true;
 
+  _setupShopTabs();
   await loadShopData();
   await loadStoreCatalog();
+}
+
+function _setupShopTabs() {
+  document.querySelectorAll('.shop-tab[data-stab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.shop-tab[data-stab]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const tab = btn.dataset.stab;
+      document.getElementById('shop-tab-pets').style.display    = tab === 'pets'    ? '' : 'none';
+      document.getElementById('shop-tab-garden').style.display  = tab === 'garden'  ? '' : 'none';
+      document.getElementById('shop-tab-items').style.display   = tab === 'items'   ? '' : 'none';
+    });
+  });
+  // Garden seed filter buttons
+  document.querySelectorAll('.sgf-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.sgf-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _renderStoreSeedsGrid(btn.dataset.scat);
+    });
+  });
 }
 
 async function loadShopData() {
   try {
     const data = await apiShop.points();
-    _shopData = { ...data };
+    _shopData = { ...data, gardenSeeds: data.gardenSeeds || {}, gardenPots: data.gardenPots || {} };
     updatePointsUI(data.points);
     updateInventoryUI();
   } catch(e) { console.error('loadShopData:', e); }
@@ -3884,9 +3908,12 @@ function makeStoreCard(p) {
 }
 
 // ── STORE CATALOG ──
+let _storeCatalog = null; // cache for garden seed/pot rendering
+
 async function loadStoreCatalog() {
   try {
-    const { pets, items, streakFreezePrice } = await apiShop.catalog();
+    const { pets, items, streakFreezePrice, gardenSeeds, gardenPots } = await apiShop.catalog();
+    _storeCatalog = { gardenSeeds, gardenPots };
 
     // Animals
     const aGrid = document.getElementById('store-animals-grid');
@@ -3967,7 +3994,89 @@ async function loadStoreCatalog() {
     });
     sGrid.appendChild(fCard);
 
+    // Garden seeds & pots
+    _renderStoreSeedsGrid('all');
+    _renderStorePotsGrid();
+
   } catch(e) { console.error('loadStoreCatalog:', e); }
+}
+
+// ── GARDEN SHOP SECTIONS ──
+const GARDEN_CAT_INFO = {
+  vegetable: { emoji:'🥬', label:'Rau', color:'#4caf50' },
+  fruit:     { emoji:'🍎', label:'Quả', color:'#ff7043' },
+  flower:    { emoji:'🌸', label:'Hoa', color:'#e91e8c' },
+  fengshui:  { emoji:'🎍', label:'Phong thủy', color:'#b07fff' },
+};
+
+function _renderStoreSeedsGrid(cat = 'all') {
+  const grid = document.getElementById('store-seeds-grid');
+  if (!grid || !_storeCatalog) return;
+  const seeds = cat === 'all'
+    ? _storeCatalog.gardenSeeds
+    : _storeCatalog.gardenSeeds.filter(s => s.category === cat);
+
+  grid.innerHTML = '';
+  seeds.forEach(s => {
+    const ci = GARDEN_CAT_INFO[s.category] || {};
+    const owned = _shopData.gardenSeeds[s.id] || 0;
+    const harvestNote = s.harvestable
+      ? `<div class="seed-harvest-note">🌾 Thu hoạch: +${s.harvestPoints}đ</div>`
+      : `<div class="seed-harvest-note">🌀 Cây cảnh</div>`;
+    const card = document.createElement('div');
+    card.className = 'store-card';
+    card.innerHTML = `
+      <div class="store-emoji">${s.emoji}</div>
+      <div class="store-name">${s.name}</div>
+      <div class="store-cat-badge" style="background:${ci.color||'#b07fff'}22;color:${ci.color||'#b07fff'}">${ci.emoji||''} ${ci.label||''}</div>
+      <div class="store-desc">${s.desc}</div>
+      ${harvestNote}
+      <div class="store-owned-badge" id="seed-owned-${s.id}">Bạn có: <b>${owned}</b></div>
+      <button class="store-price" data-seedid="${s.id}">⭐ ${s.price} điểm</button>
+    `;
+    card.querySelector('.store-price').addEventListener('click', async () => {
+      try {
+        const res = await apiShop.buyGardenSeed(s.id, 1);
+        _shopData.gardenSeeds = res.gardenSeeds;
+        updatePointsUI(res.points);
+        const badge = document.getElementById(`seed-owned-${s.id}`);
+        if (badge) badge.innerHTML = `Bạn có: <b>${res.gardenSeeds[s.id] || 0}</b>`;
+        toast(`🌱 Đã mua hạt giống ${s.name}!`);
+        quickNotifCheck();
+      } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+    });
+    grid.appendChild(card);
+  });
+}
+
+function _renderStorePotsGrid() {
+  const grid = document.getElementById('store-pots-grid');
+  if (!grid || !_storeCatalog) return;
+  grid.innerHTML = '';
+  _storeCatalog.gardenPots.forEach(p => {
+    const owned = _shopData.gardenPots[p.id] || 0;
+    const card = document.createElement('div');
+    card.className = 'store-card';
+    card.innerHTML = `
+      <div class="store-emoji">${p.emoji}</div>
+      <div class="store-name">${p.name}</div>
+      <div class="store-desc">${p.desc}</div>
+      <div class="store-owned-badge" id="pot-owned-${p.id}">Bạn có: <b>${owned}</b></div>
+      <button class="store-price" data-potid="${p.id}">⭐ ${p.price} điểm</button>
+    `;
+    card.querySelector('.store-price').addEventListener('click', async () => {
+      try {
+        const res = await apiShop.buyGardenPot(p.id, 1);
+        _shopData.gardenPots = res.gardenPots;
+        updatePointsUI(res.points);
+        const badge = document.getElementById(`pot-owned-${p.id}`);
+        if (badge) badge.innerHTML = `Bạn có: <b>${res.gardenPots[p.id] || 0}</b>`;
+        toast(`🪴 Đã mua ${p.name}!`);
+        quickNotifCheck();
+      } catch(e) { toast('❌ ' + (e.message || 'Không đủ điểm!')); }
+    });
+    grid.appendChild(card);
+  });
 }
 
 // ── PET DIALOGUE SYSTEM ──
@@ -6814,18 +6923,20 @@ function _renderGpmPlants(cat) {
     : _gardenCatalog.plants.filter(p => p.category === cat);
   list.innerHTML = plants.map(p => {
     const ci = CAT_INFO[p.category] || {};
+    const owned = _shopData.gardenSeeds[p.id] || 0;
     const sel = _gpmSelectedPlant?.id === p.id ? 'gpm-item-selected' : '';
-    return `<div class="gpm-plant-item ${sel}" data-pid="${p.id}">
+    const noStock = owned < 1 ? 'gpm-item-disabled' : '';
+    return `<div class="gpm-plant-item ${sel} ${noStock}" data-pid="${p.id}">
       <div class="gpm-item-emoji">${p.emoji}</div>
       <div class="gpm-item-info">
         <div class="gpm-item-name">${esc(p.name)}</div>
         <div class="gpm-item-sub">${ci.emoji||''} ${ci.label||''} · ${p.harvestable ? '🌾 Thu hoạch được' : '🌀 Cây cảnh'}</div>
       </div>
-      <div class="gpm-item-price">${p.price}đ</div>
+      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">Có: ${owned}</div>
     </div>`;
   }).join('');
 
-  list.querySelectorAll('.gpm-plant-item').forEach(el => {
+  list.querySelectorAll('.gpm-plant-item:not(.gpm-item-disabled)').forEach(el => {
     el.addEventListener('click', () => {
       _gpmSelectedPlant = _gardenCatalog.plants.find(p => p.id === el.dataset.pid);
       list.querySelectorAll('.gpm-plant-item').forEach(e => e.classList.remove('gpm-item-selected'));
@@ -6839,18 +6950,20 @@ function _renderGpmPots() {
   const list = document.getElementById('gpm-pot-list');
   if (!list || !_gardenCatalog) return;
   list.innerHTML = _gardenCatalog.pots.map(p => {
+    const owned = _shopData.gardenPots[p.id] || 0;
     const sel = _gpmSelectedPot?.id === p.id ? 'gpm-item-selected' : '';
-    return `<div class="gpm-pot-item ${sel}" data-potid="${p.id}">
+    const noStock = owned < 1 ? 'gpm-item-disabled' : '';
+    return `<div class="gpm-pot-item ${sel} ${noStock}" data-potid="${p.id}">
       <div class="gpm-item-emoji">${p.emoji}</div>
       <div class="gpm-item-info">
         <div class="gpm-item-name">${esc(p.name)}</div>
         <div class="gpm-item-sub">${esc(p.desc)}</div>
       </div>
-      <div class="gpm-item-price">${p.price}đ</div>
+      <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">Có: ${owned}</div>
     </div>`;
   }).join('');
 
-  list.querySelectorAll('.gpm-pot-item').forEach(el => {
+  list.querySelectorAll('.gpm-pot-item:not(.gpm-item-disabled)').forEach(el => {
     el.addEventListener('click', () => {
       _gpmSelectedPot = _gardenCatalog.pots.find(p => p.id === el.dataset.potid);
       list.querySelectorAll('.gpm-pot-item').forEach(e => e.classList.remove('gpm-item-selected'));
@@ -6863,9 +6976,18 @@ function _renderGpmPots() {
 function _updateGpmCost() {
   const costEl   = document.getElementById('gpm-cost-val');
   const confirmBtn = document.getElementById('gpm-confirm');
-  const total = (_gpmSelectedPlant?.price || 0) + (_gpmSelectedPot?.price || 0);
-  if (costEl) costEl.textContent = total ? `${total} điểm` : '— điểm';
-  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot);
+  const seedOk = _gpmSelectedPlant && (_shopData.gardenSeeds[_gpmSelectedPlant.id] || 0) > 0;
+  const potOk  = _gpmSelectedPot  && (_shopData.gardenPots[_gpmSelectedPot.id]   || 0) > 0;
+  if (costEl) {
+    if (!_gpmSelectedPlant && !_gpmSelectedPot) {
+      costEl.textContent = '— Chọn cây & chậu';
+    } else if (_gpmSelectedPlant && _gpmSelectedPot) {
+      costEl.textContent = seedOk && potOk ? '✅ Sẵn sàng trồng!' : '❌ Không đủ hàng tồn kho';
+    } else {
+      costEl.textContent = '— Chưa chọn đủ';
+    }
+  }
+  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot && seedOk && potOk);
 }
 
 function _setupPlantModalFilter() {
@@ -6891,7 +7013,8 @@ function _setupPlantModalFilter() {
       );
       if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.disabled = false; btn.textContent = '🌱 Trồng ngay!'; return; }
       toast(`🌱 Đã trồng ${_gpmSelectedPlant.name}!`);
-      updatePointsUI(r.points);
+      if (r.gardenSeeds) _shopData.gardenSeeds = r.gardenSeeds;
+      if (r.gardenPots)  _shopData.gardenPots  = r.gardenPots;
       _closeGpmModal();
       _gardenData = await apiGarden.load();
       _refreshGardenUI();
@@ -7065,9 +7188,7 @@ function _setupGardenViewTabs() {
       btn.classList.add('active');
       const view = btn.dataset.gview;
       document.getElementById('garden-view-grid').style.display    = view === 'grid'    ? '' : 'none';
-      document.getElementById('garden-view-shop').style.display    = view === 'shop'    ? '' : 'none';
       document.getElementById('garden-view-friends').style.display = view === 'friends' ? '' : 'none';
-      if (view === 'shop')    _renderGardenShop();
       if (view === 'friends') _loadGardenFriendsList();
     });
   });

@@ -21,6 +21,9 @@ const userPointsSchema = new mongoose.Schema({
   rose:       { type: Number, default: 0 },
   chocolate:  { type: Number, default: 0 },
   star:       { type: Number, default: 0 },
+  // Garden inventory (seeds & pots bought from shop)
+  gardenSeeds: { type: Map, of: Number, default: () => ({}) },
+  gardenPots:  { type: Map, of: Number, default: () => ({}) },
   // Badges earned
   badges: [{
     id:     String,

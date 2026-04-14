@@ -556,10 +556,9 @@
     <!-- Weather banner -->
     <div class="garden-weather-banner" id="garden-weather-banner" style="display:none"></div>
 
-    <!-- View tabs: Grid / Shop / Friends -->
+    <!-- View tabs: Grid / Friends -->
     <div class="garden-view-tabs">
       <button class="gvt-btn active" data-gview="grid">🌱 Vườn của tôi</button>
-      <button class="gvt-btn" data-gview="shop">🛒 Mua cây & chậu</button>
       <button class="gvt-btn" data-gview="friends">👥 Bạn bè</button>
     </div>
 
@@ -721,8 +720,8 @@
   <div class="gpm-pot-list" id="gpm-pot-list"></div>
 
   <div class="gpm-cost-row">
-    <span class="gpm-cost-label">Tổng chi phí:</span>
-    <span class="gpm-cost-val" id="gpm-cost-val">— điểm</span>
+    <span class="gpm-cost-label">Trạng thái:</span>
+    <span class="gpm-cost-val" id="gpm-cost-val">— Chọn cây & chậu</span>
   </div>
   <button class="gpm-confirm-btn" id="gpm-confirm" disabled>🌱 Trồng ngay!</button>
 </div>
@@ -757,22 +756,54 @@
       </div>
     </div>
 
-    <!-- Store sections -->
-    <div class="store-section">
-      <div class="store-section-title">🐾 Thú cưng</div>
-      <div class="store-grid" id="store-animals-grid"></div>
+    <!-- Shop tabs -->
+    <div class="shop-tabs">
+      <button class="shop-tab active" data-stab="pets">🐾 Thú & Cây</button>
+      <button class="shop-tab" data-stab="garden">🌱 Hạt & Chậu</button>
+      <button class="shop-tab" data-stab="items">🎒 Vật phẩm</button>
     </div>
-    <div class="store-section">
-      <div class="store-section-title">🌿 Cây phong thủy</div>
-      <div class="store-grid" id="store-plants-grid"></div>
+
+    <!-- Tab: Pets & Feng shui plants -->
+    <div class="shop-tab-content" id="shop-tab-pets">
+      <div class="store-section">
+        <div class="store-section-title">🐾 Thú cưng</div>
+        <div class="store-grid" id="store-animals-grid"></div>
+      </div>
+      <div class="store-section">
+        <div class="store-section-title">🌿 Cây phong thủy</div>
+        <div class="store-grid" id="store-plants-grid"></div>
+      </div>
     </div>
-    <div class="store-section">
-      <div class="store-section-title">🎒 Vật phẩm</div>
-      <div class="store-grid" id="store-items-grid"></div>
+
+    <!-- Tab: Garden seeds & pots -->
+    <div class="shop-tab-content" id="shop-tab-garden" style="display:none">
+      <div class="store-section">
+        <div class="store-section-title">🌱 Cây giống</div>
+        <div class="store-garden-filter" id="store-seed-filter">
+          <button class="sgf-btn active" data-scat="all">Tất cả</button>
+          <button class="sgf-btn" data-scat="vegetable">🥬 Rau</button>
+          <button class="sgf-btn" data-scat="fruit">🍎 Quả</button>
+          <button class="sgf-btn" data-scat="flower">🌸 Hoa</button>
+          <button class="sgf-btn" data-scat="fengshui">🎍 Phong thủy</button>
+        </div>
+        <div class="store-grid" id="store-seeds-grid"></div>
+      </div>
+      <div class="store-section">
+        <div class="store-section-title">🪴 Chậu cây</div>
+        <div class="store-grid" id="store-pots-grid"></div>
+      </div>
     </div>
-    <div class="store-section">
-      <div class="store-section-title">❄️ Đặc biệt</div>
-      <div class="store-grid" id="store-special-grid"></div>
+
+    <!-- Tab: Items & Special -->
+    <div class="shop-tab-content" id="shop-tab-items" style="display:none">
+      <div class="store-section">
+        <div class="store-section-title">🎒 Vật phẩm</div>
+        <div class="store-grid" id="store-items-grid"></div>
+      </div>
+      <div class="store-section">
+        <div class="store-section-title">❄️ Đặc biệt</div>
+        <div class="store-grid" id="store-special-grid"></div>
+      </div>
     </div>
 
   </div>
