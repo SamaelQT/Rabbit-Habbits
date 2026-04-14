@@ -1750,6 +1750,30 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .notif-item.notif-overdue{border-left:3px solid #ffaa44;padding-left:15px;background:rgba(255,170,68,.04);}
 .notif-item.notif-overdue:hover{background:rgba(255,170,68,.09);}
 
+/* Push-to-today bar inside notification panel */
+.notif-push-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:8px 14px;margin:4px 0 6px;border-radius:8px;
+  background:rgba(255,170,68,.1);border:1px solid rgba(255,170,68,.25);}
+.notif-push-info{font-size:.78rem;color:var(--text2,#aaa);flex:1;}
+.notif-push-btn{flex-shrink:0;padding:5px 12px;border-radius:6px;border:none;cursor:pointer;
+  font-size:.78rem;font-weight:600;
+  background:linear-gradient(135deg,#ffaa44,#ff7700);color:#fff;
+  transition:opacity .15s;}
+.notif-push-btn:hover{opacity:.85;}
+.notif-push-btn:disabled{opacity:.6;cursor:not-allowed;}
+
+/* Overdue banner on home page (above columns) */
+.overdue-banner{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:9px 14px;margin:0 0 10px;border-radius:10px;
+  background:rgba(255,170,68,.1);border:1px solid rgba(255,170,68,.3);}
+.overdue-banner span{font-size:.82rem;color:var(--text1,#eee);}
+.overdue-banner-btn{flex-shrink:0;padding:6px 14px;border-radius:7px;border:none;cursor:pointer;
+  font-size:.8rem;font-weight:600;
+  background:linear-gradient(135deg,#ffaa44,#ff7700);color:#fff;
+  transition:opacity .15s;}
+.overdue-banner-btn:hover{opacity:.85;}
+.overdue-banner-btn:disabled{opacity:.6;cursor:not-allowed;}
+
 /* Fire notifications */
 .notif-item.notif-fire-item{border-left:3px solid #ff6600;padding-left:15px;background:rgba(255,100,0,.04);}
 .notif-item.notif-fire-item:hover{background:rgba(255,100,0,.09);}

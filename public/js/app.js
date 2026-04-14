@@ -2589,10 +2589,14 @@ async function loadNotifications() {
     });
   }
 
-  // ─── 6. OVERDUE TASKS (các ngày trước chưa hoàn thành) ──────────────────────
+  // ─── 6. OVERDUE TASKS (tất cả task chưa hoàn thành trước hôm nay) ───────────
   if (overdue.length > 0) {
     urgentCount += overdue.length;
-    html += `<div class="notif-section-title">⚠️ Task quá hạn chưa hoàn thành (${overdue.length})</div>`;
+    html += `<div class="notif-section-title">⚠️ Task chưa hoàn thành (${overdue.length})</div>`;
+    html += `<div class="notif-push-bar">
+      <span class="notif-push-info">📅 Đẩy tất cả ${overdue.length} task lên hôm nay?</span>
+      <button class="notif-push-btn" id="notif-push-today-btn">Đẩy lên hôm nay</button>
+    </div>`;
     const prioLabels = ['Bình thường','Thấp','Trung bình','Cao'];
     const prioIcons  = ['⚪','🟡','🟠','🔴'];
     overdue.slice(0, 6).forEach(t => {
@@ -2748,6 +2752,29 @@ async function loadNotifications() {
     });
   });
 
+  // Wire up "push all to today" button
+  const pushBtn = document.getElementById('notif-push-today-btn');
+  if (pushBtn) {
+    pushBtn.addEventListener('click', async () => {
+      pushBtn.disabled    = true;
+      pushBtn.textContent = 'Đang xử lý…';
+      try {
+        const res = await API.p('/api/tasks/push-to-today', {});
+        pushBtn.textContent = `✅ Đã đẩy ${res.updated} task lên hôm nay`;
+        pushBtn.style.background = 'var(--success, #22c55e)';
+        setTimeout(() => {
+          loadNotifications();
+          quickNotifCheck();
+          // Reload tasks page if currently open
+          if (document.getElementById('page-tasks')?.style.display !== 'none') loadTasks();
+        }, 800);
+      } catch(e) {
+        pushBtn.textContent = '❌ Lỗi, thử lại';
+        pushBtn.disabled = false;
+      }
+    });
+  }
+
   // Mark fires as seen after showing them in panel
   if (fires.length > 0) apiGamification.markFiresSeen().catch(() => {});
 
@@ -2774,6 +2801,8 @@ async function quickNotifCheck() {
       sick + newDead + pendingGifts.length +
       incomplete + (overdueCount?.length||0);
     _updateBellBadge(urgentCount);
+    // Update overdue banner on home page
+    _updateOverdueBanner(overdueCount?.length || 0);
     // Update tab dot
     const dot = document.getElementById('tnav-notif-dot');
     if (dot) dot.style.display = notifData.total > 0 ? 'inline-block' : 'none';
@@ -2795,6 +2824,36 @@ function _updateBellBadge(count) {
   if (badge) {
     badge.textContent = count > 99 ? '99+' : count;
     badge.style.display = count > 0 ? '' : 'none';
+  }
+}
+
+let _overdueBannerWired = false;
+function _updateOverdueBanner(count) {
+  const banner = document.getElementById('overdue-banner');
+  const text   = document.getElementById('overdue-banner-text');
+  if (!banner) return;
+  if (count <= 0) { banner.style.display = 'none'; return; }
+  if (text) text.textContent = `⚠️ Bạn có ${count} task chưa hoàn thành từ các ngày trước`;
+  banner.style.display = 'flex';
+  if (!_overdueBannerWired) {
+    _overdueBannerWired = true;
+    document.getElementById('overdue-banner-btn')?.addEventListener('click', async function() {
+      this.disabled    = true;
+      this.textContent = 'Đang xử lý…';
+      try {
+        const res = await API.p('/api/tasks/push-to-today', {});
+        this.textContent = `✅ Đã đẩy ${res.updated} task!`;
+        this.style.background = 'var(--success, #22c55e)';
+        setTimeout(() => {
+          banner.style.display = 'none';
+          _overdueBannerWired = false;
+          quickNotifCheck();
+        }, 1200);
+      } catch(e) {
+        this.textContent = '❌ Lỗi';
+        this.disabled = false;
+      }
+    });
   }
 }
 

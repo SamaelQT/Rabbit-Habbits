@@ -175,17 +175,28 @@ router.get('/stats', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/tasks/overdue — incomplete tasks from the past 7 days (not today)
+// GET /api/tasks/overdue — ALL incomplete tasks before today (no date limit)
 router.get('/overdue', async (req, res) => {
   try {
-    const today      = new Date().toISOString().slice(0, 10);
-    const sevenAgo   = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
     const tasks = await Task.find({
       userId:    req.userId,
       completed: false,
-      date:      { $gte: sevenAgo, $lt: today }
-    }).sort({ date: -1, priority: -1 }).limit(15);
+      date:      { $lt: today }
+    }).sort({ date: -1, priority: -1 });
     res.json(tasks);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/tasks/push-to-today — reschedule all incomplete past tasks to today
+router.post('/push-to-today', async (req, res) => {
+  try {
+    const today  = new Date().toISOString().slice(0, 10);
+    const result = await Task.updateMany(
+      { userId: req.userId, completed: false, date: { $lt: today } },
+      { $set: { date: today } }
+    );
+    res.json({ updated: result.modifiedCount });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
