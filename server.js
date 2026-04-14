@@ -10,6 +10,10 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
+// Serve Chart.js from npm (ensures correct file even without static copy)
+app.get('/js/chart.umd.min.js', (req, res) => {
+  res.sendFile(path.join(__dirname, 'node_modules', 'chart.js', 'dist', 'chart.umd.min.js'));
+});
 
 app.use('/api/auth',    require('./routes/auth'));
 app.use('/api/tasks',   require('./routes/tasks'));
