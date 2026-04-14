@@ -733,17 +733,6 @@ router.post('/check-badges', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/shop/add-points  { amount } — for testing
-router.post('/add-points', async (req, res) => {
-  try {
-    const amount = parseInt(req.body.amount) || 0;
-    if (amount <= 0) return res.status(400).json({ error: 'Số điểm không hợp lệ' });
-    const up = await getUP(req.userId);
-    up.addPoints(amount);
-    await up.save();
-    res.json({ points: up.points, totalEarned: up.totalEarned });
-  } catch(e) { res.status(500).json({ error: e.message }); }
-});
 
 // ═══ AWARD POINTS (internal helper, called from other routes) ═══
 // Exported for use by task/habit/goal routes
