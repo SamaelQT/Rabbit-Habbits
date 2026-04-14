@@ -3293,3 +3293,104 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .milestone-track{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;}
 .milestone-fill{height:100%;border-radius:3px;transition:width .6s ease;}
 .milestone-sub{font-size:11px;color:var(--text3);font-family:'JetBrains Mono',monospace;}
+
+/* ═══════════════════════════════════════════════════════
+   GARDEN PHASE 3 — Friends & Social
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Garden Friends List (gfv-list) ────────────────────── */
+.gfv-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:12px;padding:0 2px;}
+.gfv-friends{display:flex;flex-direction:column;gap:8px;}
+.gfv-loading,.gfv-empty{
+  text-align:center;padding:28px 16px;font-size:13px;color:var(--text3);
+}
+.gfv-friend-card{
+  display:flex;align-items:center;gap:10px;padding:11px 13px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:13px;
+  transition:all .2s;
+}
+.gfv-friend-card:hover{border-color:var(--border2);box-shadow:0 2px 10px rgba(0,0,0,.15);}
+.gfv-friend-avatar{
+  width:36px;height:36px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#5ef0a0,#3ddbb8);
+  color:#fff;font-size:14px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+.gfv-friend-info{flex:1;min-width:0;}
+.gfv-friend-name{font-size:13px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:5px;}
+.gfv-friend-sub{font-size:10px;color:var(--text3);margin-top:2px;display:flex;align-items:center;gap:5px;}
+.gfv-online-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:#5ef0a0;box-shadow:0 0 4px #5ef0a0;flex-shrink:0;
+}
+.gfv-visit-btn{
+  padding:6px 13px;border:1px solid var(--accent);border-radius:10px;
+  background:rgba(94,240,160,.1);color:var(--accent);
+  font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .2s;white-space:nowrap;flex-shrink:0;
+}
+.gfv-visit-btn:hover{background:var(--accent);color:#fff;transform:translateY(-1px);}
+
+/* ── Friendship level badges (shared) ─────────────────── */
+.gfv-fs-badge,.gf-fs-badge{
+  display:inline-flex;align-items:center;gap:3px;
+  padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600;
+  border:1px solid;white-space:nowrap;
+}
+/* Level 0 — Xa lạ */
+.gfv-fs-lv0,.gf-fs-lv0{background:rgba(150,150,150,.1);color:var(--text3);border-color:rgba(150,150,150,.2);}
+/* Level 1 — Quen biết */
+.gfv-fs-lv1,.gf-fs-lv1{background:rgba(94,240,160,.08);color:#5ef0a0;border-color:rgba(94,240,160,.2);}
+/* Level 2 — Bạn bè */
+.gfv-fs-lv2,.gf-fs-lv2{background:rgba(59,221,184,.12);color:#3ddbb8;border-color:rgba(59,221,184,.28);}
+/* Level 3 — Bạn tốt */
+.gfv-fs-lv3,.gf-fs-lv3{background:rgba(255,200,60,.1);color:#ffd23c;border-color:rgba(255,200,60,.25);}
+/* Level 4 — Thân thiết */
+.gfv-fs-lv4,.gf-fs-lv4{background:rgba(255,150,50,.12);color:#ffab4a;border-color:rgba(255,150,50,.3);}
+/* Level 5 — Tri kỷ */
+.gfv-fs-lv5,.gf-fs-lv5{
+  background:linear-gradient(135deg,rgba(255,100,150,.15),rgba(200,100,255,.15));
+  color:#ff79c6;border-color:rgba(255,100,200,.35);
+  animation:fs-glow .2s ease-in-out;
+}
+
+/* ── Friend garden header / social bar ─────────────────── */
+.gfv-garden-header{
+  display:flex;align-items:center;gap:10px;padding:6px 0 8px;
+  border-bottom:1px solid var(--border);margin-bottom:8px;
+}
+.gfv-back-btn{
+  padding:5px 12px;border:1px solid var(--border2);border-radius:9px;
+  background:var(--bg3);color:var(--text2);font-size:12px;cursor:pointer;
+  font-family:inherit;transition:all .18s;
+}
+.gfv-back-btn:hover{border-color:var(--accent);color:var(--accent);}
+.gfv-garden-owner{flex:1;font-size:13px;font-weight:700;color:var(--text);}
+
+.gfv-social-bar{
+  display:flex;align-items:center;gap:8px;
+  padding:7px 0 10px;flex-wrap:wrap;
+}
+.gfv-fs-header-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid;
+}
+.gfv-gift-rose-btn{
+  padding:6px 14px;border:1px solid rgba(255,100,150,.35);border-radius:10px;
+  background:linear-gradient(135deg,rgba(255,100,150,.12),rgba(200,100,255,.12));
+  color:#ff79c6;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;
+  transition:all .2s;
+}
+.gfv-gift-rose-btn:hover:not(:disabled){
+  background:linear-gradient(135deg,rgba(255,100,150,.25),rgba(200,100,255,.2));
+  transform:translateY(-1px);box-shadow:0 4px 14px rgba(255,100,150,.25);
+}
+.gfv-gift-rose-btn:disabled{opacity:.5;cursor:default;}
+
+/* ── Notif: garden visit item ─────────────────────────── */
+.notif-garden-visit{
+  border-left:2px solid #5ef0a0 !important;
+}
+
+/* ── Friendship badge on gf-fl-card (gamification tab) ── */
+.gf-fs-badge{font-size:10px;}

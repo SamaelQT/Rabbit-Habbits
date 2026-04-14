@@ -41,6 +41,21 @@ const userSchema = new mongoose.Schema({
     streak:       { type: Number, default: 1 },
     lastSentDate: { type: String, default: '' }
   }],
+  // Garden visit notifications
+  receivedGardenVisits: [{
+    from:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    fromName:  { type: String, default: '' },
+    visitedAt: { type: Date, default: Date.now },
+    seen:      { type: Boolean, default: false }
+  }],
+  // Friendship level per friend pair (visits + gifts = score)
+  friendshipLevels: [{
+    with:           { type: mongoose.Schema.Types.ObjectId },
+    score:          { type: Number, default: 0 },
+    totalVisits:    { type: Number, default: 0 },
+    totalGifts:     { type: Number, default: 0 },
+    lastInteractAt: { type: Date, default: Date.now }
+  }],
   lastSeen:    { type: Date, default: null },
   createdAt:   { type: Date, default: Date.now }
 });

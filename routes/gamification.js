@@ -469,10 +469,22 @@ router.get('/leaderboard', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// Friendship level helper (duplicated here to avoid cross-module dep)
+function _getFriendshipLevel(score) {
+  if (score >= 100) return { level: 5, label: 'Tri kỷ',     emoji: '💞' };
+  if (score >=  60) return { level: 4, label: 'Thân thiết', emoji: '💛' };
+  if (score >=  30) return { level: 3, label: 'Bạn tốt',    emoji: '💚' };
+  if (score >=  10) return { level: 2, label: 'Bạn bè',     emoji: '🤝' };
+  if (score >=   1) return { level: 1, label: 'Quen biết',  emoji: '👋' };
+  return { level: 0, label: 'Xa lạ', emoji: '🌱' };
+}
+
 // GET /api/gamification/friends-list
 router.get('/friends-list', async (req, res) => {
   try {
-    const me = await User.findById(req.userId).populate('friends', 'username displayName lastSeen');
+    const me = await User.findById(req.userId)
+      .populate('friends', 'username displayName lastSeen')
+      .select('friends sentFires fireStreaks friendshipLevels');
     const today     = todayKey();
     const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
     // Which friends already got fire today
@@ -481,17 +493,29 @@ router.get('/friends-list', async (req, res) => {
       .map(s => s.to.toString());
     const onlineThreshold = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes
     const isActive = d => d === today || d === yesterday;
+
+    // Also fetch UserPoints for levels
+    const friendIds = (me.friends || []).map(f => f._id);
+    const pointsDocs = await UserPoints.find({ userId: { $in: friendIds } }).select('userId level');
+    const levelMap = {};
+    pointsDocs.forEach(p => { levelMap[p.userId.toString()] = p.level || 1; });
+
     const friends = (me.friends || []).map(f => {
       const fid = f._id.toString();
-      const streakEntry = (me.fireStreaks || []).find(s => s.with?.toString() === fid);
-      const myFireStreak = (streakEntry && isActive(streakEntry.lastSentDate)) ? streakEntry.streak : 0;
+      const streakEntry      = (me.fireStreaks      || []).find(s => s.with?.toString() === fid);
+      const friendshipEntry  = (me.friendshipLevels || []).find(e => e.with?.toString() === fid);
+      const myFireStreak     = (streakEntry && isActive(streakEntry.lastSentDate)) ? streakEntry.streak : 0;
+      const fsScore          = friendshipEntry?.score || 0;
+      const fsInfo           = _getFriendshipLevel(fsScore);
       return {
         _id: f._id,
         username: f.username,
         displayName: f.displayName,
+        level: levelMap[fid] || 1,
         fireSentToday: sentToday.includes(fid),
         isOnline: f.lastSeen && f.lastSeen > onlineThreshold,
         myFireStreak,
+        friendship: { score: fsScore, ...fsInfo },
       };
     });
     res.json(friends);
@@ -677,13 +701,38 @@ router.post('/fires/seen', async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const [me, messageCount] = await Promise.all([
-      User.findById(req.userId).select('friendRequests receivedFires receivedGifts'),
+      User.findById(req.userId).select('friendRequests receivedFires receivedGifts receivedGardenVisits'),
       Message.countDocuments({ to: req.userId, seen: false })
     ]);
-    const requestCount = (me.friendRequests || []).length;
-    const fireCount    = (me.receivedFires  || []).filter(f => !f.seen).length;
-    const giftCount    = (me.receivedGifts  || []).filter(g => !g.seen).length;
-    res.json({ requestCount, fireCount, giftCount, messageCount, total: requestCount + fireCount + giftCount + messageCount });
+    const requestCount    = (me.friendRequests       || []).length;
+    const fireCount       = (me.receivedFires        || []).filter(f => !f.seen).length;
+    const giftCount       = (me.receivedGifts        || []).filter(g => !g.seen).length;
+    const gardenVisitCount= (me.receivedGardenVisits || []).filter(v => !v.seen).length;
+    const total = requestCount + fireCount + giftCount + messageCount + gardenVisitCount;
+    res.json({ requestCount, fireCount, giftCount, messageCount, gardenVisitCount, total });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/garden-visits — get unseen garden visits
+router.get('/garden-visits', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('receivedGardenVisits');
+    const visits = (me.receivedGardenVisits || [])
+      .filter(v => !v.seen)
+      .sort((a, b) => b.visitedAt - a.visitedAt)
+      .slice(0, 10);
+    res.json(visits);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gamification/garden-visits/seen — mark garden visits as seen
+router.post('/garden-visits/seen', async (req, res) => {
+  try {
+    await User.updateOne(
+      { _id: req.userId },
+      { $set: { 'receivedGardenVisits.$[].seen': true } }
+    );
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

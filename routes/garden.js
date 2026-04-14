@@ -797,6 +797,39 @@ router.post('/mushroom-harvest', async (req, res) => {
 // FRIEND GARDEN — view & gift
 // ══════════════════════════════════════════════════════════════
 
+// ── Friendship helpers ─────────────────────────────────────────────────────
+// Friendship level labels based on score
+function getFriendshipLevel(score) {
+  if (score >= 100) return { level: 5, label: 'Tri kỷ',      emoji: '💞' };
+  if (score >=  60) return { level: 4, label: 'Thân thiết',  emoji: '💛' };
+  if (score >=  30) return { level: 3, label: 'Bạn tốt',     emoji: '💚' };
+  if (score >=  10) return { level: 2, label: 'Bạn bè',      emoji: '🤝' };
+  if (score >=   1) return { level: 1, label: 'Quen biết',   emoji: '👋' };
+  return { level: 0, label: 'Xa lạ', emoji: '🌱' };
+}
+
+// Upsert friendship score for both users (+scoreA for uid on friendId's side, +scoreB vice-versa)
+async function _updateFriendship(uid, friendId, scoreInc, visitInc, giftInc) {
+  const update = (doc, otherId) => {
+    let entry = (doc.friendshipLevels || []).find(e => e.with?.toString() === otherId.toString());
+    if (!entry) {
+      doc.friendshipLevels = doc.friendshipLevels || [];
+      doc.friendshipLevels.push({ with: otherId, score: 0, totalVisits: 0, totalGifts: 0 });
+      entry = doc.friendshipLevels[doc.friendshipLevels.length - 1];
+    }
+    entry.score          = (entry.score       || 0) + scoreInc;
+    entry.totalVisits    = (entry.totalVisits  || 0) + visitInc;
+    entry.totalGifts     = (entry.totalGifts   || 0) + giftInc;
+    entry.lastInteractAt = new Date();
+  };
+  const [userDoc, friendDoc] = await Promise.all([
+    User.findById(uid).select('friendshipLevels'),
+    User.findById(friendId).select('friendshipLevels'),
+  ]);
+  if (userDoc)   { update(userDoc,   friendId); await userDoc.save(); }
+  if (friendDoc) { update(friendDoc, uid);      await friendDoc.save(); }
+}
+
 // GET /api/garden/friend/:friendId — read-only view of a friend's garden
 router.get('/friend/:friendId', async (req, res) => {
   try {
@@ -804,18 +837,46 @@ router.get('/friend/:friendId', async (req, res) => {
     const friendId = req.params.friendId;
 
     // Must be friends
-    const me = await User.findById(uid).select('friends');
+    const me = await User.findById(uid).select('friends displayName username friendshipLevels');
     if (!me?.friends?.map(f => f.toString()).includes(friendId)) {
       return res.status(403).json({ error: 'Chỉ có thể xem vườn của bạn bè' });
     }
 
     const [friendUser, gardenDoc, plants, friendUp] = await Promise.all([
-      User.findById(friendId).select('displayName username'),
+      User.findById(friendId).select('displayName username receivedGardenVisits friendshipLevels'),
       GardenPlot.findOne({ userId: friendId }),
       GardenPlant.find({ userId: friendId }),
       UserPoints.findOne({ userId: friendId }).select('points level'),
     ]);
     if (!friendUser) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+
+    // ── Record visit (rate-limit: once per hour per visitor) ────────────────
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentVisit = (friendUser.receivedGardenVisits || []).find(
+      v => v.from?.toString() === uid.toString() && v.visitedAt > oneHourAgo
+    );
+    if (!recentVisit) {
+      friendUser.receivedGardenVisits = friendUser.receivedGardenVisits || [];
+      // Keep max 30 visits
+      if (friendUser.receivedGardenVisits.length >= 30) {
+        friendUser.receivedGardenVisits.sort((a, b) => b.visitedAt - a.visitedAt);
+        friendUser.receivedGardenVisits = friendUser.receivedGardenVisits.slice(0, 29);
+      }
+      friendUser.receivedGardenVisits.push({
+        from:      uid,
+        fromName:  me.displayName || me.username || 'Bạn bè',
+        visitedAt: new Date(),
+        seen:      false,
+      });
+      await friendUser.save();
+      // Update friendship score (+1 score, +1 visit)
+      _updateFriendship(uid, friendId, 1, 1, 0).catch(() => {});
+    }
+
+    // ── Friendship level for this pair ──────────────────────────────────────
+    const fsEntry = (me.friendshipLevels || []).find(e => e.with?.toString() === friendId.toString());
+    const fsScore  = fsEntry?.score || 0;
+    const fsInfo   = getFriendshipLevel(fsScore);
 
     const cellPrices = [];
     for (let r = 0; r < GRID_ROWS; r++) {
@@ -836,6 +897,7 @@ router.get('/friend/:friendId', async (req, res) => {
         username:    friendUser.username,
         level:       friendUp?.level || 1,
       },
+      friendship: { score: fsScore, ...fsInfo },
       purchasedCells: gardenDoc?.purchasedCells || [],
       plants:    enriched,
       gridConfig:{ rows: GRID_ROWS, cols: GRID_COLS },
@@ -883,8 +945,63 @@ router.post('/friend/:friendId/water/:plantId', async (req, res) => {
     }
 
     await Promise.all([myUp.save(), plant.save(), friendUp?.save()].filter(Boolean));
+    // Update friendship score (+1 gift)
+    _updateFriendship(uid, friendId, 1, 0, 1).catch(() => {});
 
     res.json({ success: true, waterLevel: plant.waterLevel, health: plant.health, points: myUp.points });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/friend/:friendId/gift-rose — gift 1 rose to friend
+router.post('/friend/:friendId/gift-rose', async (req, res) => {
+  try {
+    const uid      = req.userId;
+    const friendId = req.params.friendId;
+
+    // Must be friends
+    const me = await User.findById(uid).select('friends displayName username');
+    if (!me?.friends?.map(f => f.toString()).includes(friendId)) {
+      return res.status(403).json({ error: 'Chỉ có thể tặng cho bạn bè' });
+    }
+
+    // Visitor needs ≥1 rose
+    const myUp = await UserPoints.findOne({ userId: uid });
+    if (!myUp || (myUp.rose || 0) < 1) {
+      return res.status(400).json({ error: 'Bạn chưa có 🌹 hoa hồng để tặng. Hãy trồng Hoa Hồng và thu hoạch!' });
+    }
+
+    const friendUser = await User.findById(friendId).select('displayName username');
+    if (!friendUser) return res.status(404).json({ error: 'Không tìm thấy người dùng' });
+
+    const friendUp = await UserPoints.findOne({ userId: friendId });
+    if (!friendUp) return res.status(404).json({ error: 'Không tìm thấy dữ liệu bạn bè' });
+
+    // Deduct rose from visitor, add to friend
+    myUp.rose = (myUp.rose || 0) - 1;
+    friendUp.rose = (friendUp.rose || 0) + 1;
+    // Bonus 5 pts for friend
+    friendUp.addPoints(5);
+
+    // Record gift notification on friend
+    const senderName = me.displayName || me.username || 'Bạn bè';
+    friendUser.receivedGifts = friendUser.receivedGifts || [];
+    if (friendUser.receivedGifts.length >= 50) friendUser.receivedGifts.shift();
+    friendUser.receivedGifts.push({
+      from:      uid,
+      fromName:  senderName,
+      itemId:    'rose',
+      itemName:  'Hoa hồng',
+      itemEmoji: '🌹',
+      qty:       1,
+      bonusPoints: 5,
+      seen:      false,
+    });
+
+    await Promise.all([myUp.save(), friendUp.save(), friendUser.save()]);
+    // Friendship score: rose gift = +3
+    _updateFriendship(uid, friendId, 3, 0, 1).catch(() => {});
+
+    res.json({ success: true, myRose: myUp.rose, myPoints: myUp.points });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

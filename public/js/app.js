@@ -2561,6 +2561,28 @@ async function loadNotifications() {
     });
   }
 
+  // ─── 3b. GARDEN VISITS ──────────────────────────────────────────────────────
+  const gardenVisitCount = notifData.gardenVisitCount || 0;
+  if (gardenVisitCount > 0) {
+    urgentCount += gardenVisitCount;
+    const visitsRes = await apiGamification.gardenVisits().catch(() => []);
+    html += `<div class="notif-section-title">🌿 Bạn bè thăm vườn của bạn</div>`;
+    (visitsRes || []).slice(0, 5).forEach(v => {
+      const timeAgo = timeAgoVi(new Date(v.visitedAt));
+      html += `<div class="notif-item notif-urgent notif-garden-visit notif-goto" data-goto-tab="garden">
+        <span class="notif-item-icon">🌿</span>
+        <div class="notif-item-body">
+          <div class="notif-item-title">${esc(v.fromName)} đã thăm vườn của bạn!</div>
+          <div class="notif-item-sub">${timeAgo} · Nhấn để vào vườn</div>
+        </div>
+        <span class="notif-arrow">›</span>
+      </div>`;
+    });
+    if (gardenVisitCount > 5) html += `<div class="notif-more">+${gardenVisitCount - 5} lượt thăm khác…</div>`;
+    // Mark as seen
+    apiGamification.gardenVisitsSeen().catch(() => {});
+  }
+
   // ─── 4. DEAD PETS ───────────────────────────────────────────────────────────
   const dead = pets.filter(p => !p.alive);
   const seenDead = JSON.parse(localStorage.getItem('rh-seen-dead-pets') || '[]');
@@ -2806,6 +2828,7 @@ async function quickNotifCheck() {
       (notifData.requestCount||0) +
       (notifData.fireCount||0) +
       (notifData.messageCount||0) +
+      (notifData.gardenVisitCount||0) +
       sick + newDead + pendingGifts.length +
       incomplete + (overdueCount?.length||0);
     _updateBellBadge(urgentCount);
@@ -5013,6 +5036,8 @@ const apiGamification = {
   sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
   unreadMessages:   () => API.g('/api/gamification/unread-messages'),
   fireStreak:       (fid) => API.g(`/api/gamification/fire-streak/${fid}`),
+  gardenVisits:     ()    => API.g('/api/gamification/garden-visits'),
+  gardenVisitsSeen: ()    => API.p('/api/gamification/garden-visits/seen', {}),
 };
 
 // ═══════════════════════════════════════════
@@ -5625,6 +5650,8 @@ async function loadFriendsList() {
         const streakBadge = myFireStreak > 0
           ? `<span class="gf-streak-badge gf-streak-t${streakTier}"><span class="sfl sfl-t${streakTier}" style="font-size:14px">🔥</span>${myFireStreak}</span>`
           : '';
+        const fs = f.friendship || {};
+        const fsBadge = `<span class="gf-fs-badge gf-fs-lv${fs.level||0}" title="Mức thân thiết: ${fs.label||'Xa lạ'}">${fs.emoji||'🌱'} ${fs.label||'Xa lạ'}</span>`;
         const fireBtn = sentToday
           ? `<button class="gf-fl-fire-btn sent-today" data-id="${f._id}" data-name="${name}" disabled title="Đã gửi lửa hôm nay">✅</button>`
           : `<button class="gf-fl-fire-btn" data-id="${f._id}" data-name="${name}" title="Truyền lửa cho ${name}">🔥</button>`;
@@ -5636,7 +5663,7 @@ async function loadFriendsList() {
           </div>
           <div class="gf-fl-info">
             <div class="gf-fl-name">${name}${online ? ' <span class="gf-online-label">Đang hoạt động</span>' : ''} ${streakBadge}</div>
-            <div class="gf-fl-sub">${sentToday ? '✅ Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
+            <div class="gf-fl-sub">${fsBadge} · ${sentToday ? '✅ Đã truyền lửa hôm nay' : 'Nhấn 🔥 để truyền lửa'}</div>
           </div>
           <div class="gf-fl-actions">
             ${fireBtn}
@@ -6579,6 +6606,7 @@ const apiGarden = {
   mushroomHarvest:  ()                        => API.p('/api/garden/mushroom-harvest', {}),
   loadFriendGarden: (friendId)               => API.g(`/api/garden/friend/${friendId}`),
   giftWater:        (friendId, plantId)      => API.p(`/api/garden/friend/${friendId}/water/${plantId}`, {}),
+  giftRose:         (friendId)               => API.p(`/api/garden/friend/${friendId}/gift-rose`, {}),
 };
 
 // ── Garden state ──────────────────────────────────────────────
@@ -7179,21 +7207,24 @@ async function _loadGardenFriendsList() {
   if (!container) return;
   container.innerHTML = '<div class="gfv-loading">⏳ Đang tải...</div>';
   try {
-    const data = await API.g('/api/gamification/friends-list');
-    const friends = data.friends || [];
-    if (!friends.length) {
+    const friends = await API.g('/api/gamification/friends-list');
+    if (!friends || !friends.length) {
       container.innerHTML = '<div class="gfv-empty">Chưa có bạn bè nào. Thêm bạn bè để thăm vườn!</div>';
       return;
     }
-    container.innerHTML = friends.map(f => `
+    container.innerHTML = friends.map(f => {
+      const fs = f.friendship || {};
+      const fsBadge = `<span class="gfv-fs-badge gfv-fs-lv${fs.level||0}">${fs.emoji||'🌱'} ${fs.label||'Xa lạ'}</span>`;
+      return `
       <div class="gfv-friend-card" data-fid="${esc(f._id)}">
         <div class="gfv-friend-avatar">${esc((f.displayName || f.username || '?').charAt(0).toUpperCase())}</div>
         <div class="gfv-friend-info">
-          <div class="gfv-friend-name">${esc(f.displayName || f.username)}</div>
-          <div class="gfv-friend-sub">Cấp ${f.level || 1} · ${f.online ? '🟢 Online' : '⚫ Offline'}</div>
+          <div class="gfv-friend-name">${esc(f.displayName || f.username)}${f.isOnline ? ' <span class="gfv-online-dot"></span>' : ''}</div>
+          <div class="gfv-friend-sub">Cấp ${f.level || 1} · ${fsBadge}</div>
         </div>
-        <button class="gfv-visit-btn" data-fid="${esc(f._id)}">Thăm vườn →</button>
-      </div>`).join('');
+        <button class="gfv-visit-btn" data-fid="${esc(f._id)}">🌿 Thăm vườn</button>
+      </div>`;
+    }).join('');
 
     container.querySelectorAll('.gfv-visit-btn').forEach(btn => {
       btn.addEventListener('click', () => _openFriendGarden(btn.dataset.fid));
@@ -7215,8 +7246,45 @@ async function _openFriendGarden(friendId) {
 
   try {
     _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
-    const f = _gardenFriendData.friend || {};
+    const f  = _gardenFriendData.friend     || {};
+    const fs = _gardenFriendData.friendship || {};
     if (ownerEl) ownerEl.textContent = `🌿 Vườn của ${f.displayName || f.username}`;
+
+    // Update friendship badge in header
+    const fsBadgeEl = document.getElementById('gfv-friendship-badge');
+    if (fsBadgeEl) {
+      fsBadgeEl.textContent = `${fs.emoji||'🌱'} ${fs.label||'Xa lạ'} (${fs.score||0} điểm)`;
+      fsBadgeEl.className   = `gfv-fs-header-badge gfv-fs-lv${fs.level||0}`;
+      fsBadgeEl.style.display = '';
+    }
+
+    // Wire gift-rose button
+    const roseBtn = document.getElementById('gfv-gift-rose-btn');
+    if (roseBtn) {
+      roseBtn.onclick = null;
+      roseBtn.onclick = async () => {
+        roseBtn.disabled = true;
+        roseBtn.textContent = '⏳';
+        try {
+          const r = await apiGarden.giftRose(friendId);
+          if (r.error) { toast('❌ ' + r.error); return; }
+          toast(`🌹 Đã tặng hoa hồng! Còn ${r.myRose} 🌹 trong kho.`);
+          // Refresh friendship badge
+          _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
+          const fsNew = _gardenFriendData.friendship || {};
+          if (fsBadgeEl) {
+            fsBadgeEl.textContent = `${fsNew.emoji||'🌱'} ${fsNew.label||'Xa lạ'} (${fsNew.score||0} điểm)`;
+            fsBadgeEl.className   = `gfv-fs-header-badge gfv-fs-lv${fsNew.level||0}`;
+          }
+          quickNotifCheck();
+        } catch(err) {
+          toast('❌ ' + (err.error || err.message));
+        } finally {
+          roseBtn.disabled = false;
+          roseBtn.textContent = '🌹 Tặng hoa';
+        }
+      };
+    }
 
     _renderWeatherBanner(_gardenFriendData.weatherInfo, _gardenFriendData.weather, 'gfv-weather-banner');
     _renderEcosystemPanel(_gardenFriendData.ecosystem, 'gfv-eco-panel');

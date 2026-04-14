@@ -28,7 +28,15 @@
       "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\\\Program Files\\\\' -ErrorAction SilentlyContinue | Select-Object Name\")",
       "Bash(curl -L \"https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js\" -o \"D:/Rabbit-Habbits/public/js/chart.umd.min.js\" --max-time 30)",
       "Bash(xargs basename:*)",
-      "Bash(grep -n \"friend\\\\|social\\\\|visit\\\\|message\\\\|send\" /d/Rabbit-Habbits/routes/*.js)"
+      "Bash(grep -n \"friend\\\\|social\\\\|visit\\\\|message\\\\|send\" /d/Rabbit-Habbits/routes/*.js)",
+      "Bash(wc -l /d/Rabbit-Habbits/routes/*.js /d/Rabbit-Habbits/models/*.js)",
+      "Bash(node -e \"require\\('./models/User'\\); require\\('./routes/garden'\\); require\\('./routes/gamification'\\); console.log\\('OK'\\)\")",
+      "Bash(cmd /c \"node -e \\\\\"try{require\\('./models/User'\\);require\\('./routes/garden'\\);require\\('./routes/gamification'\\);console.log\\('OK'\\)}catch\\(e\\){console.error\\(e.message\\)}\\\\\"\")",
+      "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits && node --check routes/garden.js && node --check routes/gamification.js && echo OK\")",
+      "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits && node --check routes/garden.js 2>&1 && node --check routes/gamification.js 2>&1 && echo ALL OK\")",
+      "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits && node --check routes/garden.js && echo garden_ok && node --check routes/gamification.js && echo gamification_ok\")",
+      "Bash(cmd /c \"cd /d D:\\\\\\\\Rabbit-Habbits & node --check routes\\\\\\\\garden.js & echo DONE_GARDEN\")",
+      "Bash(powershell -Command \"cd D:\\\\\\\\Rabbit-Habbits; node --check routes\\\\\\\\garden.js; Write-Host 'garden_done'; node --check routes\\\\\\\\gamification.js; Write-Host 'gamification_done'\")"
     ]
   }
 }
