@@ -701,29 +701,47 @@
 <!-- ── PLANT SELECTOR MODAL (choose plant & pot when clicking empty cell) ── -->
 <div class="garden-plant-modal-backdrop" id="gpm-backdrop" style="display:none"></div>
 <div class="garden-plant-modal" id="gpm-modal" style="display:none">
+
+  <!-- Header -->
   <div class="gpm-header">
-    <div class="gpm-title">🌱 Trồng cây tại ô (<span id="gpm-cell-pos"></span>)</div>
+    <div class="gpm-title">🌱 Trồng cây <span class="gpm-cell-badge">ô <span id="gpm-cell-pos"></span></span></div>
     <button class="gpm-close" id="gpm-close">✕</button>
   </div>
 
-  <div class="gpm-section-label">Chọn cây giống:</div>
-  <div class="gpm-plant-filter">
-    <button class="gpf-btn active" data-cat="all">Tất cả</button>
-    <button class="gpf-btn" data-cat="vegetable">🥬 Rau</button>
-    <button class="gpf-btn" data-cat="fruit">🍎 Quả</button>
-    <button class="gpf-btn" data-cat="flower">🌸 Hoa</button>
-    <button class="gpf-btn" data-cat="fengshui">🎍 Phong thủy</button>
-  </div>
-  <div class="gpm-plant-list" id="gpm-plant-list"></div>
+  <!-- Body: 2 panels side by side on wide, stacked on narrow -->
+  <div class="gpm-body">
 
-  <div class="gpm-section-label" style="margin-top:12px">Chọn chậu cây:</div>
-  <div class="gpm-pot-list" id="gpm-pot-list"></div>
+    <!-- LEFT: Cây giống -->
+    <div class="gpm-panel">
+      <div class="gpm-panel-head">
+        <span class="gpm-panel-title">🌿 Cây giống</span>
+        <div class="gpm-plant-filter">
+          <button class="gpf-btn active" data-cat="all">Tất cả</button>
+          <button class="gpf-btn" data-cat="vegetable">🥬</button>
+          <button class="gpf-btn" data-cat="fruit">🍎</button>
+          <button class="gpf-btn" data-cat="flower">🌸</button>
+          <button class="gpf-btn" data-cat="fengshui">🎍</button>
+        </div>
+      </div>
+      <div class="gpm-plant-list" id="gpm-plant-list"></div>
+    </div>
 
-  <div class="gpm-cost-row">
-    <span class="gpm-cost-label">Trạng thái:</span>
-    <span class="gpm-cost-val" id="gpm-cost-val">— Chọn cây & chậu</span>
+    <!-- RIGHT: Chậu cây -->
+    <div class="gpm-panel">
+      <div class="gpm-panel-head">
+        <span class="gpm-panel-title">🪴 Chậu cây</span>
+      </div>
+      <div class="gpm-pot-list" id="gpm-pot-list"></div>
+    </div>
+
   </div>
-  <button class="gpm-confirm-btn" id="gpm-confirm" disabled>🌱 Trồng ngay!</button>
+
+  <!-- Footer -->
+  <div class="gpm-footer">
+    <div class="gpm-status" id="gpm-cost-val">— Chọn cây &amp; chậu</div>
+    <button class="gpm-confirm-btn" id="gpm-confirm" disabled>🌱 Trồng ngay!</button>
+  </div>
+
 </div>
 
 <!-- ──────────────────────────────────
@@ -758,7 +776,7 @@
 
     <!-- Shop tabs -->
     <div class="shop-tabs">
-      <button class="shop-tab active" data-stab="pets">🐾 Thú & Cây</button>
+      <button class="shop-tab active" data-stab="pets">🐾 Thú Cưng</button>
       <button class="shop-tab" data-stab="garden">🌱 Hạt & Chậu</button>
       <button class="shop-tab" data-stab="items">🎒 Vật phẩm</button>
     </div>
@@ -768,10 +786,6 @@
       <div class="store-section">
         <div class="store-section-title">🐾 Thú cưng</div>
         <div class="store-grid" id="store-animals-grid"></div>
-      </div>
-      <div class="store-section">
-        <div class="store-section-title">🌿 Cây phong thủy</div>
-        <div class="store-grid" id="store-plants-grid"></div>
       </div>
     </div>
 

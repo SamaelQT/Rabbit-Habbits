@@ -3922,13 +3922,6 @@ async function loadStoreCatalog() {
       aGrid.appendChild(makeStoreCard(p));
     });
 
-    // Plants
-    const plGrid = document.getElementById('store-plants-grid');
-    plGrid.innerHTML = '';
-    pets.filter(p => p.category === 'plant').forEach(p => {
-      plGrid.appendChild(makeStoreCard(p));
-    });
-
     // Items with detail descriptions
     const iGrid = document.getElementById('store-items-grid');
     iGrid.innerHTML = '';
