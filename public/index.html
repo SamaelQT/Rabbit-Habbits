@@ -8,6 +8,11 @@
   <link rel="stylesheet" href="/css/style.css"/>
   <link rel="stylesheet" href="/css/garden.css"/>
   <script src="/js/chart.umd.min.js"></script>
+  <script>
+    if (typeof Chart === 'undefined') {
+      document.write('<script src="https://unpkg.com/chart.js@4.4.0/dist/chart.umd.min.js"><\/script>');
+    }
+  </script>
 </head>
 <body>
 
