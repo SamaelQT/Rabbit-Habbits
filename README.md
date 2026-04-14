@@ -67,6 +67,54 @@ Nền tảng năng suất cá nhân và gamification bằng tiếng Việt. Theo
 - Phân tích giờ làm việc hiệu quả
 - Thống kê kho mục tiêu đã hoàn thành
 
+### 🌿 Vườn Sinh Thái (Garden — Phase 1)
+Mini-game trồng cây với cơ chế lazy tick (tính toán khi mở app, không cần cron job):
+
+**Chu kỳ thời gian**
+- 1 ngày game = 12 giờ thực
+- 5 pha ngày: Sáng sớm 🌅 / Buổi trưa ☀️ / Buổi chiều 🌤️ / Chiều tối 🌇 / Ban đêm 🌙 (7:30–19:30)
+
+**Lưới vườn**
+- Lưới 6×5 (30 ô), 6 ô trung tâm mở sẵn
+- Mua thêm ô theo khoảng cách Chebyshev: trung tâm 80đ / vùng giữa 50đ / ngoài rìa 30đ
+
+**24 loài cây — 4 nhóm**
+| Nhóm | Số loài | Kích thước | Thu hoạch |
+|------|---------|-----------|-----------|
+| Phong thủy | 6 | S / M | ✗ (trang trí) |
+| Rau củ | 6 | S | ✓ food / seed |
+| Ăn quả | 6 | S / M / L | ✓ food / treat |
+| Hoa | 6 | S / M / L | ✓ rose (Hoa Hồng) |
+
+**4 loại chậu**
+| Chậu | Kích thước | Giá | Đặc điểm |
+|------|-----------|-----|----------|
+| Chậu Đất Nhỏ 🪴 | S | 20đ | Tốt nhất cho cây S |
+| Chậu Gốm 🏺 | M | 40đ | Đa năng nhất |
+| Chậu Gỗ 🪵 | L | 80đ | Tốt nhất cho cây L |
+| Chậu Sứ Lớn 🏛️ | XL | 150đ | +25% tốc độ cây to; +5% mọi cây |
+
+- **Khớp kích thước**: cây × chậu khớp → +20% tốc độ; lệch 1 → -15%; lệch 2 → -40%
+
+**Vòng đời cây**
+- Rau/Quả: seed → sprout → leafing → growing → flowering → fruiting (→ thu hoạch thủ công)
+- Hoa/Phong thủy: seed → sprout → leafing → flowering → dormant (→ tự vòng lại leafing)
+
+**Chăm sóc & sức khỏe**
+- 4 chỉ số: 💧 Nước / 🌿 Dinh dưỡng / 🐛 Sâu bệnh / 🍂 Lá héo
+- Nước cạn → mất máu; sâu ≥ 3 → mất máu nặng; máu = 0 → cây chết
+- Hành động: Tưới nước / Bón phân / Bắt sâu / Gỡ lá héo / Thu hoạch / Nhổ bỏ
+
+**Tích hợp hệ thống**
+- Thu hoạch cho vật phẩm vào túi đồ (food, treat, seed, rose)
+- Trả điểm khi thu hoạch
+- Di cư thú cưng cây cũ → hoàn tiền 70% + tự động chuyển sang vườn
+
+**Phase 2/3 (kế hoạch)**
+- Hệ sinh thái: ong 🐝, sâu 🐛, chim 🐦, dơi 🦇, nấm 🍄
+- Thời tiết & mùa
+- Bạn bè thăm vườn, quà tặng hoa
+
 ---
 
 ## Cài đặt
@@ -113,7 +161,9 @@ rabbit-habits/
 │   ├── Journal.js
 │   ├── Pet.js
 │   ├── UserPoints.js
-│   └── Message.js
+│   ├── Message.js
+│   ├── GardenPlot.js    # Lưới ô vườn đã mua của user
+│   └── GardenPlant.js   # Cây đang trồng (stage, health, water…)
 ├── routes/
 │   ├── auth.js
 │   ├── tasks.js         # + GET /overdue
@@ -121,13 +171,16 @@ rabbit-habits/
 │   ├── journal.js
 │   ├── goals.js
 │   ├── shop.js
-│   └── gamification.js  # + GET /fire-streak/:friendId
+│   ├── gamification.js  # + GET /fire-streak/:friendId
+│   └── garden.js        # Vườn Sinh Thái — catalog, plots, plant CRUD, care actions
 ├── middleware/
 │   └── auth.js
 └── public/
     ├── index.html
     ├── auth.html
-    ├── css/style.css
+    ├── css/
+    │   ├── style.css
+    │   └── garden.css   # Styles cho trang vườn
     └── js/app.js
 ```
 
@@ -144,3 +197,13 @@ rabbit-habits/
 | `*` | `/api/gamification` | Level, thử thách, bạn bè, truyền lửa, nhắn tin |
 | `GET` | `/api/gamification/fire-streak/:friendId` | Chuỗi lửa giữa 2 người bạn |
 | `GET` | `/api/gamification/notifications` | Badge counts (incl. messageCount) |
+| `GET` | `/api/garden` | Lấy toàn bộ state vườn (plots + plants, tự tick) |
+| `GET` | `/api/garden/catalog` | Danh sách 24 cây và 4 chậu |
+| `POST` | `/api/garden/plots/buy` | Mua ô vườn |
+| `POST` | `/api/garden/plant` | Trồng cây vào ô |
+| `POST` | `/api/garden/water/:id` | Tưới nước |
+| `POST` | `/api/garden/fertilize/:id` | Bón phân |
+| `POST` | `/api/garden/catch-bug/:id` | Bắt sâu |
+| `POST` | `/api/garden/remove-leaf/:id` | Gỡ lá héo |
+| `POST` | `/api/garden/harvest/:id` | Thu hoạch (cây harvestable) |
+| `DELETE` | `/api/garden/plant/:id` | Nhổ bỏ cây |
