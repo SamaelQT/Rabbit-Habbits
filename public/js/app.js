@@ -244,6 +244,15 @@ async function loadAndRender(){
   renderColumns(dates); renderCalendar(); loadStats();
   requestAnimationFrame(()=>requestAnimationFrame(()=>scrollToToday()));
 }
+
+/**
+ * refreshAll — gọi sau mọi thao tác mutate data để đồng bộ toàn bộ UI.
+ * Dùng fire-and-forget (không cần await ở nơi gọi) nếu muốn non-blocking.
+ */
+async function refreshAll() {
+  await loadAndRender();
+  quickNotifCheck();
+}
 function updateNavLabel(dates){
   const lbl=document.getElementById('nav-label');
   if(state.viewMode==='week'){const s=dates[0],e=dates[6];lbl.textContent=`${s.getDate()}/${s.getMonth()+1} – ${e.getDate()}/${e.getMonth()+1}/${e.getFullYear()}`;}
@@ -596,12 +605,12 @@ async function addTask(ds,inp,prio=0,cat='other'){
   const task=await apiTasks.add(title,ds,prio,cat);
   if(!state.tasks[ds]) state.tasks[ds]=[];
   state.tasks[ds].push(task);
-  // Re-sort by priority
   state.tasks[ds].sort((a,b)=>(b.priority||0)-(a.priority||0));
   const list=document.getElementById(`tasks-${ds}`);
   list.querySelector('.empty-state')?.remove();
   list.innerHTML=''; state.tasks[ds].forEach(t=>list.appendChild(mkTaskItem(t)));
-  refreshDonut(ds); renderCalendar(); toast('✓ Đã thêm task');
+  refreshDonut(ds); toast('✓ Đã thêm task');
+  refreshAll().catch(()=>{});          // sync stats + calendar + badge
   } finally {
     delete inp.dataset.busy;
     if(btn){ btn.disabled=false; btn.style.opacity=''; }
@@ -612,7 +621,7 @@ async function toggleTask(id,itemEl){
   itemEl.classList.toggle('completed',task.completed);
   const ds=itemEl.closest('.day-column').dataset.date;
   const t=state.tasks[ds]?.find(t=>t._id===id); if(t) t.completed=task.completed;
-  refreshDonut(ds); renderCalendar();
+  refreshDonut(ds);
   if(task.completed){
     const pts = task.pointsAwarded || 5;
     toast(`🌸 Task hoàn thành! +${pts}⭐`);
@@ -628,8 +637,7 @@ async function toggleTask(id,itemEl){
     toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
     updatePointsUI(Math.max(0, (_shopData.points||0) - pts));
   }
-  // Refresh notification badge (today's incomplete count changed)
-  quickNotifCheck();
+  refreshAll().catch(()=>{});          // sync calendar + stats + badge
 }
 async function deleteTask(id,itemEl){
   await apiTasks.del(id);
@@ -642,8 +650,8 @@ async function deleteTask(id,itemEl){
     if(list&&!list.children.length)
       list.innerHTML=`<div class="empty-state"><div class="empty-icon">🌸</div>Chưa có task</div>`;
     refreshDonut(ds);
-  },200);
-  renderCalendar();
+    refreshAll().catch(()=>{});        // sync calendar + stats + badge
+  },220);
 }
 
 // ─── STATS ────────────────────────────────────────────────
@@ -1694,7 +1702,7 @@ function renderHabitsPanel(wd){
           toast(`${h.emoji} Đã bỏ tích — trừ ${pts}⭐`);
           updatePointsUI(Math.max(0, (_shopData.points||0) - pts));
         }
-        quickNotifCheck();
+        refreshAll().catch(()=>{});    // sync calendar indicators + stats + badge
       });
     });
     row.querySelector('.hrm-delete').addEventListener('click',async()=>{
@@ -1946,6 +1954,8 @@ async function initJournal(){
       await apiJournal.save(dateStr, mood, content);
       showJournalSaved(mood, content);
       toast('✍️ Đã lưu nhật ký!');
+      renderCalendar();                // cập nhật emoji tâm trạng trong lịch
+      quickNotifCheck();
     } finally {
       delete btn.dataset.busy; btn.disabled=false; btn.textContent='Lưu ✓';
     }
@@ -2763,10 +2773,8 @@ async function loadNotifications() {
         pushBtn.textContent = `✅ Đã đẩy ${res.updated} task lên hôm nay`;
         pushBtn.style.background = 'var(--success, #22c55e)';
         setTimeout(() => {
-          loadNotifications();
-          quickNotifCheck();
-          // Reload tasks page if currently open
-          if (document.getElementById('page-tasks')?.style.display !== 'none') loadTasks();
+          document.getElementById('notif-panel').style.display = 'none';
+          refreshAll();
         }, 800);
       } catch(e) {
         pushBtn.textContent = '❌ Lỗi, thử lại';
@@ -2847,8 +2855,8 @@ function _updateOverdueBanner(count) {
         setTimeout(() => {
           banner.style.display = 'none';
           _overdueBannerWired = false;
-          quickNotifCheck();
-        }, 1200);
+          refreshAll();
+        }, 800);
       } catch(e) {
         this.textContent = '❌ Lỗi';
         this.disabled = false;
@@ -3227,6 +3235,7 @@ function createGoalCard(g){
       toast(`↩️ Đã bỏ tích — trừ ${pts}⭐`);
       updatePointsUI(Math.max(0, (_shopData.points||0) - pts));
     }
+    refreshAll().catch(()=>{});        // sync stats + badge
   });
 
   return card;
