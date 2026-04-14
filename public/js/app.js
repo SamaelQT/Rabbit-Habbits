@@ -5776,6 +5776,9 @@ async function loadFriendsList() {
         </div>`;
       }).join('');
 
+    // Render fire streaks section
+    renderFireStreaksSection(friends);
+
     // Fire buttons — only active ones (not already sent today)
     wrap.querySelectorAll('.gf-fl-fire-btn:not(.sent-today)').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -5815,6 +5818,80 @@ async function loadFriendsList() {
       });
     });
   } catch(e) {}
+}
+
+// ── FIRE STREAKS SECTION ──
+function renderFireStreaksSection(friends) {
+  const section = document.getElementById('gf-fire-streaks-section');
+  const list    = document.getElementById('gf-fire-streaks-list');
+  if (!section || !list || !friends || friends.length === 0) {
+    if (section) section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  // Sort: sent today last, then by streak desc
+  const sorted = [...friends].sort((a, b) => {
+    const sa = a.myFireStreak || 0, sb = b.myFireStreak || 0;
+    return sb - sa;
+  });
+
+  list.innerHTML = sorted.map(f => {
+    const name      = esc(f.displayName || f.username);
+    const initials  = [...name].slice(0, 2).join('').toUpperCase();
+    const streak    = f.myFireStreak || 0;
+    const tier      = getStreakTier(Math.max(streak, 1));
+    const sentToday = f.fireSentToday;
+    const toNext    = streak > 0 ? (10 - (streak % 10 === 0 ? 10 : streak % 10)) : 10;
+    const showNext  = streak > 0 && toNext < 10;
+
+    const fireBtn = sentToday
+      ? `<button class="gf-fsc-fire-btn gf-fsc-sent" disabled>✅ Đã gửi</button>`
+      : `<button class="gf-fsc-fire-btn" data-id="${f._id}" data-name="${name}">🔥 Truyền lửa</button>`;
+
+    return `
+    <div class="gf-fsc-card gf-fsc-t${tier}" data-id="${f._id}">
+      <div class="gf-fsc-avatar gf-fsc-av-t${tier}">${initials}</div>
+      <div class="gf-fsc-info">
+        <div class="gf-fsc-name">${name}</div>
+        <div class="gf-fsc-motiv">${getStreakMotivation(streak)}</div>
+        ${showNext ? `<div class="gf-fsc-next">Còn <b>${toNext}</b> ngày đến mốc 🏆</div>` : ''}
+      </div>
+      <div class="gf-fsc-streak-block">
+        <span class="sfl sfl-t${tier}" style="font-size:22px">🔥</span>
+        <div class="gf-fsc-days gf-fsc-days-t${tier}">${streak}</div>
+        <div class="gf-fsc-days-label">ngày</div>
+      </div>
+      <div class="gf-fsc-action">${fireBtn}</div>
+    </div>`;
+  }).join('');
+
+  // Wire up fire buttons
+  list.querySelectorAll('.gf-fsc-fire-btn:not(.gf-fsc-sent)').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = '⏳';
+      try {
+        await apiGamification.sendFire(btn.dataset.id);
+        btn.textContent = '✅ Đã gửi';
+        btn.classList.add('gf-fsc-sent');
+        // Sync trạng thái nút trong danh sách bạn bè
+        const friendCard = document.querySelector(`#gf-friends-list .gf-fl-card[data-id="${btn.dataset.id}"]`);
+        if (friendCard) {
+          const flBtn = friendCard.querySelector('.gf-fl-fire-btn');
+          if (flBtn) setFireBtnSent(flBtn, btn.dataset.name);
+        }
+        toast(`🔥 Đã truyền lửa cho ${btn.dataset.name}!`);
+        showFireSentAnimation();
+        quickNotifCheck();
+      } catch(e) {
+        btn.disabled = false;
+        btn.textContent = '🔥 Truyền lửa';
+        toast('❌ ' + (e.error || e.message || 'Lỗi gửi lửa'));
+      }
+    });
+  });
 }
 
 // ── FIRE NOTIFICATION CHECK ──
