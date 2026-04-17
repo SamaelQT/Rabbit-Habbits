@@ -229,9 +229,11 @@ function getWeatherInfo(id) {
 function updateWeather(gardenDoc) {
   const now   = Date.now();
   const setAt = gardenDoc.weatherSetAt ? new Date(gardenDoc.weatherSetAt).getTime() : 0;
-  if (now - setAt > 12 * 3_600_000) {
-    gardenDoc.weather    = rollWeather();
+  if (now - setAt > 24 * 3_600_000) {
+    gardenDoc.weather      = rollWeather();
     gardenDoc.weatherSetAt = new Date(now);
+    // Force ecosystem recalculation on weather change
+    if (gardenDoc.ecosystem) gardenDoc.ecosystem.lastEcoUpdate = null;
     return true;
   }
   return false;
@@ -241,12 +243,12 @@ function updateWeather(gardenDoc) {
 // ECOSYSTEM SYSTEM
 // ═══════════════════════════════════════════════════════
 
-// Updates ecosystem creature presence based on current plant states + time of day.
+// Updates ecosystem creature presence based on current plant states + time of day + weather.
 // Returns true if gardenDoc.ecosystem was modified.
-function updateEcosystem(gardenDoc, plants, gameTime) {
-  const now       = Date.now();
-  const eco       = gardenDoc.ecosystem || {};
-  const lastUpd   = eco.lastEcoUpdate ? new Date(eco.lastEcoUpdate).getTime() : 0;
+function updateEcosystem(gardenDoc, plants, gameTime, weather = 'sunny') {
+  const now     = Date.now();
+  const eco     = gardenDoc.ecosystem || {};
+  const lastUpd = eco.lastEcoUpdate ? new Date(eco.lastEcoUpdate).getTime() : 0;
 
   // Rate-limit to every 6 real hours
   if (now - lastUpd < 6 * 3_600_000) return false;
@@ -257,38 +259,89 @@ function updateEcosystem(gardenDoc, plants, gameTime) {
   const buggy    = alive.filter(p => p.bugs > 0);
   const lush     = alive.filter(p => p.waterLevel > 60 && p.nutrientLevel > 60);
 
+  // ── Weather-based chance modifiers ───────────────────────────
+  let beeChanceMult  = 1;
+  let birdChanceMult = 1;
+  let batChanceMult  = 1;
+  let mushChanceMult = 1;
+  let wormChanceMult = 1;
+  let forceNoBees    = false;
+  let forceNoBirds   = false;
+  let forceNoBats    = false;
+
+  switch (weather) {
+    case 'sunny':
+      beeChanceMult  = 1.35; // Bees love sunshine
+      wormChanceMult = 0.85; // Soil dries, fewer worms
+      break;
+    case 'cloudy':
+      beeChanceMult  = 0.85; // Overcast, less flower activity
+      break;
+    case 'rainy':
+      beeChanceMult  = 0.70; // Bees avoid rain
+      forceNoBirds   = true;  // Birds hide from rain
+      wormChanceMult = 1.50; // Worms love wet soil
+      mushChanceMult = 1.40; // Mushrooms thrive in moisture
+      break;
+    case 'stormy':
+      forceNoBees    = true;  // Storm drives away bees
+      forceNoBirds   = true;  // Birds shelter from storm
+      forceNoBats    = true;  // Bats shelter too
+      wormChanceMult = 1.70; // Worms flood to surface
+      mushChanceMult = 1.70; // Mushrooms surge after storm
+      break;
+    case 'foggy':
+      beeChanceMult  = 0.55; // Fog disorients bees
+      mushChanceMult = 1.60; // Fog is mushroom paradise
+      break;
+    case 'windy':
+      beeChanceMult  = 0.65; // Wind disrupts bee flight
+      birdChanceMult = 0.70; // Birds struggle in wind
+      break;
+  }
+
   // ── Ong (Bees): appear near flowering plants ─────────────────
-  if (blooming.length > 0) {
-    const chance = Math.min(0.8, 0.25 * blooming.length);
+  if (forceNoBees) {
+    eco.bees = 0;
+  } else if (blooming.length > 0) {
+    const chance = Math.min(0.85, 0.25 * blooming.length * beeChanceMult);
     if (Math.random() < chance) eco.bees = Math.min(5, (eco.bees || 0) + 1);
   } else {
     eco.bees = Math.max(0, (eco.bees || 0) - 1);
   }
 
   // ── Chim (Birds): appear in morning if bugs present ──────────
-  if (gameTime.phase === 'morning' && buggy.length > 0) {
-    eco.birds = Math.random() < 0.45;
+  if (forceNoBirds) {
+    eco.birds = false;
+  } else if (gameTime.phase === 'morning' && buggy.length > 0) {
+    eco.birds = Math.random() < 0.45 * birdChanceMult;
   } else if (['evening','night'].includes(gameTime.phase)) {
     eco.birds = false;
   }
 
   // ── Dơi (Bats): appear at night ──────────────────────────────
-  if (gameTime.phase === 'night') {
-    eco.bats = Math.random() < 0.4;
+  if (forceNoBats) {
+    eco.bats = false;
+  } else if (gameTime.phase === 'night') {
+    eco.bats = Math.random() < 0.4 * batChanceMult;
   } else if (gameTime.phase !== 'evening') {
     eco.bats = false;
   }
 
   // ── Nấm (Mushrooms): appear near sick/struggling plants ──────
-  if (sick.length > 0) {
-    if (Math.random() < 0.30) eco.mushrooms = Math.min(5, (eco.mushrooms || 0) + 1);
+  if (sick.length > 0 || weather === 'rainy' || weather === 'stormy' || weather === 'foggy') {
+    const baseChance = sick.length > 0 ? 0.30 : 0.12;
+    if (Math.random() < baseChance * mushChanceMult) {
+      eco.mushrooms = Math.min(5, (eco.mushrooms || 0) + 1);
+    }
   } else {
     eco.mushrooms = Math.max(0, (eco.mushrooms || 0) - 1);
   }
 
-  // ── Giun (Worms): appear when soil is lush ───────────────────
-  if (lush.length >= 2) {
-    if (Math.random() < 0.35) eco.worms = Math.min(3, (eco.worms || 0) + 1);
+  // ── Giun (Worms): appear when soil is lush or wet ────────────
+  const wormThreshold = weather === 'rainy' || weather === 'stormy' ? 1 : 2;
+  if (lush.length >= wormThreshold) {
+    if (Math.random() < 0.35 * wormChanceMult) eco.worms = Math.min(3, (eco.worms || 0) + 1);
   } else {
     eco.worms = Math.max(0, (eco.worms || 0) - 1);
   }
@@ -479,7 +532,7 @@ router.get('/', async (req, res) => {
     const gameTime = getGameTime();
     updateWeather(gardenDoc);
     const plants = await GardenPlant.find({ userId: uid });
-    updateEcosystem(gardenDoc, plants, gameTime);
+    updateEcosystem(gardenDoc, plants, gameTime, gardenDoc.weather || 'sunny');
     await gardenDoc.save();
 
     // 3. Apply tick to each plant using current weather + ecosystem
