@@ -6869,6 +6869,7 @@ async function initGarden() {
   _setupGardenShopFilter();
   _setupPlantModalFilter();
   _setupCarePanelInteractions();
+  _setupGardenToolbar();
   _setupGardenFriendsView();
 
   _refreshGardenUI();
@@ -6893,6 +6894,7 @@ function _refreshGardenUI() {
   _updateGardenPoints();
   _renderWeatherBanner(_gardenData.weatherInfo, _gardenData.weather, 'garden-weather-banner');
   _applyWeatherEffectsToGrid(document.getElementById('garden-grid')?.closest('.garden-grid-wrap'), _gardenData.weather);
+  _applyWeatherToPage(_gardenData.weather);
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
   _renderGardenGrid();
   _renderGardenShop();
@@ -7226,42 +7228,13 @@ function _renderCarePanel(plant) {
       : (dLeft > 0 ? `${dLeft}n ` : '') + `${hLeft}h nữa`;
   }
 
-  // Interaction zone — update center plant emoji + tool states
+  // Harvest button + uproot hint
   const alive = plant.isAlive;
-
-  const cpEmoji = document.getElementById('gcp-cp-emoji');
-  const cpLabel = document.getElementById('gcp-cp-label');
-  if (cpEmoji) cpEmoji.textContent = si.emoji;
-  if (cpLabel) {
-    if (!alive) cpLabel.innerHTML = 'Kéo vào thùng rác<br>để nhổ bỏ';
-    else        cpLabel.innerHTML = '← kéo công cụ<br>vào đây';
-  }
-
-  // Disable tools when plant is dead
-  document.getElementById('gcp-tool-water')?.classList.toggle('gcp-tool-disabled', !alive);
-  document.getElementById('gcp-tool-fert')?.classList.toggle('gcp-tool-disabled',  !alive);
-
-  // Render draggable bug + leaf chips
-  const chipsRow = document.getElementById('gcp-chips-row');
-  if (chipsRow) {
-    let html = '';
-    const bugs   = plant.bugs       || 0;
-    const leaves = plant.deadLeaves || 0;
-    if (bugs > 0 || leaves > 0) {
-      for (let i = 0; i < Math.min(bugs, 5); i++)
-        html += `<div class="gcp-chip gcp-chip-bug" data-chip="bug" title="Kéo vào thùng rác">🐛</div>`;
-      for (let i = 0; i < Math.min(leaves, 5); i++)
-        html += `<div class="gcp-chip gcp-chip-leaf" data-chip="leaf" title="Kéo vào thùng rác">🍂</div>`;
-      html += `<span class="gcp-chips-hint">← kéo vào thùng rác</span>`;
-    }
-    chipsRow.innerHTML = html;
-  }
-
-  // Harvest button
   const harvestBtn = document.getElementById('gcp-btn-harvest');
-  if (harvestBtn) {
-    harvestBtn.style.display = (plant.readyToHarvest && alive) ? '' : 'none';
-  }
+  if (harvestBtn) harvestBtn.style.display = (plant.readyToHarvest && alive) ? '' : 'none';
+
+  const uprootHint = document.getElementById('gcp-uproot-hint');
+  if (uprootHint) uprootHint.style.display = alive ? '' : 'none';
 
   // Pot info
   const potRow = document.getElementById('gcp-pot-row');
@@ -7283,182 +7256,199 @@ function _potMatchWarning(plantSize, potSize) {
   return '❌ Chậu rất sai size, -60% tốc độ';
 }
 
-// ── Shared care action helper ─────────────────────────────────
-async function _cpCareAction(apiFn, successMsg) {
-  if (!_gcpPlantId) return;
+// ── Care action helper (used by toolbar drag + harvest btn) ───
+async function _cpCareAction(apiFn, successMsg, plantId) {
+  const pid = plantId || _gcpPlantId;
+  if (!pid) return;
   try {
-    const r = await apiFn(_gcpPlantId);
+    const r = await apiFn(pid);
     if (r.error) { toast('❌ ' + r.error); return; }
     toast(successMsg);
     if (r.points !== undefined) updatePointsUI(r.points);
     _gardenData = await apiGarden.load();
     _refreshGardenUI();
-    const updated = (_gardenData.plants || []).find(p => p._id === _gcpPlantId);
-    if (updated) _renderCarePanel(updated);
-    else _closeCarePanel();
+    // If care panel is open for this plant, refresh it
+    if (_gcpPlantId === pid) {
+      const updated = (_gardenData.plants || []).find(p => p._id === pid);
+      if (updated) _renderCarePanel(updated);
+      else _closeCarePanel();
+    }
     quickNotifCheck();
   } catch(err) { toast('❌ ' + err.message); }
 }
 
-// ── Gesture care panel setup ──────────────────────────────────
+// ── Care panel: info-only, harvest + uproot buttons ───────────
 function _setupCarePanelInteractions() {
   document.getElementById('gcp-close')?.addEventListener('click', _closeCarePanel);
   document.getElementById('garden-care-backdrop')?.addEventListener('click', _closeCarePanel);
 
-  // Harvest is still a tap button (intentional, significant action)
   document.getElementById('gcp-btn-harvest')?.addEventListener('click',
     () => _cpCareAction(apiGarden.harvest, '🌾 Thu hoạch thành công!'));
 
-  const panel = document.getElementById('garden-care-panel');
-  if (!panel) return;
+  document.getElementById('gcp-uproot-link')?.addEventListener('click', async () => {
+    if (!_gcpPlantId) return;
+    const plant = (_gardenData?.plants || []).find(p => p._id === _gcpPlantId);
+    const name  = plant?.plantType?.name || 'cây này';
+    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    try {
+      const r = await apiGarden.uproot(_gcpPlantId);
+      if (r.error) { toast('❌ ' + r.error); return; }
+      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
+      if (r.points !== undefined) updatePointsUI(r.points);
+      _closeCarePanel();
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+      quickNotifCheck();
+    } catch(err) { toast('❌ ' + err.message); }
+  });
+}
 
-  // Drag state
-  let _ghost   = null;
-  let _dragEl  = null;
-  let _dragType = null; // 'water' | 'fert' | 'bug' | 'leaf' | 'plant'
+// ── Garden toolbar drag system ────────────────────────────────
+function _setupGardenToolbar() {
+  const toolbar = document.getElementById('garden-toolbar');
+  if (!toolbar) return;
+
+  let _ghost    = null;
+  let _dragEl   = null;
+  let _dragTool = null;   // 'water' | 'fert' | 'bug' | 'leaf'
   let _offX = 0, _offY = 0;
 
-  function _createGhost(el) {
+  // Build ghost element that follows cursor
+  function _mkGhost(el) {
     const r = el.getBoundingClientRect();
     const g = el.cloneNode(true);
-    g.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;`
+    g.style.cssText =
+      `position:fixed;left:${r.left}px;top:${r.top}px;`
       + `width:${r.width}px;height:${r.height}px;`
       + `pointer-events:none;z-index:9999;`
-      + `opacity:0.9;transform:scale(1.2);transform-origin:center;`
+      + `opacity:.92;transform:scale(1.25);transform-origin:center;`
       + `transition:none;border-radius:14px;`;
     document.body.appendChild(g);
     return g;
   }
 
-  function _getDropZone(x, y) {
-    for (const zone of document.querySelectorAll('.gcp-drop-zone')) {
-      const r = zone.getBoundingClientRect();
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return zone;
-    }
-    return null;
+  // Find which planted/dead cell is under pointer (uses elementsFromPoint for 3D grid)
+  function _cellAt(x, y) {
+    const els = document.elementsFromPoint(x, y);
+    return els.find(el =>
+      el.classList.contains('gc-planted') || el.classList.contains('gc-dead')) || null;
   }
 
-  function _highlightZones(dtype) {
-    document.querySelectorAll('.gcp-drop-zone').forEach(z => {
-      const zone = z.dataset.zone;
-      const valid =
-        ((dtype === 'water' || dtype === 'fert') && zone === 'plant') ||
-        ((dtype === 'bug' || dtype === 'leaf' || dtype === 'plant') && zone === 'trash');
-      z.classList.toggle('gcp-dz-valid', valid);
+  // Highlight all valid target cells while dragging
+  function _highlightCells(tool) {
+    document.querySelectorAll('#garden-grid .garden-cell').forEach(cell => {
+      const isPlanted = cell.classList.contains('gc-planted');
+      const isDead    = cell.classList.contains('gc-dead');
+      // water/fert → only living plants
+      // bug/leaf   → only living plants with bugs/leaves (we highlight all planted, disable at drop if 0)
+      if ((tool === 'water' || tool === 'fert' || tool === 'bug' || tool === 'leaf') && isPlanted)
+        cell.classList.add('gtb-cell-valid');
     });
   }
 
-  function _clearZones() {
-    document.querySelectorAll('.gcp-drop-zone').forEach(z =>
-      z.classList.remove('gcp-dz-valid', 'gcp-dz-hover'));
+  function _clearCells() {
+    document.querySelectorAll('#garden-grid .garden-cell').forEach(cell => {
+      cell.classList.remove('gtb-cell-valid', 'gtb-cell-hover');
+    });
   }
 
-  // Pointer down — start drag on tools, chips, and center plant
-  panel.addEventListener('pointerdown', e => {
-    const target = e.target.closest('[data-tool],[data-chip],#gcp-center-plant');
-    if (!target) return;
+  function _clearTrash() {
+    document.getElementById('gtb-trash')?.classList.remove('gtb-dz-valid', 'gtb-dz-hover');
+  }
 
-    let dtype = null;
-    if (target.dataset.tool)                 dtype = target.dataset.tool; // 'water' | 'fert'
-    else if (target.dataset.chip)            dtype = target.dataset.chip; // 'bug' | 'leaf'
-    else if (target.id === 'gcp-center-plant') dtype = 'plant';
+  // Drop animation pop
+  function _popDrop(x, y, emoji) {
+    const el = document.createElement('div');
+    el.textContent = emoji;
+    el.style.cssText =
+      `position:fixed;left:${x - 14}px;top:${y - 14}px;`
+      + `font-size:28px;pointer-events:none;z-index:9999;`
+      + `animation:gtbDropPop .5s ease forwards;`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 520);
+  }
 
-    if (!dtype) return;
-    if (target.classList.contains('gcp-tool-disabled')) return;
+  // ── Pointer down on a toolbar tool ──
+  toolbar.addEventListener('pointerdown', e => {
+    const target = e.target.closest('.gtb-tool');
+    if (!target || target.classList.contains('gtb-disabled')) return;
 
     e.preventDefault();
     _dragEl   = target;
-    _dragType = dtype;
-
+    _dragTool = target.dataset.tool;
     try { target.setPointerCapture(e.pointerId); } catch(_) {}
 
     const r = target.getBoundingClientRect();
     _offX = e.clientX - r.left;
     _offY = e.clientY - r.top;
-    _ghost = _createGhost(target);
-    target.classList.add('gcp-dragging');
-    _highlightZones(dtype);
+    _ghost = _mkGhost(target);
+    target.classList.add('gtb-dragging');
+    _highlightCells(_dragTool);
   });
 
-  // Pointer move — move ghost, highlight active zone
-  panel.addEventListener('pointermove', e => {
+  // ── Pointer move: move ghost, hover-highlight cell under cursor ──
+  document.addEventListener('pointermove', e => {
     if (!_ghost) return;
     _ghost.style.left = (e.clientX - _offX) + 'px';
     _ghost.style.top  = (e.clientY - _offY) + 'px';
 
-    document.querySelectorAll('.gcp-drop-zone').forEach(z => z.classList.remove('gcp-dz-hover'));
-    const zone = _getDropZone(e.clientX, e.clientY);
-    if (zone?.classList.contains('gcp-dz-valid')) zone.classList.add('gcp-dz-hover');
+    // Clear previous hover
+    document.querySelectorAll('#garden-grid .gtb-cell-hover').forEach(c => c.classList.remove('gtb-cell-hover'));
+
+    const cell = _cellAt(e.clientX, e.clientY);
+    if (cell?.classList.contains('gtb-cell-valid')) cell.classList.add('gtb-cell-hover');
   });
 
-  // Pointer up — execute action on valid drop
-  panel.addEventListener('pointerup', async e => {
+  // ── Pointer up: execute action on the cell ──
+  document.addEventListener('pointerup', async e => {
     if (!_ghost) return;
 
-    const zone  = _getDropZone(e.clientX, e.clientY);
-    const dtype = _dragType;
+    const cell = _cellAt(e.clientX, e.clientY);
+    const tool = _dragTool;
+    const px   = e.clientX, py = e.clientY;
 
     _ghost.remove(); _ghost = null;
-    _dragEl?.classList.remove('gcp-dragging');
-    _dragEl = null; _dragType = null;
-    _clearZones();
+    _dragEl?.classList.remove('gtb-dragging');
+    _dragEl = null; _dragTool = null;
+    _clearCells();
+    _clearTrash();
 
-    if (!zone?.classList.contains('gcp-dz-valid')) return;
+    if (!cell?.classList.contains('gtb-cell-valid')) return;
 
-    const zoneType = zone.dataset.zone;
+    // Get plant id from cell's row/col
+    const row   = parseInt(cell.dataset.row);
+    const col   = parseInt(cell.dataset.col);
+    const plant = (_gardenData?.plants || []).find(p => p.row === row && p.col === col);
+    if (!plant) return;
 
-    if (zoneType === 'plant') {
-      if (dtype === 'water') {
-        _animateDrop(zone, '💧');
-        await _cpCareAction(apiGarden.water, '💧 Đã tưới nước!');
-      } else if (dtype === 'fert') {
-        _animateDrop(zone, '🌿');
-        await _cpCareAction(apiGarden.fertilize, '🌿 Đã bón phân!');
-      }
-    } else if (zoneType === 'trash') {
-      if (dtype === 'bug') {
-        _animateDrop(zone, '🐛');
-        await _cpCareAction(apiGarden.catchBug, '🐛 Đã bắt sâu!');
-      } else if (dtype === 'leaf') {
-        _animateDrop(zone, '🍂');
-        await _cpCareAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!');
-      } else if (dtype === 'plant') {
-        // Uproot confirmation
-        const plant = (_gardenData?.plants || []).find(p => p._id === _gcpPlantId);
-        const name  = plant?.plantType?.name || 'cây này';
-        if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
-        try {
-          const r = await apiGarden.uproot(_gcpPlantId);
-          if (r.error) { toast('❌ ' + r.error); return; }
-          toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
-          if (r.points !== undefined) updatePointsUI(r.points);
-          _closeCarePanel();
-          _gardenData = await apiGarden.load();
-          _refreshGardenUI();
-          quickNotifCheck();
-        } catch(err) { toast('❌ ' + err.message); }
-      }
+    const pid = plant._id;
+
+    if (tool === 'water') {
+      _popDrop(px, py, '💧');
+      await _cpCareAction(apiGarden.water, '💧 Đã tưới nước!', pid);
+    } else if (tool === 'fert') {
+      _popDrop(px, py, '🌿');
+      await _cpCareAction(apiGarden.fertilize, '🌿 Đã bón phân!', pid);
+    } else if (tool === 'bug') {
+      if (!plant.bugs || plant.bugs < 1) { toast('🌿 Cây này không có sâu!'); return; }
+      _popDrop(px, py, '🪲');
+      await _cpCareAction(apiGarden.catchBug, '🐛 Đã bắt sâu!', pid);
+    } else if (tool === 'leaf') {
+      if (!plant.deadLeaves || plant.deadLeaves < 1) { toast('🌿 Cây này không có lá hư!'); return; }
+      _popDrop(px, py, '✂️');
+      await _cpCareAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!', pid);
     }
   });
 
-  // Cancel drag on pointer cancel
-  panel.addEventListener('pointercancel', () => {
-    if (_ghost) { _ghost.remove(); _ghost = null; }
-    _dragEl?.classList.remove('gcp-dragging');
-    _dragEl = null; _dragType = null;
-    _clearZones();
+  // Cancel
+  document.addEventListener('pointercancel', () => {
+    if (!_ghost) return;
+    _ghost.remove(); _ghost = null;
+    _dragEl?.classList.remove('gtb-dragging');
+    _dragEl = null; _dragTool = null;
+    _clearCells();
+    _clearTrash();
   });
-}
-
-// Brief ripple animation on a drop zone when action fires
-function _animateDrop(zoneEl, emoji) {
-  const ripple = document.createElement('div');
-  ripple.textContent = emoji;
-  ripple.style.cssText = 'position:absolute;font-size:28px;pointer-events:none;'
-    + 'animation:gcpDropPop .5s ease forwards;z-index:2;';
-  zoneEl.style.position = 'relative';
-  zoneEl.appendChild(ripple);
-  setTimeout(() => ripple.remove(), 520);
 }
 
 // ── Garden shop (full catalog page) ──────────────────────────
@@ -7622,6 +7612,94 @@ function _applyWeatherEffectsToGrid(wrap, weatherId) {
   wrap.appendChild(fx);
 }
 
+// ── Weather page-level background effects ─────────────────────
+function _applyWeatherToPage(weatherId) {
+  const page = document.getElementById('page-garden');
+  if (!page) return;
+  const WEATHERS = ['sunny','cloudy','rainy','stormy','foggy','windy'];
+  WEATHERS.forEach(w => page.classList.remove('gw-' + w));
+  const old = page.querySelector(':scope > .gw-page-fx');
+  if (old) old.remove();
+  if (!weatherId || !WEATHERS.includes(weatherId)) return;
+
+  page.classList.add('gw-' + weatherId);
+
+  const fx = document.createElement('div');
+  fx.className = 'gw-page-fx';
+
+  if (weatherId === 'rainy' || weatherId === 'stormy') {
+    const count = weatherId === 'stormy' ? 70 : 45;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-rain';
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.animationDelay = (Math.random() * 2.5) + 's';
+      s.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+      s.style.opacity = (0.1 + Math.random() * 0.18);
+      fx.appendChild(s);
+    }
+    if (weatherId === 'stormy') {
+      const flash = document.createElement('div');
+      flash.className = 'gw-page-lightning';
+      fx.appendChild(flash);
+    }
+  }
+
+  if (weatherId === 'sunny') {
+    const glow = document.createElement('div');
+    glow.className = 'gw-page-sunglow';
+    fx.appendChild(glow);
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-sunray';
+      s.style.setProperty('--i', i);
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'foggy') {
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-page-fog';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  if (weatherId === 'windy') {
+    for (let i = 0; i < 14; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-windline';
+      s.style.top = (Math.random() * 100) + '%';
+      s.style.width = (12 + Math.random() * 22) + '%';
+      s.style.animationDelay = (Math.random() * 4) + 's';
+      s.style.animationDuration = (1.2 + Math.random() * 2) + 's';
+      fx.appendChild(s);
+    }
+    const leaves = ['🍃','🍂','🌿','🍁'];
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-leaf';
+      s.textContent = leaves[i % leaves.length];
+      s.style.top = (Math.random() * 85) + '%';
+      s.style.animationDelay = (Math.random() * 5) + 's';
+      s.style.animationDuration = (3.5 + Math.random() * 3.5) + 's';
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'cloudy') {
+    for (let i = 0; i < 4; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-page-cloud';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  page.insertBefore(fx, page.firstChild);
+}
+
 // ── Weather banner ────────────────────────────────────────────
 function _renderWeatherBanner(info, weatherId, elId) {
   const el = document.getElementById(elId);
@@ -7777,6 +7855,7 @@ async function _openFriendGarden(friendId) {
 
     _renderWeatherBanner(_gardenFriendData.weatherInfo, _gardenFriendData.weather, 'gfv-weather-banner');
     _applyWeatherEffectsToGrid(document.getElementById('gfv-grid')?.closest('.garden-grid-wrap'), _gardenFriendData.weather);
+    _applyWeatherToPage(_gardenFriendData.weather);
     _renderEcosystemPanel(_gardenFriendData.ecosystem, 'gfv-eco-panel');
     _renderFriendGardenGrid(_gardenFriendData, friendId);
   } catch(e) {

@@ -1067,4 +1067,25 @@ router.post('/friend/:friendId/gift-rose', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/garden/dev/weather/:type — force weather for current user (testing)
+router.post('/dev/weather/:type', async (req, res) => {
+  try {
+    const VALID = ['sunny','cloudy','rainy','stormy','foggy','windy','random'];
+    const type  = req.params.type;
+    if (!VALID.includes(type)) return res.status(400).json({ error: `Invalid type. Use: ${VALID.join(', ')}` });
+
+    const uid = req.userId;
+    let gardenDoc = await GardenPlot.findOne({ userId: uid });
+    if (!gardenDoc) gardenDoc = new GardenPlot({ userId: uid, purchasedCells: [] });
+
+    gardenDoc.weather      = type === 'random' ? rollWeather() : type;
+    gardenDoc.weatherSetAt = new Date();
+    if (gardenDoc.ecosystem) gardenDoc.ecosystem.lastEcoUpdate = null;
+    await gardenDoc.save();
+
+    const info = getWeatherInfo(gardenDoc.weather);
+    res.json({ ok: true, weather: gardenDoc.weather, label: info.label, emoji: info.emoji });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

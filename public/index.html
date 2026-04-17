@@ -583,6 +583,43 @@
         <span class="gl-item"><span class="gl-dot gl-harvest"></span>Sẵn thu hoạch</span>
         <span class="gl-item"><span class="gl-dot gl-dead"></span>Cây chết</span>
       </div>
+
+      <!-- ── GARDEN TOOLBAR ── drag tools onto cells, drag chips/plants to trash -->
+      <div class="garden-toolbar" id="garden-toolbar">
+
+        <!-- Trash bin: receives bug/leaf chips and dead-plant drags -->
+        <div class="gtb-trash gtb-drop-zone" id="gtb-trash" data-zone="trash">
+          <div class="gtb-trash-emoji">🗑️</div>
+          <div class="gtb-trash-label">Thùng rác</div>
+        </div>
+
+        <div class="gtb-divider"></div>
+
+        <!-- Water tool: drag onto a planted cell to water it -->
+        <div class="gtb-tool" id="gtb-water" data-tool="water">
+          <div class="gtb-tool-emoji">💧</div>
+          <div class="gtb-tool-label">Tưới nước</div>
+        </div>
+
+        <!-- Fertilizer tool: drag onto a planted cell to fertilize -->
+        <div class="gtb-tool" id="gtb-fert" data-tool="fert">
+          <div class="gtb-tool-emoji">🌿</div>
+          <div class="gtb-tool-label">Bón phân</div>
+        </div>
+
+        <!-- Catch-bug tool: drag onto a cell that has bugs -->
+        <div class="gtb-tool" id="gtb-bug" data-tool="bug">
+          <div class="gtb-tool-emoji">🪲</div>
+          <div class="gtb-tool-label">Bắt sâu</div>
+        </div>
+
+        <!-- Remove-leaf tool: drag onto a cell that has dead leaves -->
+        <div class="gtb-tool" id="gtb-leaf" data-tool="leaf">
+          <div class="gtb-tool-emoji">✂️</div>
+          <div class="gtb-tool-label">Ngắt lá</div>
+        </div>
+
+      </div>
     </div>
 
     <!-- ── SHOP VIEW ─────────────────────────── -->
@@ -695,47 +732,15 @@
     <div class="gcp-stage-eta" id="gcp-stage-eta">—</div>
   </div>
 
-  <!-- Gesture interaction zone -->
-  <div class="gcp-interact">
-
-    <!-- Main row: tools | plant drop zone | trash drop zone -->
-    <div class="gcp-interact-main">
-
-      <!-- Left: draggable tools (drag onto plant to apply) -->
-      <div class="gcp-tools-col" id="gcp-tools-col">
-        <div class="gcp-drag-tool" data-tool="water" id="gcp-tool-water" touch-action="none">
-          <div class="gcp-tool-emoji">💧</div>
-          <div class="gcp-tool-name">Tưới nước</div>
-        </div>
-        <div class="gcp-drag-tool" data-tool="fert" id="gcp-tool-fert" touch-action="none">
-          <div class="gcp-tool-emoji">🌿</div>
-          <div class="gcp-tool-name">Bón phân</div>
-        </div>
-      </div>
-
-      <!-- Center: plant drop zone (receives water/fert); also draggable to trash for uproot -->
-      <div class="gcp-center-plant gcp-drop-zone" id="gcp-center-plant" data-zone="plant" touch-action="none">
-        <div class="gcp-cp-emoji" id="gcp-cp-emoji">🌱</div>
-        <div class="gcp-cp-label" id="gcp-cp-label">← kéo công cụ<br>vào đây</div>
-      </div>
-
-      <!-- Right: trash drop zone (receives bug/leaf chips and plant for uproot) -->
-      <div class="gcp-trash-zone gcp-drop-zone" id="gcp-trash-zone" data-zone="trash">
-        <div class="gcp-tz-icon">🗑️</div>
-        <div class="gcp-tz-label">Thùng rác</div>
-      </div>
-
-    </div>
-
-    <!-- Chips row: draggable bug/leaf chips → drag to trash -->
-    <div class="gcp-chips-row" id="gcp-chips-row"></div>
-
-  </div>
-
   <!-- Harvest button (only shown when ready to harvest) -->
   <button class="gcp-btn gcp-btn-harvest" id="gcp-btn-harvest" style="display:none">
-    <span class="gcp-btn-icon">🌾</span><span>Thu hoạch</span>
+    <span class="gcp-btn-icon">🌾</span><span>Thu hoạch ngay!</span>
   </button>
+
+  <!-- Uproot link (small, below) -->
+  <div class="gcp-uproot-hint" id="gcp-uproot-hint" style="display:none">
+    hoặc <button class="gcp-uproot-link" id="gcp-uproot-link">nhổ bỏ cây</button>
+  </div>
 
   <!-- Pot info -->
   <div class="gcp-pot-row" id="gcp-pot-row"></div>
