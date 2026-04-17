@@ -2605,8 +2605,9 @@ async function loadNotifications() {
     });
   }
 
-  // ─── 5. SICK PETS ───────────────────────────────────────────────────────────
-  const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
+  // ─── 5. SICK PETS (chỉ động vật) ───────────────────────────────────────────
+  const isAnimalType = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+  const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70 && isAnimalType(p.type));
   if (sick.length) {
     urgentCount += sick.length;
     html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
@@ -2842,8 +2843,9 @@ async function quickNotifCheck() {
     const notifData   = await apiGamification.notifications();
     const petsRaw     = await apiShop.pets().catch(() => []);
     const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
-    const sick    = petsRaw.filter(p => p.alive && !p.hidden && p.health < 70).length;
-    const newDead = petsRaw.filter(p => !p.alive && !JSON.parse(localStorage.getItem('rh-seen-dead-pets')||'[]').includes(p._id)).length;
+    const isAnimalT = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+    const sick    = petsRaw.filter(p => p.alive && !p.hidden && p.health < 70 && isAnimalT(p.type)).length;
+    const newDead = petsRaw.filter(p => !p.alive && isAnimalT(p.type) && !JSON.parse(localStorage.getItem('rh-seen-dead-pets')||'[]').includes(p._id)).length;
     const todayStr = tds(state.today);
     const todayTasks = await API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`).catch(() => []);
     const overdueCount = await API.g('/api/tasks/overdue').catch(() => []);
@@ -4407,7 +4409,11 @@ async function loadMyPets() {
       tree2:'Cây Sen Đá', flower2:'Hoa Mai', flower3:'Hoa Lan'
     };
 
-    pets.forEach(pet => {
+    // Chỉ hiển thị động vật — cây cối chỉ xuất hiện trong Vườn
+    const animalPets = pets.filter(p => isAnimal(p.type));
+    if (!animalPets.length) { if (empty) empty.style.display = ''; return; }
+
+    animalPets.forEach(pet => {
       const isHidden = pet.hidden;
       const category = isAnimal(pet.type) ? 'animal' : 'plant';
       const card = document.createElement('div');
@@ -4926,11 +4932,10 @@ async function loadFloatingPets() {
     // Use server-side hidden flag, sync to localStorage for offline reference
     const hiddenIds = pets.filter(p => p.hidden).map(p => p._id);
     localStorage.setItem('hiddenPetIds', JSON.stringify(hiddenIds));
-    const visiblePets = pets.filter(p => p.alive && !p.hidden);
+    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+    const visiblePets = pets.filter(p => p.alive && !p.hidden && isAnimal(p.type));
 
     if (!visiblePets.length) return;
-
-    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
 
     visiblePets.forEach((pet, i) => {
       const el = document.createElement('div');
