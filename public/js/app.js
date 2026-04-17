@@ -2443,11 +2443,13 @@ const TASK_QUOTES = [
 ];
 
 const CHANGELOG = [
-  { version:'v2.4', date:'03/04/2026', icon:'📊', title:'Thống kê nâng cao', isNew:true,
+  { version:'v2.5', date:'17/04/2026', icon:'🌿', title:'Cây cối chuyển sang Vườn', isNew:true,
+    desc:'Toàn bộ cây cối (cây cảnh, hoa...) nay chỉ xuất hiện trong tab Vườn — không còn chạy trên màn hình. Nếu bạn từng mua cây, điểm đã được hoàn lại tự động.' },
+  { version:'v2.4', date:'03/04/2026', icon:'📊', title:'Thống kê nâng cao', isNew:false,
     desc:'Hành trình cá nhân (ngày dùng app, tổng tasks, habits, điểm), tiến bộ theo tháng (line chart 12 tháng), cân bằng cuộc sống (radar chart 5 danh mục), cột mốc sắp tới với progress bar.' },
-  { version:'v2.4', date:'03/04/2026', icon:'🏆', title:'Kho lưu trữ mục tiêu', isNew:true,
+  { version:'v2.4', date:'03/04/2026', icon:'🏆', title:'Kho lưu trữ mục tiêu', isNew:false,
     desc:'Mục tiêu đã kết thúc (dù bỏ lỡ vài ngày) có thể lưu vào kho. Xem lại lịch sử với thống kê: tổng mục tiêu, ngày hoàn thành, tỉ lệ TB, mục tiêu hoàn hảo.' },
-  { version:'v2.3', date:'03/04/2026', icon:'🎁', title:'Hiệu ứng quà tặng', isNew:true,
+  { version:'v2.3', date:'03/04/2026', icon:'🎁', title:'Hiệu ứng quà tặng', isNew:false,
     desc:'Mỗi vật phẩm tặng bạn bè có hiệu ứng riêng: ⭐ Sao mở lì xì random 10-100 điểm, 🍫 Socola bay trái tim, 🌹 Hoa rơi cánh, 🐇 Thỏ chạy ngang màn hình, 🐟 Cá nhảy lên...' },
   { version:'v2.3', date:'02/04/2026', icon:'💬', title:'Nhắn tin bạn bè', isNew:false,
     desc:'Chat trực tiếp với từng người bạn. Cửa sổ chat toàn màn hình, tin nhắn cập nhật mỗi 4 giây, hiển thị chuỗi lửa 🔥 của cả hai.' },
@@ -2695,7 +2697,29 @@ async function loadNotifications() {
     });
   }
 
-  // ─── 9. CHANGELOG / NEW FEATURES ────────────────────────────────────────────
+  // ─── 9. SYSTEM NOTIFICATIONS ────────────────────────────────────────────────
+  const sysNotifCount = notifData.systemNotifCount || 0;
+  if (sysNotifCount > 0) {
+    const sysNotifs = await apiGamification.systemNotifications().catch(() => []);
+    if (sysNotifs.length > 0) {
+      urgentCount += sysNotifs.length;
+      html += `<div class="notif-section-title">📢 Thông báo hệ thống</div>`;
+      sysNotifs.forEach(n => {
+        const detailTitle = encodeURIComponent(`${n.emoji} Thông báo hệ thống`);
+        const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${n.emoji} Hệ thống</span></p><p>${esc(n.message)}</p>`);
+        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}" data-sys-notif="${n._id}">
+          <span class="notif-item-icon">${n.emoji}</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title">Thông báo từ hệ thống</div>
+            <div class="notif-item-sub">${esc((n.message||'').slice(0, 70))}${(n.message||'').length > 70 ? '…' : ''}</div>
+          </div>
+        </div>`;
+      });
+      apiGamification.markSystemNotifSeen().catch(() => {});
+    }
+  }
+
+  // ─── 10. CHANGELOG / NEW FEATURES ───────────────────────────────────────────
   html += `<div class="notif-section-title">✨ Bản cập nhật</div>`;
   CHANGELOG.forEach(c => {
     const newBadge    = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
@@ -2829,6 +2853,7 @@ async function quickNotifCheck() {
       (notifData.fireCount||0) +
       (notifData.messageCount||0) +
       (notifData.gardenVisitCount||0) +
+      (notifData.systemNotifCount||0) +
       sick + newDead + pendingGifts.length +
       incomplete + (overdueCount?.length||0);
     _updateBellBadge(urgentCount);
@@ -5138,8 +5163,10 @@ const apiGamification = {
   sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
   unreadMessages:   () => API.g('/api/gamification/unread-messages'),
   fireStreak:       (fid) => API.g(`/api/gamification/fire-streak/${fid}`),
-  gardenVisits:     ()    => API.g('/api/gamification/garden-visits'),
-  gardenVisitsSeen: ()    => API.p('/api/gamification/garden-visits/seen', {}),
+  gardenVisits:         ()  => API.g('/api/gamification/garden-visits'),
+  gardenVisitsSeen:     ()  => API.p('/api/gamification/garden-visits/seen', {}),
+  systemNotifications:  ()  => API.g('/api/gamification/system-notifications'),
+  markSystemNotifSeen:  ()  => API.p('/api/gamification/system-notifications/seen', {}),
 };
 
 // ═══════════════════════════════════════════
@@ -6860,6 +6887,7 @@ function _refreshGardenUI() {
   _updateGardenTimeLabel();
   _updateGardenPoints();
   _renderWeatherBanner(_gardenData.weatherInfo, _gardenData.weather, 'garden-weather-banner');
+  _applyWeatherEffectsToGrid(document.getElementById('garden-grid')?.closest('.garden-grid-wrap'), _gardenData.weather);
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
   _renderGardenGrid();
   _renderGardenShop();
@@ -7348,6 +7376,93 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
   }).join('');
 }
 
+// ── Weather grid effects ──────────────────────────────────────
+function _applyWeatherEffectsToGrid(wrap, weatherId) {
+  if (!wrap) return;
+  const WEATHERS = ['sunny','cloudy','rainy','stormy','foggy','windy'];
+  WEATHERS.forEach(w => wrap.classList.remove('gw-' + w));
+  const old = wrap.querySelector('.gw-fx');
+  if (old) old.remove();
+  if (!weatherId || !WEATHERS.includes(weatherId)) return;
+
+  wrap.classList.add('gw-' + weatherId);
+
+  const fx = document.createElement('div');
+  fx.className = 'gw-fx';
+
+  if (weatherId === 'rainy' || weatherId === 'stormy') {
+    const count = weatherId === 'stormy' ? 30 : 20;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-rain';
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.animationDelay = (Math.random() * 1.8) + 's';
+      s.style.animationDuration = (0.55 + Math.random() * 0.55) + 's';
+      s.style.opacity = (0.3 + Math.random() * 0.45);
+      fx.appendChild(s);
+    }
+    if (weatherId === 'stormy') {
+      const flash = document.createElement('div');
+      flash.className = 'gw-lightning';
+      fx.appendChild(flash);
+    }
+  }
+
+  if (weatherId === 'sunny') {
+    const glow = document.createElement('div');
+    glow.className = 'gw-sunglow';
+    fx.appendChild(glow);
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-sunray';
+      s.style.setProperty('--i', i);
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'foggy') {
+    for (let i = 0; i < 3; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-fog';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  if (weatherId === 'windy') {
+    for (let i = 0; i < 9; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-windline';
+      s.style.top = (8 + Math.random() * 84) + '%';
+      s.style.width = (18 + Math.random() * 28) + '%';
+      s.style.animationDelay = (Math.random() * 2.5) + 's';
+      s.style.animationDuration = (0.9 + Math.random() * 1.4) + 's';
+      fx.appendChild(s);
+    }
+    const leaves = ['🍃', '🍂', '🌿'];
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-leaf';
+      s.textContent = leaves[i % leaves.length];
+      s.style.top = (10 + Math.random() * 72) + '%';
+      s.style.animationDelay = (Math.random() * 3.5) + 's';
+      s.style.animationDuration = (2.2 + Math.random() * 2) + 's';
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'cloudy') {
+    for (let i = 0; i < 2; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-cloud-shadow';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  wrap.appendChild(fx);
+}
+
 // ── Weather banner ────────────────────────────────────────────
 function _renderWeatherBanner(info, weatherId, elId) {
   const el = document.getElementById(elId);
@@ -7502,6 +7617,7 @@ async function _openFriendGarden(friendId) {
     }
 
     _renderWeatherBanner(_gardenFriendData.weatherInfo, _gardenFriendData.weather, 'gfv-weather-banner');
+    _applyWeatherEffectsToGrid(document.getElementById('gfv-grid')?.closest('.garden-grid-wrap'), _gardenFriendData.weather);
     _renderEcosystemPanel(_gardenFriendData.ecosystem, 'gfv-eco-panel');
     _renderFriendGardenGrid(_gardenFriendData, friendId);
   } catch(e) {

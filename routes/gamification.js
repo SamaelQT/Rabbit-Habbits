@@ -701,15 +701,39 @@ router.post('/fires/seen', async (req, res) => {
 router.get('/notifications', async (req, res) => {
   try {
     const [me, messageCount] = await Promise.all([
-      User.findById(req.userId).select('friendRequests receivedFires receivedGifts receivedGardenVisits'),
+      User.findById(req.userId).select('friendRequests receivedFires receivedGifts receivedGardenVisits systemNotifications'),
       Message.countDocuments({ to: req.userId, seen: false })
     ]);
-    const requestCount    = (me.friendRequests       || []).length;
-    const fireCount       = (me.receivedFires        || []).filter(f => !f.seen).length;
-    const giftCount       = (me.receivedGifts        || []).filter(g => !g.seen).length;
-    const gardenVisitCount= (me.receivedGardenVisits || []).filter(v => !v.seen).length;
-    const total = requestCount + fireCount + giftCount + messageCount + gardenVisitCount;
-    res.json({ requestCount, fireCount, giftCount, messageCount, gardenVisitCount, total });
+    const requestCount      = (me.friendRequests       || []).length;
+    const fireCount         = (me.receivedFires        || []).filter(f => !f.seen).length;
+    const giftCount         = (me.receivedGifts        || []).filter(g => !g.seen).length;
+    const gardenVisitCount  = (me.receivedGardenVisits || []).filter(v => !v.seen).length;
+    const systemNotifCount  = (me.systemNotifications  || []).filter(n => !n.seen).length;
+    const total = requestCount + fireCount + giftCount + messageCount + gardenVisitCount + systemNotifCount;
+    res.json({ requestCount, fireCount, giftCount, messageCount, gardenVisitCount, systemNotifCount, total });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/gamification/system-notifications — get unseen system notifications
+router.get('/system-notifications', async (req, res) => {
+  try {
+    const me = await User.findById(req.userId).select('systemNotifications');
+    const notifs = (me.systemNotifications || [])
+      .filter(n => !n.seen)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 10);
+    res.json(notifs);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/gamification/system-notifications/seen — mark all as seen
+router.post('/system-notifications/seen', async (req, res) => {
+  try {
+    await User.updateOne(
+      { _id: req.userId },
+      { $set: { 'systemNotifications.$[].seen': true } }
+    );
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
