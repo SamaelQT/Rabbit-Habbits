@@ -229,7 +229,7 @@ function getWeatherInfo(id) {
 function updateWeather(gardenDoc) {
   const now   = Date.now();
   const setAt = gardenDoc.weatherSetAt ? new Date(gardenDoc.weatherSetAt).getTime() : 0;
-  if (now - setAt > 24 * 3_600_000) {
+  if (now - setAt > 6 * 3_600_000) {
     gardenDoc.weather      = rollWeather();
     gardenDoc.weatherSetAt = new Date(now);
     // Force ecosystem recalculation on weather change
