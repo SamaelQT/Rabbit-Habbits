@@ -1,0 +1,1184 @@
+/* ═══════════════════════════════════════════════════════════════
+   🌿 GARDEN PLANTS — Cell, Grass, Pots, Plant Archetypes
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── GRID WRAP: grass background ── */
+.garden-grid-wrap {
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 100%, #1a3a10 0%, transparent 70%),
+    linear-gradient(175deg, #0e2010 0%, #122614 50%, #0a1c0c 100%);
+  overflow: visible !important;
+}
+
+/* Grass texture overlay */
+.garden-grid-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0px, transparent 18px, rgba(94,240,160,.03) 18px, rgba(94,240,160,.03) 19px),
+    repeating-linear-gradient(0deg,  transparent 0px, transparent 22px, rgba(94,240,160,.02) 22px, rgba(94,240,160,.02) 23px);
+  pointer-events: none; border-radius: inherit; z-index: 0;
+}
+
+/* ── GRID: remove rotateX, use flat layout ── */
+.garden-grid-3d {
+  transform: none !important;
+  transform-style: flat !important;
+}
+.garden-grid-wrap:hover .garden-grid-3d { transform: none !important; }
+
+/* ── CELL: base restructure ── */
+.garden-cell {
+  overflow: visible !important;
+  min-height: 110px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: 8px;
+}
+.garden-cell:hover { transform: translateY(-3px) scale(1.03); z-index: 20 !important; }
+.garden-cell:active { transform: translateY(1px) scale(.97); }
+
+/* Z-index per row — lower rows appear in front */
+.garden-cell[data-row="0"] { z-index: 1; }
+.garden-cell[data-row="1"] { z-index: 2; }
+.garden-cell[data-row="2"] { z-index: 3; }
+.garden-cell[data-row="3"] { z-index: 4; }
+.garden-cell[data-row="4"] { z-index: 5; }
+.garden-cell[data-row="5"] { z-index: 6; }
+
+/* ── GRASS BLADES per cell ── */
+.gc-grass { position: absolute; bottom: 0; left: 0; right: 0; height: 18px; pointer-events: none; z-index: 0; }
+.gc-blade {
+  position: absolute; bottom: 0;
+  width: 3px; border-radius: 3px 3px 0 0;
+  transform-origin: bottom center;
+  animation: bladeSway 3s ease-in-out infinite;
+}
+@keyframes bladeSway {
+  0%,100% { transform: rotate(-4deg); }
+  50%      { transform: rotate(4deg); }
+}
+/* Blade sizes and positions — injected by JS with inline styles */
+
+/* ── LOCKED CELL ── */
+.gc-locked {
+  background: transparent !important;
+  border: none !important;
+}
+.gc-locked .gc-lock-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 3px; margin-bottom: 14px;
+}
+.gc-locked .gc-lock-icon { font-size: 20px; opacity: .4; filter: grayscale(1); }
+.gc-locked .gc-price { font-size: 11px; color: #ffcf5c; font-weight: 700; background: rgba(255,207,92,.1); border-radius: 8px; padding: 2px 8px; }
+
+/* ── EMPTY CELL ── */
+.gc-empty { background: transparent !important; border: none !important; }
+.gc-empty-plus {
+  font-size: 22px; color: rgba(94,240,160,.25);
+  line-height: 1; transition: color .15s, transform .15s;
+  margin-bottom: 16px;
+}
+.gc-empty:hover .gc-empty-plus { color: rgba(94,240,160,.85); transform: scale(1.15); }
+.gc-empty-label { font-size: 9px; color: var(--text3); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   🪴 POTS — 4 types, CSS drawn
+   ═══════════════════════════════════════════════════════════════ */
+
+.gc-pot-wrap {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  z-index: 2;
+}
+
+/* Pot base shape — trapezoid via clip-path */
+.gc-pot {
+  position: relative;
+  display: flex; align-items: flex-start; justify-content: center;
+}
+
+/* pot_s — small clay pot */
+.gc-pot-s {
+  width: 46px; height: 34px;
+  background: linear-gradient(175deg, #b5672a 0%, #8b4a1c 60%, #6b3812 100%);
+  clip-path: polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%);
+  box-shadow: inset -4px 0 8px rgba(0,0,0,.3), inset 4px 0 6px rgba(255,255,255,.08);
+}
+.gc-pot-s::before {
+  content: '';
+  position: absolute; top: 0; left: -3px; right: -3px; height: 7px;
+  background: linear-gradient(180deg, #c97830 0%, #a05a24 100%);
+  border-radius: 3px 3px 0 0;
+}
+.gc-pot-s::after { /* soil */
+  content: '';
+  position: absolute; top: 7px; left: 10%; right: 10%; height: 8px;
+  border-radius: 2px;
+}
+
+/* pot_m — ceramic pot */
+.gc-pot-m {
+  width: 58px; height: 42px;
+  background: linear-gradient(175deg, #7a8fa6 0%, #5a6e82 60%, #3e5060 100%);
+  clip-path: polygon(6% 0%, 94% 0%, 100% 100%, 0% 100%);
+  box-shadow: inset -5px 0 10px rgba(0,0,0,.35), inset 5px 0 8px rgba(255,255,255,.1);
+}
+.gc-pot-m::before {
+  content: '';
+  position: absolute; top: 0; left: -4px; right: -4px; height: 9px;
+  background: linear-gradient(180deg, #8fa0b8 0%, #6880a0 100%);
+  border-radius: 4px 4px 0 0;
+}
+
+/* pot_l — wooden pot */
+.gc-pot-l {
+  width: 72px; height: 52px;
+  background: linear-gradient(175deg, #6b4a2a 0%, #4e3318 60%, #3a2510 100%);
+  clip-path: polygon(5% 0%, 95% 0%, 100% 100%, 0% 100%);
+  box-shadow: inset -6px 0 12px rgba(0,0,0,.4), inset 6px 0 8px rgba(255,255,255,.06);
+}
+.gc-pot-l::before {
+  content: '';
+  position: absolute; top: 0; left: -4px; right: -4px; height: 10px;
+  background: linear-gradient(180deg, #7a5530 0%, #5c3e1e 100%);
+  border-radius: 3px 3px 0 0;
+}
+/* Wood grain lines */
+.gc-pot-l::after {
+  content: '';
+  position: absolute; inset: 10px 6px 0;
+  background: repeating-linear-gradient(
+    0deg, transparent 0px, transparent 7px,
+    rgba(0,0,0,.12) 7px, rgba(0,0,0,.12) 8px
+  );
+}
+
+/* pot_xl — porcelain/ceramic large */
+.gc-pot-xl {
+  width: 86px; height: 62px;
+  background: linear-gradient(175deg, #e8e0d0 0%, #c8bca8 60%, #a89c8c 100%);
+  clip-path: polygon(4% 0%, 96% 0%, 100% 100%, 0% 100%);
+  box-shadow: inset -8px 0 16px rgba(0,0,0,.2), inset 8px 0 12px rgba(255,255,255,.25);
+}
+.gc-pot-xl::before {
+  content: '';
+  position: absolute; top: 0; left: -5px; right: -5px; height: 12px;
+  background: linear-gradient(180deg, #f0e8d8 0%, #d0c4b0 100%);
+  border-radius: 5px 5px 0 0;
+}
+/* Decorative blue pattern on porcelain */
+.gc-pot-xl::after {
+  content: '';
+  position: absolute; top: 14px; left: 15%; right: 15%; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(60,100,180,.4), transparent);
+  border-radius: 1px;
+}
+
+/* Soil inside pot — color changes with waterLevel */
+.gc-pot-soil {
+  position: absolute;
+  top: 2px; left: 10%; right: 10%;
+  height: 9px; border-radius: 2px;
+  transition: background .8s ease;
+}
+.gc-soil-dry    { background: linear-gradient(180deg, #9c6b3a 0%, #7a4e28 100%); }
+.gc-soil-normal { background: linear-gradient(180deg, #6b4020 0%, #4e2e10 100%); }
+.gc-soil-moist  { background: linear-gradient(180deg, #4a2c10 0%, #3a1e08 100%); }
+.gc-soil-wet    { background: linear-gradient(180deg, #2e1a06 0%, #1e1004 100%); box-shadow: 0 0 6px rgba(60,120,200,.2); }
+
+/* Soil crack for dry state */
+.gc-soil-dry::after {
+  content: '';
+  position: absolute; inset: 2px;
+  background: repeating-linear-gradient(
+    70deg, transparent 0px, transparent 5px,
+    rgba(255,255,255,.08) 5px, rgba(255,255,255,.08) 6px
+  );
+  border-radius: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🌱 PLANT BODY — shared structure
+   ═══════════════════════════════════════════════════════════════ */
+
+.gc-plant-body {
+  position: absolute;
+  bottom: 100%; /* sits on top of pot */
+  left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center;
+  pointer-events: none;
+  transform-origin: bottom center;
+  animation: plantSway var(--sway-speed, 4s) var(--sway-ease, ease-in-out) infinite;
+}
+@keyframes plantSway {
+  0%,100% { transform: translateX(-50%) rotate(calc(var(--sway, 2deg) * -1)); }
+  50%      { transform: translateX(-50%) rotate(var(--sway, 2deg)); }
+}
+
+/* Stage: seed — tiny bump */
+.gc-plant-body.stage-seed { bottom: calc(100% - 4px); }
+
+/* Health-based filters */
+.gc-plant-body.health-dead   { filter: saturate(0) brightness(.5) !important; --sway: 0deg !important; }
+.gc-plant-body.health-low    { filter: saturate(.45) brightness(.85); }
+.gc-plant-body.health-medium { filter: saturate(.75); }
+/* Nutrient low — leaf yellowing */
+.gc-plant-body.nutr-low  { filter: sepia(.35) saturate(.7); }
+.gc-plant-body.nutr-very-low { filter: sepia(.6) saturate(.55) brightness(.9); }
+/* Shaded */
+.gc-plant-body.shaded-1  { filter: brightness(.75) saturate(.8); }
+.gc-plant-body.shaded-2  { filter: brightness(.55) saturate(.6); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 1 — GROUND LEAFY (rau_muong, cai_xanh)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-ground-leafy .gc-plant-body { width: 54px; }
+
+/* Seed */
+.plant-ground-leafy.stage-seed .gc-plant-body { height: 8px; }
+.plant-ground-leafy.stage-seed .gp-seed {
+  width: 8px; height: 6px;
+  background: radial-gradient(ellipse, #8b5e3c 0%, #5a3820 100%);
+  border-radius: 50%; margin: 0 auto;
+}
+
+/* Sprout */
+.plant-ground-leafy.stage-sprout .gc-plant-body { height: 22px; }
+.plant-ground-leafy.stage-sprout .gp-stem {
+  width: 2px; height: 14px;
+  background: linear-gradient(0deg, #2d6e2a, #4aaa40);
+  border-radius: 1px; margin: 0 auto;
+}
+.plant-ground-leafy.stage-sprout .gp-leaf-pair {
+  display: flex; gap: 4px; margin-bottom: -6px;
+}
+.plant-ground-leafy.stage-sprout .gp-leaf {
+  width: 10px; height: 8px;
+  background: radial-gradient(ellipse at 50% 80%, #5cd44e 0%, #3aaa30 100%);
+  border-radius: 50% 50% 40% 40%;
+}
+.plant-ground-leafy.stage-sprout .gp-leaf:first-child { transform: rotate(-25deg); }
+.plant-ground-leafy.stage-sprout .gp-leaf:last-child  { transform: rotate(25deg); }
+
+/* Leafing */
+.plant-ground-leafy.stage-leafing .gc-plant-body { height: 32px; }
+.plant-ground-leafy.stage-leafing .gp-leaves-wrap {
+  position: relative; width: 48px; height: 32px;
+}
+.plant-ground-leafy.stage-leafing .gp-leaf {
+  position: absolute;
+  background: radial-gradient(ellipse at 30% 70%, #6ee05c 0%, #3aaa30 100%);
+  border-radius: 60% 40% 50% 50%;
+}
+.plant-ground-leafy.stage-leafing .gp-leaf:nth-child(1) { width:20px;height:14px; bottom:8px; left:2px; transform:rotate(-40deg); }
+.plant-ground-leafy.stage-leafing .gp-leaf:nth-child(2) { width:22px;height:16px; bottom:10px; left:50%; transform:translateX(-50%) rotate(0deg); }
+.plant-ground-leafy.stage-leafing .gp-leaf:nth-child(3) { width:20px;height:14px; bottom:8px; right:2px; transform:rotate(40deg); }
+.plant-ground-leafy.stage-leafing .gp-leaf:nth-child(4) { width:16px;height:11px; bottom:0; left:4px; transform:rotate(-20deg); }
+.plant-ground-leafy.stage-leafing .gp-leaf:nth-child(5) { width:16px;height:11px; bottom:0; right:4px; transform:rotate(20deg); }
+
+/* Growing — same as leafing but taller, more leaves */
+.plant-ground-leafy.stage-growing .gc-plant-body { height: 42px; }
+.plant-ground-leafy.stage-growing .gp-leaves-wrap { width: 56px; height: 42px; }
+.plant-ground-leafy.stage-growing .gp-leaf {
+  position: absolute;
+  background: radial-gradient(ellipse at 30% 70%, #7aee68 0%, #46bb3a 100%);
+  border-radius: 60% 40% 50% 50%;
+}
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(1) { width:24px;height:18px; bottom:14px; left:0; transform:rotate(-50deg); }
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(2) { width:26px;height:20px; bottom:18px; left:50%; transform:translateX(-50%) rotate(-10deg); }
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(3) { width:26px;height:18px; bottom:16px; right:0; transform:rotate(50deg); }
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(4) { width:22px;height:15px; bottom:6px; left:2px; transform:rotate(-25deg); }
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(5) { width:22px;height:15px; bottom:6px; right:2px; transform:rotate(25deg); }
+.plant-ground-leafy.stage-growing .gp-leaf:nth-child(6) { width:18px;height:12px; bottom:0; left:50%; transform:translateX(-50%); }
+
+/* Flowering & fruiting — fullest */
+.plant-ground-leafy.stage-flowering .gc-plant-body,
+.plant-ground-leafy.stage-fruiting  .gc-plant-body { height: 50px; }
+.plant-ground-leafy.stage-flowering .gp-leaves-wrap,
+.plant-ground-leafy.stage-fruiting  .gp-leaves-wrap { width: 62px; height: 50px; }
+.plant-ground-leafy.stage-flowering .gp-leaf,
+.plant-ground-leafy.stage-fruiting  .gp-leaf {
+  position: absolute;
+  background: radial-gradient(ellipse at 30% 70%, #88f472 0%, #52cc44 100%);
+  border-radius: 60% 40% 50% 50%;
+  animation: leafWave 3.5s ease-in-out infinite;
+}
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(1),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(1) { width:26px;height:20px; bottom:20px; left:0; transform:rotate(-55deg); animation-delay:0s; }
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(2),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(2) { width:28px;height:22px; bottom:24px; left:50%; transform:translateX(-50%) rotate(-5deg); animation-delay:.3s; }
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(3),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(3) { width:26px;height:20px; bottom:20px; right:0; transform:rotate(55deg); animation-delay:.6s; }
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(4),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(4) { width:22px;height:16px; bottom:8px; left:2px; transform:rotate(-30deg); animation-delay:.2s; }
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(5),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(5) { width:22px;height:16px; bottom:8px; right:2px; transform:rotate(30deg); animation-delay:.5s; }
+.plant-ground-leafy.stage-flowering .gp-leaf:nth-child(6),
+.plant-ground-leafy.stage-fruiting  .gp-leaf:nth-child(6) { width:18px;height:13px; bottom:0; left:50%; transform:translateX(-50%); animation-delay:.8s; }
+@keyframes leafWave {
+  0%,100% { transform-origin: bottom center; }
+  50%      { filter: brightness(1.1); }
+}
+
+/* rau_muong variant: darker green, slightly narrower */
+.plant-rau_muong .gp-leaf { background: radial-gradient(ellipse at 30% 70%, #5acc48 0%, #2e8828 100%) !important; }
+/* cai_xanh variant: lighter, wider */
+.plant-cai_xanh .gp-leaf  { background: radial-gradient(ellipse at 30% 70%, #8aee70 0%, #50cc3c 100%) !important; border-radius: 50% 50% 40% 40% !important; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 2 — UPRIGHT HERB (hanh_la)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-hanh_la .gc-plant-body { width: 36px; }
+
+.plant-hanh_la.stage-seed .gp-seed {
+  width: 6px; height: 9px;
+  background: radial-gradient(ellipse, #a8c878 0%, #7a9640 100%);
+  border-radius: 50% 50% 30% 30%; margin: 0 auto;
+}
+.plant-hanh_la.stage-sprout .gc-plant-body { height: 28px; }
+.plant-hanh_la.stage-sprout .gp-blades { display:flex; gap:4px; align-items:flex-end; justify-content:center; }
+.plant-hanh_la.stage-sprout .gp-blade { width:2.5px; border-radius:1px 1px 0 0; background:linear-gradient(0deg,#3a8830,#7acc50); }
+.plant-hanh_la.stage-sprout .gp-blade:nth-child(1) { height:18px; transform:rotate(-6deg); }
+.plant-hanh_la.stage-sprout .gp-blade:nth-child(2) { height:24px; }
+.plant-hanh_la.stage-sprout .gp-blade:nth-child(3) { height:20px; transform:rotate(5deg); }
+
+.plant-hanh_la.stage-leafing .gc-plant-body  { height: 42px; }
+.plant-hanh_la.stage-growing .gc-plant-body  { height: 56px; }
+.plant-hanh_la.stage-flowering .gc-plant-body{ height: 62px; }
+.plant-hanh_la.stage-fruiting .gc-plant-body { height: 64px; }
+
+.plant-hanh_la.stage-leafing .gp-blades,
+.plant-hanh_la.stage-growing .gp-blades,
+.plant-hanh_la.stage-flowering .gp-blades,
+.plant-hanh_la.stage-fruiting  .gp-blades { display:flex; gap:3px; align-items:flex-end; justify-content:center; }
+
+.plant-hanh_la .gp-blade {
+  width: 3px; border-radius: 1px 1px 0 0;
+  background: linear-gradient(0deg, #2e7226, #7adc50);
+  animation: herbSway 2.5s ease-in-out infinite;
+}
+@keyframes herbSway {
+  0%,100% { transform-origin: bottom center; transform: rotate(-5deg); }
+  50%      { transform-origin: bottom center; transform: rotate(5deg); }
+}
+.plant-hanh_la.stage-leafing  .gp-blade:nth-child(1) { height:28px; animation-delay:0s; }
+.plant-hanh_la.stage-leafing  .gp-blade:nth-child(2) { height:34px; animation-delay:.2s; }
+.plant-hanh_la.stage-leafing  .gp-blade:nth-child(3) { height:30px; animation-delay:.4s; }
+.plant-hanh_la.stage-leafing  .gp-blade:nth-child(4) { height:26px; animation-delay:.1s; }
+.plant-hanh_la.stage-growing  .gp-blade:nth-child(1) { height:40px; animation-delay:0s; }
+.plant-hanh_la.stage-growing  .gp-blade:nth-child(2) { height:50px; animation-delay:.15s; }
+.plant-hanh_la.stage-growing  .gp-blade:nth-child(3) { height:44px; animation-delay:.3s; }
+.plant-hanh_la.stage-growing  .gp-blade:nth-child(4) { height:38px; animation-delay:.45s; }
+.plant-hanh_la.stage-growing  .gp-blade:nth-child(5) { height:46px; animation-delay:.6s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(1) { height:46px; animation-delay:0s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(2) { height:56px; animation-delay:.12s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(3) { height:50px; animation-delay:.25s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(4) { height:44px; animation-delay:.37s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(5) { height:52px; animation-delay:.5s; }
+.plant-hanh_la.stage-flowering .gp-blade:nth-child(6) { height:46px; animation-delay:.62s; }
+.plant-hanh_la.stage-fruiting .gp-blade:nth-child(n) { height:58px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 3 — BUSH VEGETABLE (ca_chua, dua_leo)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-bush-veg .gc-plant-body { width: 60px; }
+
+.plant-bush-veg.stage-seed .gp-seed {
+  width: 7px; height: 6px;
+  background: radial-gradient(#c4a060, #8a6630); border-radius: 50%; margin: 0 auto;
+}
+.plant-bush-veg.stage-sprout .gc-plant-body { height: 30px; }
+.plant-bush-veg.stage-sprout .gp-stem { width:2px; height:20px; background:linear-gradient(0deg,#2e6a28,#58b840); border-radius:1px; margin:0 auto; }
+.plant-bush-veg.stage-sprout .gp-leaf-pair { display:flex; gap:6px; margin-bottom:-8px; }
+.plant-bush-veg.stage-sprout .gp-leaf { width:12px;height:10px; background:radial-gradient(ellipse at 40% 70%,#7ed85e,#46a030); border-radius:50% 50% 40% 60%; }
+.plant-bush-veg.stage-sprout .gp-leaf:first-child { transform:rotate(-30deg); }
+.plant-bush-veg.stage-sprout .gp-leaf:last-child  { transform:rotate(30deg); }
+
+/* Leafing–fruiting: branching bush */
+.plant-bush-veg.stage-leafing .gc-plant-body   { height: 50px; }
+.plant-bush-veg.stage-growing .gc-plant-body   { height: 62px; }
+.plant-bush-veg.stage-flowering .gc-plant-body { height: 68px; }
+.plant-bush-veg.stage-fruiting .gc-plant-body  { height: 72px; }
+
+.plant-bush-veg .gp-bush {
+  position: relative; width: 60px;
+}
+/* Main stem */
+.plant-bush-veg .gp-bush::before {
+  content: ''; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 3px; border-radius: 1.5px 1.5px 0 0;
+  background: linear-gradient(0deg, #2e5c28, #52a040);
+}
+/* Left branch */
+.plant-bush-veg .gp-branch-l {
+  position: absolute; bottom: 40%; left: 6px;
+  width: 22px; height: 2.5px;
+  background: linear-gradient(90deg, #52a040, #3a7a2e);
+  border-radius: 1px; transform: rotate(-25deg); transform-origin: right center;
+}
+/* Right branch */
+.plant-bush-veg .gp-branch-r {
+  position: absolute; bottom: 40%; right: 6px;
+  width: 22px; height: 2.5px;
+  background: linear-gradient(270deg, #52a040, #3a7a2e);
+  border-radius: 1px; transform: rotate(25deg); transform-origin: left center;
+}
+/* Leaves on branches */
+.plant-bush-veg .gp-leaf {
+  position: absolute;
+  background: radial-gradient(ellipse at 40% 70%, #7ed85e 0%, #46a030 100%);
+  border-radius: 55% 45% 50% 50%;
+}
+
+.plant-bush-veg.stage-leafing .gp-bush  { height: 50px; }
+.plant-bush-veg.stage-leafing .gp-bush::before { height: 50px; }
+.plant-bush-veg.stage-leafing .gp-leaf:nth-child(1) { width:16px;height:12px; top:4px; left:2px; transform:rotate(-40deg); }
+.plant-bush-veg.stage-leafing .gp-leaf:nth-child(2) { width:18px;height:13px; top:0; left:50%;transform:translateX(-50%) rotate(-5deg); }
+.plant-bush-veg.stage-leafing .gp-leaf:nth-child(3) { width:16px;height:12px; top:4px; right:2px; transform:rotate(40deg); }
+.plant-bush-veg.stage-leafing .gp-leaf:nth-child(4) { width:14px;height:10px; top:18px; left:4px; transform:rotate(-20deg); }
+.plant-bush-veg.stage-leafing .gp-leaf:nth-child(5) { width:14px;height:10px; top:18px; right:4px; transform:rotate(20deg); }
+
+.plant-bush-veg.stage-growing .gp-bush  { height: 62px; }
+.plant-bush-veg.stage-growing .gp-bush::before { height: 62px; }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(1) { width:19px;height:14px; top:2px; left:0; transform:rotate(-45deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(2) { width:21px;height:16px; top:-2px; left:50%;transform:translateX(-50%) rotate(-5deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(3) { width:19px;height:14px; top:2px; right:0; transform:rotate(45deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(4) { width:17px;height:12px; top:18px; left:2px; transform:rotate(-25deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(5) { width:17px;height:12px; top:18px; right:2px; transform:rotate(25deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(6) { width:15px;height:11px; top:32px; left:6px; transform:rotate(-15deg); }
+.plant-bush-veg.stage-growing .gp-leaf:nth-child(7) { width:15px;height:11px; top:32px; right:6px; transform:rotate(15deg); }
+
+/* Flowering: small yellow flowers on branch tips */
+.plant-bush-veg.stage-flowering .gp-bush { height: 68px; }
+.plant-bush-veg.stage-flowering .gp-bush::before { height: 68px; }
+.plant-bush-veg.stage-flowering .gp-leaf:nth-child(1) { width:19px;height:14px; top:2px; left:0; transform:rotate(-45deg); }
+.plant-bush-veg.stage-flowering .gp-leaf:nth-child(2) { width:21px;height:16px; top:-2px; left:50%;transform:translateX(-50%); }
+.plant-bush-veg.stage-flowering .gp-leaf:nth-child(3) { width:19px;height:14px; top:2px; right:0; transform:rotate(45deg); }
+.plant-bush-veg.stage-flowering .gp-leaf:nth-child(4) { width:17px;height:12px; top:18px; left:2px; transform:rotate(-25deg); }
+.plant-bush-veg.stage-flowering .gp-leaf:nth-child(5) { width:17px;height:12px; top:18px; right:2px; transform:rotate(25deg); }
+.plant-bush-veg .gp-flower {
+  position: absolute; width:8px; height:8px;
+  background: radial-gradient(circle, #ffee66 30%, #ffcc00 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255,220,0,.6);
+  animation: flowerPop .4s cubic-bezier(.2,1.5,.4,1) both;
+}
+@keyframes flowerPop { 0%{transform:scale(0);opacity:0} 100%{transform:scale(1);opacity:1} }
+.plant-bush-veg.stage-flowering .gp-flower:nth-child(6) { top:-2px; left:5px; }
+.plant-bush-veg.stage-flowering .gp-flower:nth-child(7) { top:-2px; right:5px; }
+
+/* Fruiting — ca_chua: red tomatoes; dua_leo: green cucumbers */
+.plant-bush-veg.stage-fruiting .gp-bush { height: 72px; }
+.plant-bush-veg.stage-fruiting .gp-bush::before { height: 72px; }
+.plant-bush-veg.stage-fruiting .gp-leaf:nth-child(1) { width:18px;height:13px; top:4px; left:0; transform:rotate(-45deg); }
+.plant-bush-veg.stage-fruiting .gp-leaf:nth-child(2) { width:20px;height:15px; top:0;  left:50%;transform:translateX(-50%); }
+.plant-bush-veg.stage-fruiting .gp-leaf:nth-child(3) { width:18px;height:13px; top:4px; right:0; transform:rotate(45deg); }
+.plant-bush-veg .gp-fruit {
+  position: absolute;
+  animation: fruitHang 3s ease-in-out infinite;
+}
+@keyframes fruitHang { 0%,100%{transform:rotate(-4deg)} 50%{transform:rotate(4deg)} }
+
+/* cà chua fruit */
+.plant-ca_chua .gp-fruit {
+  width:11px; height:11px;
+  background: radial-gradient(circle at 35% 35%, #ff6644, #cc2200);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,.3), inset 0 -2px 4px rgba(0,0,0,.2);
+}
+.plant-ca_chua .gp-fruit::before {
+  content:''; position:absolute; top:-4px; left:50%; transform:translateX(-50%);
+  width:2px; height:5px;
+  background: #2e6a28; border-radius:1px;
+}
+.plant-ca_chua.stage-fruiting .gp-fruit:nth-child(4) { top:22px; left:8px; animation-delay:0s; }
+.plant-ca_chua.stage-fruiting .gp-fruit:nth-child(5) { top:26px; right:8px; animation-delay:.5s; }
+.plant-ca_chua.stage-fruiting .gp-fruit:nth-child(6) { top:32px; left:50%; transform:translateX(-50%); animation-delay:1s; }
+
+/* dưa leo fruit */
+.plant-dua_leo .gp-fruit {
+  width:8px; height:18px;
+  background: linear-gradient(180deg, #7acc50, #3a8820);
+  border-radius: 4px;
+}
+.plant-dua_leo.stage-fruiting .gp-fruit:nth-child(4) { top:18px; left:6px; transform:rotate(-20deg); animation-delay:0s; }
+.plant-dua_leo.stage-fruiting .gp-fruit:nth-child(5) { top:20px; right:6px; transform:rotate(20deg); animation-delay:.6s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 4 — ROOT VEGETABLE (ca_rot)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-ca_rot .gc-plant-body { width: 44px; }
+
+.plant-ca_rot.stage-seed .gp-seed { width:7px;height:6px; background:radial-gradient(#e8a860,#a06830); border-radius:50%; margin:0 auto; }
+.plant-ca_rot.stage-sprout .gc-plant-body { height:24px; }
+.plant-ca_rot.stage-sprout .gp-fronds { display:flex; gap:3px; justify-content:center; align-items:flex-end; }
+.plant-ca_rot.stage-sprout .gp-frond { width:2px; border-radius:1px; background:linear-gradient(0deg,#3a8828,#88d840); }
+.plant-ca_rot.stage-sprout .gp-frond:nth-child(1){height:14px;transform:rotate(-10deg);}
+.plant-ca_rot.stage-sprout .gp-frond:nth-child(2){height:20px;}
+.plant-ca_rot.stage-sprout .gp-frond:nth-child(3){height:16px;transform:rotate(10deg);}
+
+.plant-ca_rot.stage-leafing   .gc-plant-body { height:36px; }
+.plant-ca_rot.stage-growing   .gc-plant-body { height:46px; }
+.plant-ca_rot.stage-flowering .gc-plant-body { height:54px; }
+.plant-ca_rot.stage-fruiting  .gc-plant-body { height:58px; }
+
+.plant-ca_rot .gp-fronds { display:flex; gap:3px; justify-content:center; align-items:flex-end; }
+.plant-ca_rot .gp-frond {
+  width:2.5px; border-radius:1px;
+  background:linear-gradient(0deg,#2e7826,#8ada44);
+  animation: herbSway 2.8s ease-in-out infinite;
+}
+.plant-ca_rot.stage-leafing  .gp-frond:nth-child(1){height:22px;animation-delay:0s;}
+.plant-ca_rot.stage-leafing  .gp-frond:nth-child(2){height:30px;animation-delay:.2s;}
+.plant-ca_rot.stage-leafing  .gp-frond:nth-child(3){height:26px;animation-delay:.4s;}
+.plant-ca_rot.stage-leafing  .gp-frond:nth-child(4){height:20px;animation-delay:.1s;}
+.plant-ca_rot.stage-growing  .gp-frond:nth-child(1){height:30px;animation-delay:0s;}
+.plant-ca_rot.stage-growing  .gp-frond:nth-child(2){height:40px;animation-delay:.2s;}
+.plant-ca_rot.stage-growing  .gp-frond:nth-child(3){height:35px;animation-delay:.35s;}
+.plant-ca_rot.stage-growing  .gp-frond:nth-child(4){height:28px;animation-delay:.5s;}
+.plant-ca_rot.stage-growing  .gp-frond:nth-child(5){height:36px;animation-delay:.15s;}
+.plant-ca_rot.stage-flowering .gp-frond:nth-child(1){height:38px;}
+.plant-ca_rot.stage-flowering .gp-frond:nth-child(2){height:50px;animation-delay:.18s;}
+.plant-ca_rot.stage-flowering .gp-frond:nth-child(3){height:44px;animation-delay:.36s;}
+.plant-ca_rot.stage-flowering .gp-frond:nth-child(4){height:35px;animation-delay:.54s;}
+.plant-ca_rot.stage-flowering .gp-frond:nth-child(5){height:46px;animation-delay:.72s;}
+.plant-ca_rot.stage-fruiting  .gp-frond:nth-child(n){height:52px;}
+
+/* Carrot root peeking from pot soil — visible in growing+ */
+.plant-ca_rot .gp-root {
+  position: absolute;
+  bottom: -6px; left: 50%; transform: translateX(-50%);
+  width: 10px; height: 14px;
+  background: linear-gradient(180deg, #f07830 0%, #c05020 100%);
+  clip-path: polygon(20% 0%, 80% 0%, 60% 100%, 40% 100%);
+  opacity: 0; transition: opacity .5s;
+}
+.plant-ca_rot.stage-growing   .gp-root { opacity: .6; }
+.plant-ca_rot.stage-flowering .gp-root { opacity: .85; }
+.plant-ca_rot.stage-fruiting  .gp-root { opacity: 1; width:12px; height:18px; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 5 — COMPACT BERRY (dau_tay)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-dau_tay .gc-plant-body { width: 52px; }
+
+.plant-dau_tay.stage-seed .gp-seed { width:6px;height:5px; background:radial-gradient(#a08060,#6a4c30); border-radius:50%; margin:0 auto; }
+.plant-dau_tay.stage-sprout .gc-plant-body { height:20px; }
+.plant-dau_tay.stage-sprout .gp-trifoil { display:flex; gap:4px; justify-content:center; }
+.plant-dau_tay.stage-sprout .gp-leaflet { width:10px;height:8px; background:radial-gradient(ellipse,#72c85a,#3a8828); border-radius:50%; }
+.plant-dau_tay .gp-leaves-wrap { position:relative; }
+
+.plant-dau_tay.stage-leafing   .gc-plant-body { height:28px; }
+.plant-dau_tay.stage-growing   .gc-plant-body { height:34px; }
+.plant-dau_tay.stage-flowering .gc-plant-body { height:38px; }
+.plant-dau_tay.stage-fruiting  .gc-plant-body { height:40px; }
+
+.plant-dau_tay .gp-leaf {
+  position:absolute;
+  background:radial-gradient(ellipse at 40% 60%, #7ed85e, #3a9830);
+  border-radius:50% 50% 45% 45%;
+}
+.plant-dau_tay.stage-leafing .gp-leaves-wrap { width:52px;height:28px; }
+.plant-dau_tay.stage-leafing .gp-leaf:nth-child(1){width:18px;height:13px;bottom:8px;left:0;transform:rotate(-35deg);}
+.plant-dau_tay.stage-leafing .gp-leaf:nth-child(2){width:20px;height:15px;bottom:10px;left:50%;transform:translateX(-50%);}
+.plant-dau_tay.stage-leafing .gp-leaf:nth-child(3){width:18px;height:13px;bottom:8px;right:0;transform:rotate(35deg);}
+.plant-dau_tay.stage-leafing .gp-leaf:nth-child(4){width:14px;height:10px;bottom:0;left:6px;transform:rotate(-15deg);}
+.plant-dau_tay.stage-leafing .gp-leaf:nth-child(5){width:14px;height:10px;bottom:0;right:6px;transform:rotate(15deg);}
+
+.plant-dau_tay.stage-growing .gp-leaves-wrap { width:52px;height:34px; }
+.plant-dau_tay.stage-growing .gp-leaf:nth-child(1){width:20px;height:15px;bottom:12px;left:0;transform:rotate(-40deg);}
+.plant-dau_tay.stage-growing .gp-leaf:nth-child(2){width:22px;height:17px;bottom:14px;left:50%;transform:translateX(-50%);}
+.plant-dau_tay.stage-growing .gp-leaf:nth-child(3){width:20px;height:15px;bottom:12px;right:0;transform:rotate(40deg);}
+.plant-dau_tay.stage-growing .gp-leaf:nth-child(4){width:16px;height:11px;bottom:2px;left:4px;transform:rotate(-20deg);}
+.plant-dau_tay.stage-growing .gp-leaf:nth-child(5){width:16px;height:11px;bottom:2px;right:4px;transform:rotate(20deg);}
+
+/* White flowers */
+.plant-dau_tay .gp-flower {
+  position:absolute; width:9px;height:9px;
+  background:radial-gradient(circle at 40% 40%, #fffaf0, #e8e0d0);
+  border-radius:50%;
+  box-shadow:0 0 4px rgba(255,255,255,.4);
+  animation:flowerPop .4s cubic-bezier(.2,1.5,.4,1) both;
+}
+.plant-dau_tay.stage-flowering .gp-leaves-wrap { width:52px;height:38px; }
+.plant-dau_tay.stage-flowering .gp-leaf:nth-child(1){width:20px;height:15px;bottom:14px;left:0;transform:rotate(-40deg);}
+.plant-dau_tay.stage-flowering .gp-leaf:nth-child(2){width:22px;height:17px;bottom:16px;left:50%;transform:translateX(-50%);}
+.plant-dau_tay.stage-flowering .gp-leaf:nth-child(3){width:20px;height:15px;bottom:14px;right:0;transform:rotate(40deg);}
+.plant-dau_tay.stage-flowering .gp-leaf:nth-child(4){width:14px;height:10px;bottom:2px;left:4px;transform:rotate(-20deg);}
+.plant-dau_tay.stage-flowering .gp-leaf:nth-child(5){width:14px;height:10px;bottom:2px;right:4px;transform:rotate(20deg);}
+.plant-dau_tay.stage-flowering .gp-flower:nth-child(6){top:0;left:8px;animation-delay:.1s;}
+.plant-dau_tay.stage-flowering .gp-flower:nth-child(7){top:-3px;left:50%;transform:translateX(-50%);animation-delay:.25s;}
+.plant-dau_tay.stage-flowering .gp-flower:nth-child(8){top:0;right:8px;animation-delay:.4s;}
+
+/* Strawberry fruits */
+.plant-dau_tay .gp-berry {
+  position:absolute; width:10px;height:12px;
+  background:radial-gradient(ellipse at 40% 30%, #ff7060 0%, #cc2020 70%);
+  clip-path:polygon(50% 0%,90% 25%,100% 75%,50% 100%,0% 75%,10% 25%);
+  animation:fruitHang 2.5s ease-in-out infinite;
+}
+.plant-dau_tay.stage-fruiting .gp-leaves-wrap { width:52px;height:40px; }
+.plant-dau_tay.stage-fruiting .gp-leaf:nth-child(1){width:18px;height:13px;bottom:16px;left:0;transform:rotate(-40deg);}
+.plant-dau_tay.stage-fruiting .gp-leaf:nth-child(2){width:20px;height:15px;bottom:18px;left:50%;transform:translateX(-50%);}
+.plant-dau_tay.stage-fruiting .gp-leaf:nth-child(3){width:18px;height:13px;bottom:16px;right:0;transform:rotate(40deg);}
+.plant-dau_tay.stage-fruiting .gp-berry:nth-child(4){bottom:2px;left:8px;animation-delay:0s;}
+.plant-dau_tay.stage-fruiting .gp-berry:nth-child(5){bottom:0;left:50%;transform:translateX(-50%);animation-delay:.5s;}
+.plant-dau_tay.stage-fruiting .gp-berry:nth-child(6){bottom:2px;right:8px;animation-delay:1s;}
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 6 — MEDIUM FRUIT TREE (chanh, oi, cam)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-med-tree .gc-plant-body { width: 72px; }
+.plant-med-tree.stage-seed .gp-seed { width:9px;height:8px; background:radial-gradient(#c09050,#7a5020); border-radius:50%; margin:0 auto; }
+.plant-med-tree.stage-sprout .gc-plant-body { height:34px; }
+.plant-med-tree.stage-sprout .gp-trunk { width:4px;height:26px; background:linear-gradient(0deg,#4a3018,#7a5a2e); border-radius:2px; margin:0 auto; }
+.plant-med-tree.stage-sprout .gp-leaf-pair { display:flex;gap:6px;margin-bottom:-4px; }
+.plant-med-tree.stage-sprout .gp-leaf { width:14px;height:11px; background:radial-gradient(ellipse at 40% 70%,#5ecc48,#2e8828); border-radius:55% 45% 50% 50%; }
+.plant-med-tree.stage-sprout .gp-leaf:first-child{transform:rotate(-30deg);}
+.plant-med-tree.stage-sprout .gp-leaf:last-child {transform:rotate(30deg);}
+
+.plant-med-tree.stage-leafing   .gc-plant-body { height:60px; }
+.plant-med-tree.stage-growing   .gc-plant-body { height:80px; }
+.plant-med-tree.stage-flowering .gc-plant-body { height:90px; }
+.plant-med-tree.stage-fruiting  .gc-plant-body { height:95px; }
+
+.plant-med-tree .gp-tree {
+  position:relative; display:flex; flex-direction:column; align-items:center;
+}
+.plant-med-tree .gp-trunk {
+  width:5px; border-radius:2.5px;
+  background:linear-gradient(0deg,#3a2810,#6a4a28,#7a5a30);
+}
+.plant-med-tree.stage-leafing   .gp-trunk { height:30px; }
+.plant-med-tree.stage-growing   .gp-trunk { height:42px; }
+.plant-med-tree.stage-flowering .gp-trunk { height:48px; }
+.plant-med-tree.stage-fruiting  .gp-trunk { height:50px; }
+
+.plant-med-tree .gp-canopy {
+  position:absolute;
+  border-radius:50%;
+  background:radial-gradient(ellipse at 40% 35%, #6edc54 0%, #3aaa28 50%, #2a8020 100%);
+}
+.plant-med-tree.stage-leafing   .gp-canopy { width:46px;height:36px; top:18px; }
+.plant-med-tree.stage-growing   .gp-canopy { width:58px;height:46px; top:28px; }
+.plant-med-tree.stage-flowering .gp-canopy { width:64px;height:52px; top:32px; }
+.plant-med-tree.stage-fruiting  .gp-canopy { width:64px;height:52px; top:34px; }
+
+/* White blossoms on canopy */
+.plant-med-tree .gp-blossom {
+  position:absolute; border-radius:50%;
+  background:radial-gradient(circle,#fff8f0,#f0e0c8);
+  animation:flowerPop .5s cubic-bezier(.2,1.5,.4,1) both;
+}
+.plant-med-tree.stage-flowering .gp-blossom:nth-child(2){width:8px;height:8px;top:6px;left:10px;animation-delay:.1s;}
+.plant-med-tree.stage-flowering .gp-blossom:nth-child(3){width:7px;height:7px;top:4px;right:12px;animation-delay:.25s;}
+.plant-med-tree.stage-flowering .gp-blossom:nth-child(4){width:8px;height:8px;top:14px;left:50%;transform:translateX(-50%);animation-delay:.4s;}
+.plant-med-tree.stage-flowering .gp-blossom:nth-child(5){width:6px;height:6px;top:20px;left:8px;animation-delay:.55s;}
+.plant-med-tree.stage-flowering .gp-blossom:nth-child(6){width:6px;height:6px;top:22px;right:8px;animation-delay:.7s;}
+
+/* Fruit variants */
+.plant-med-tree .gp-fruit { position:absolute; border-radius:50%; animation:fruitHang 3.5s ease-in-out infinite; }
+.plant-chanh .gp-fruit { width:11px;height:10px; background:radial-gradient(circle at 35% 35%,#e8ee60,#b8c020); box-shadow:0 1px 3px rgba(0,0,0,.3); }
+.plant-oi    .gp-fruit { width:13px;height:14px; background:radial-gradient(circle at 40% 35%,#a8d878,#5a9830); box-shadow:0 1px 4px rgba(0,0,0,.3); }
+.plant-cam   .gp-fruit { width:12px;height:12px; background:radial-gradient(circle at 35% 35%,#ffb840,#e87010); box-shadow:0 1px 4px rgba(0,0,0,.3); }
+/* Fruit positions on canopy */
+.plant-med-tree.stage-fruiting .gp-fruit:nth-child(2){top:8px;left:8px;animation-delay:0s;}
+.plant-med-tree.stage-fruiting .gp-fruit:nth-child(3){top:6px;right:10px;animation-delay:.6s;}
+.plant-med-tree.stage-fruiting .gp-fruit:nth-child(4){top:18px;left:4px;animation-delay:1.2s;}
+.plant-med-tree.stage-fruiting .gp-fruit:nth-child(5){top:20px;right:6px;animation-delay:.3s;}
+.plant-med-tree.stage-fruiting .gp-fruit:nth-child(6){top:26px;left:50%;transform:translateX(-50%);animation-delay:.9s;}
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 7 — LARGE FRUIT TREE (xoai, chuoi)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-large-tree .gc-plant-body { width: 90px; }
+.plant-large-tree.stage-seed   .gc-plant-body { height:12px; }
+.plant-large-tree.stage-sprout .gc-plant-body { height:44px; }
+.plant-large-tree.stage-leafing   .gc-plant-body { height:75px; }
+.plant-large-tree.stage-growing   .gc-plant-body { height:100px; }
+.plant-large-tree.stage-flowering .gc-plant-body { height:110px; }
+.plant-large-tree.stage-fruiting  .gc-plant-body { height:115px; }
+
+.plant-large-tree.stage-seed .gp-seed { width:11px;height:9px; background:radial-gradient(#b09050,#7a6020); border-radius:50%; margin:0 auto; }
+
+.plant-large-tree.stage-sprout .gp-trunk { width:6px;height:32px; background:linear-gradient(0deg,#3a2810,#7a5a2e); border-radius:3px; margin:0 auto; }
+.plant-large-tree.stage-sprout .gp-leaf-pair { display:flex;gap:8px;margin-bottom:-6px; }
+.plant-large-tree.stage-sprout .gp-leaf { width:18px;height:14px; background:radial-gradient(ellipse at 40% 70%,#64d04c,#308028); border-radius:55% 45% 50% 50%; }
+.plant-large-tree.stage-sprout .gp-leaf:first-child{transform:rotate(-28deg);}
+.plant-large-tree.stage-sprout .gp-leaf:last-child {transform:rotate(28deg);}
+
+.plant-large-tree .gp-tree { position:relative; display:flex; flex-direction:column; align-items:center; }
+.plant-large-tree .gp-trunk {
+  background:linear-gradient(0deg,#2e1e08,#5a3e1a,#7a5830);
+  border-radius:4px;
+}
+.plant-large-tree.stage-leafing   .gp-trunk { width:7px;height:40px; }
+.plant-large-tree.stage-growing   .gp-trunk { width:8px;height:58px; }
+.plant-large-tree.stage-flowering .gp-trunk { width:9px;height:64px; }
+.plant-large-tree.stage-fruiting  .gp-trunk { width:9px;height:66px; }
+
+/* xoai: round spreading canopy */
+.plant-xoai .gp-canopy {
+  position:absolute;
+  background:radial-gradient(ellipse at 40% 35%, #72e054 0%, #3cb030 45%, #268020 100%);
+}
+.plant-xoai.stage-leafing   .gp-canopy { width:68px;height:50px; top:28px; border-radius:50%; }
+.plant-xoai.stage-growing   .gp-canopy { width:86px;height:66px; top:42px; border-radius:50%; }
+.plant-xoai.stage-flowering .gp-canopy { width:88px;height:70px; top:46px; border-radius:50%; }
+.plant-xoai.stage-fruiting  .gp-canopy { width:88px;height:72px; top:48px; border-radius:50%; }
+
+.plant-xoai .gp-fruit {
+  position:absolute; width:14px;height:16px;
+  background:radial-gradient(ellipse at 40% 30%, #ffe060, #e89010);
+  border-radius:40% 40% 55% 55%;
+  animation:fruitHang 4s ease-in-out infinite;
+  box-shadow:0 2px 5px rgba(0,0,0,.3);
+}
+.plant-xoai.stage-fruiting .gp-fruit:nth-child(2){top:10px;left:10px;animation-delay:0s;}
+.plant-xoai.stage-fruiting .gp-fruit:nth-child(3){top:8px;right:12px;animation-delay:.7s;}
+.plant-xoai.stage-fruiting .gp-fruit:nth-child(4){top:24px;left:6px;animation-delay:1.4s;}
+.plant-xoai.stage-fruiting .gp-fruit:nth-child(5){top:22px;right:8px;animation-delay:.35s;}
+.plant-xoai.stage-fruiting .gp-fruit:nth-child(6){top:34px;left:50%;transform:translateX(-50%);animation-delay:1.1s;}
+
+/* chuoi: distinctive elongated banana leaves */
+.plant-chuoi .gp-leaf {
+  position:absolute;
+  background:linear-gradient(90deg, #3aaa28 0%, #5acc40 40%, #3aaa28 100%);
+  border-radius: 2px 50% 2px 50%;
+}
+.plant-chuoi.stage-leafing .gp-leaf:nth-child(2){width:50px;height:12px;top:20px;left:0;transform:rotate(-20deg);transform-origin:right center;}
+.plant-chuoi.stage-leafing .gp-leaf:nth-child(3){width:50px;height:12px;top:20px;right:0;transform:rotate(20deg);transform-origin:left center;}
+.plant-chuoi.stage-leafing .gp-leaf:nth-child(4){width:58px;height:14px;top:30px;left:-4px;transform:rotate(-10deg);transform-origin:right center;}
+.plant-chuoi.stage-leafing .gp-leaf:nth-child(5){width:58px;height:14px;top:30px;right:-4px;transform:rotate(10deg);transform-origin:left center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(2){width:62px;height:15px;top:30px;left:-4px;transform:rotate(-25deg);transform-origin:right center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(3){width:62px;height:15px;top:30px;right:-4px;transform:rotate(25deg);transform-origin:left center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(4){width:72px;height:18px;top:44px;left:-8px;transform:rotate(-12deg);transform-origin:right center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(5){width:72px;height:18px;top:44px;right:-8px;transform:rotate(12deg);transform-origin:left center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(6){width:66px;height:16px;top:58px;left:-4px;transform:rotate(-5deg);transform-origin:right center;}
+.plant-chuoi.stage-growing .gp-leaf:nth-child(7){width:66px;height:16px;top:58px;right:-4px;transform:rotate(5deg);transform-origin:left center;}
+.plant-chuoi.stage-flowering .gp-leaf:nth-child(n) { }
+.plant-chuoi.stage-fruiting .gp-fruit {
+  position:absolute; width:8px;height:22px;
+  background:linear-gradient(180deg, #ffe840, #e8b020);
+  border-radius: 3px 3px 6px 6px;
+  transform:rotate(-15deg);
+}
+.plant-chuoi.stage-fruiting .gp-fruit:nth-child(8){top:20px;left:22px;animation-delay:0s;}
+.plant-chuoi.stage-fruiting .gp-fruit:nth-child(9){top:18px;left:32px;transform:rotate(-5deg);}
+.plant-chuoi.stage-fruiting .gp-fruit:nth-child(10){top:20px;right:22px;transform:rotate(15deg);}
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 8 — SMALL FLOWER (tulip, cuc_vang, lavender)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-small-flower .gc-plant-body { width: 44px; }
+.plant-small-flower.stage-seed .gp-seed { width:6px;height:8px; background:radial-gradient(#b09870,#7a6840); border-radius:3px 3px 50% 50%; margin:0 auto; }
+.plant-small-flower.stage-sprout .gc-plant-body { height:26px; }
+.plant-small-flower.stage-sprout .gp-stem { width:2.5px;height:18px; background:linear-gradient(0deg,#2e6a28,#5ab840); border-radius:1px; margin:0 auto; }
+.plant-small-flower.stage-sprout .gp-tip { width:8px;height:10px; background:linear-gradient(180deg,#4a8830,#3a6a24); border-radius:50% 50% 30% 30%; margin:0 auto; }
+
+.plant-small-flower.stage-leafing   .gc-plant-body { height:40px; }
+.plant-small-flower.stage-flowering .gc-plant-body { height:56px; }
+.plant-small-flower.stage-dormant   .gc-plant-body { height:30px; filter:saturate(.4) brightness(.8); }
+
+.plant-small-flower .gp-stem-wrap { display:flex; flex-direction:column; align-items:center; }
+.plant-small-flower .gp-stem { width:2.5px; background:linear-gradient(0deg,#2a6024,#5ab840); border-radius:1px; }
+.plant-small-flower.stage-leafing   .gp-stem { height:24px; }
+.plant-small-flower.stage-flowering .gp-stem { height:36px; }
+.plant-small-flower.stage-dormant   .gp-stem { height:20px; }
+
+.plant-small-flower .gp-stem-leaves { position:relative; }
+.plant-small-flower .gp-stem-leaf {
+  position:absolute; width:12px;height:7px;
+  background:radial-gradient(ellipse at 30% 70%,#66c84e,#3a8830);
+  border-radius:50% 50% 40% 60%;
+}
+.plant-small-flower .gp-stem-leaf:nth-child(1){top:-4px;left:-14px;transform:rotate(-30deg);}
+.plant-small-flower .gp-stem-leaf:nth-child(2){top:-4px;right:-14px;transform:rotate(30deg) scaleX(-1);}
+.plant-small-flower .gp-stem-leaf:nth-child(3){top:6px;left:-12px;transform:rotate(-20deg);}
+.plant-small-flower .gp-stem-leaf:nth-child(4){top:6px;right:-12px;transform:rotate(20deg) scaleX(-1);}
+
+/* TULIP */
+.plant-tulip .gp-bloom {
+  width:18px;height:24px;
+  background:linear-gradient(180deg, #ff6090 0%, #e03060 60%, #c02050 100%);
+  clip-path:polygon(20% 0%,80% 0%,100% 60%,80% 100%,20% 100%,0% 60%);
+  margin:0 auto;
+  animation: bloomSway 3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+@keyframes bloomSway {
+  0%,100%{transform:rotate(-3deg)} 50%{transform:rotate(3deg)}
+}
+/* Tulip petal tips */
+.plant-tulip .gp-bloom::before {
+  content:''; position:absolute; top:-5px; left:50%; transform:translateX(-50%);
+  width:0; height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-bottom:8px solid #ff6090;
+}
+
+/* CUC VANG */
+.plant-cuc_vang .gp-bloom {
+  position:relative; width:26px;height:26px; margin:0 auto;
+  animation:bloomSway 3.5s ease-in-out infinite;
+}
+.plant-cuc_vang .gp-petal {
+  position:absolute; width:8px;height:14px;
+  background:linear-gradient(180deg,#ffe840,#ffcc00);
+  border-radius:50% 50% 40% 40%;
+  transform-origin:bottom center;
+}
+.plant-cuc_vang .gp-petal:nth-child(1){top:0;left:50%;margin-left:-4px;transform:rotate(0deg);}
+.plant-cuc_vang .gp-petal:nth-child(2){top:0;left:50%;margin-left:-4px;transform:rotate(45deg);}
+.plant-cuc_vang .gp-petal:nth-child(3){top:0;left:50%;margin-left:-4px;transform:rotate(90deg);}
+.plant-cuc_vang .gp-petal:nth-child(4){top:0;left:50%;margin-left:-4px;transform:rotate(135deg);}
+.plant-cuc_vang .gp-petal:nth-child(5){top:0;left:50%;margin-left:-4px;transform:rotate(180deg);}
+.plant-cuc_vang .gp-petal:nth-child(6){top:0;left:50%;margin-left:-4px;transform:rotate(225deg);}
+.plant-cuc_vang .gp-petal:nth-child(7){top:0;left:50%;margin-left:-4px;transform:rotate(270deg);}
+.plant-cuc_vang .gp-petal:nth-child(8){top:0;left:50%;margin-left:-4px;transform:rotate(315deg);}
+.plant-cuc_vang .gp-center {
+  position:absolute; width:12px;height:12px;
+  background:radial-gradient(circle,#886600,#664800);
+  border-radius:50%; top:50%;left:50%;transform:translate(-50%,-50%);
+}
+
+/* LAVENDER */
+.plant-lavender .gp-spikes { display:flex;gap:4px;justify-content:center;align-items:flex-end; }
+.plant-lavender .gp-spike {
+  display:flex; flex-direction:column; align-items:center; gap:1.5px;
+}
+.plant-lavender .gp-bud {
+  width:5px;height:5px;
+  background:radial-gradient(circle,#c090ee,#8840cc);
+  border-radius:50%;
+  animation:lavBud .4s cubic-bezier(.2,1.5,.4,1) both;
+}
+@keyframes lavBud { 0%{transform:scale(0);opacity:0} 100%{transform:scale(1);opacity:1} }
+.plant-lavender.stage-flowering .gp-spike:nth-child(1) .gp-stem { height:16px; width:2px; background:linear-gradient(0deg,#3a7028,#60a840); border-radius:1px; }
+.plant-lavender.stage-flowering .gp-spike:nth-child(2) .gp-stem { height:22px; width:2px; background:linear-gradient(0deg,#3a7028,#60a840); border-radius:1px; }
+.plant-lavender.stage-flowering .gp-spike:nth-child(3) .gp-stem { height:20px; width:2px; background:linear-gradient(0deg,#3a7028,#60a840); border-radius:1px; }
+.plant-lavender.stage-flowering .gp-spike:nth-child(1) .gp-bud:nth-child(1){animation-delay:.1s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(1) .gp-bud:nth-child(2){animation-delay:.2s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(1) .gp-bud:nth-child(3){animation-delay:.3s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(2) .gp-bud:nth-child(1){animation-delay:.15s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(2) .gp-bud:nth-child(2){animation-delay:.28s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(2) .gp-bud:nth-child(3){animation-delay:.4s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(2) .gp-bud:nth-child(4){animation-delay:.52s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(3) .gp-bud:nth-child(1){animation-delay:.12s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(3) .gp-bud:nth-child(2){animation-delay:.24s;}
+.plant-lavender.stage-flowering .gp-spike:nth-child(3) .gp-bud:nth-child(3){animation-delay:.36s;}
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 9 — LARGE FLOWER (hoa_hong, huong_duong, hoa_giay)
+   ═══════════════════════════════════════════════════════════════ */
+.plant-large-flower .gc-plant-body { width: 64px; }
+.plant-large-flower.stage-seed .gp-seed { width:7px;height:6px; background:radial-gradient(#c09870,#806040); border-radius:50%; margin:0 auto; }
+.plant-large-flower.stage-sprout .gc-plant-body { height:30px; }
+.plant-large-flower.stage-sprout .gp-stem { width:3px;height:22px; background:linear-gradient(0deg,#2a5a22,#52a040); border-radius:1.5px; margin:0 auto; }
+
+.plant-large-flower.stage-leafing   .gc-plant-body { height:50px; }
+.plant-large-flower.stage-flowering .gc-plant-body { height:72px; }
+.plant-large-flower.stage-dormant   .gc-plant-body { height:40px; filter:saturate(.35) brightness(.75); }
+
+.plant-large-flower .gp-stem { width:3px; background:linear-gradient(0deg,#2a5a22,#52a040); border-radius:1.5px; }
+.plant-large-flower.stage-leafing   .gp-stem { height:34px; }
+.plant-large-flower.stage-flowering .gp-stem { height:50px; }
+.plant-large-flower.stage-dormant   .gp-stem { height:28px; }
+
+.plant-large-flower .gp-stem-leaves { position:relative; }
+.plant-large-flower .gp-stem-leaf {
+  position:absolute; width:16px;height:9px;
+  background:radial-gradient(ellipse at 30% 70%,#6ed050,#3a9030);
+  border-radius:50% 50% 40% 60%;
+}
+.plant-large-flower .gp-stem-leaf:nth-child(1){top:-4px;left:-18px;transform:rotate(-35deg);}
+.plant-large-flower .gp-stem-leaf:nth-child(2){top:-4px;right:-18px;transform:rotate(35deg) scaleX(-1);}
+.plant-large-flower .gp-stem-leaf:nth-child(3){top:10px;left:-15px;transform:rotate(-20deg);}
+.plant-large-flower .gp-stem-leaf:nth-child(4){top:10px;right:-15px;transform:rotate(20deg) scaleX(-1);}
+
+/* HOA HONG — spiral rose */
+.plant-hoa_hong .gp-bloom {
+  position:relative; width:32px;height:32px; margin:0 auto;
+  animation:bloomSway 4s ease-in-out infinite;
+}
+.plant-hoa_hong .gp-petal {
+  position:absolute; border-radius:50% 20% 50% 20%;
+  background:linear-gradient(135deg,#ff6080,#cc1840);
+  transform-origin: center center;
+}
+.plant-hoa_hong .gp-petal:nth-child(1){width:24px;height:20px;top:4px;left:4px;transform:rotate(0deg);opacity:.9;}
+.plant-hoa_hong .gp-petal:nth-child(2){width:22px;height:18px;top:5px;left:5px;transform:rotate(45deg);opacity:.85;}
+.plant-hoa_hong .gp-petal:nth-child(3){width:20px;height:17px;top:6px;left:6px;transform:rotate(90deg);opacity:.8;}
+.plant-hoa_hong .gp-petal:nth-child(4){width:18px;height:16px;top:7px;left:7px;transform:rotate(135deg);opacity:.75;}
+.plant-hoa_hong .gp-petal:nth-child(5){width:14px;height:12px;top:9px;left:9px;transform:rotate(180deg);opacity:.7;background:linear-gradient(135deg,#ffb0c0,#ff6080);}
+.plant-hoa_hong .gp-center{position:absolute;width:8px;height:8px;background:radial-gradient(circle,#ffcc80,#ff8800);border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);}
+
+/* Thorns on hoa_hong stem */
+.plant-hoa_hong .gp-stem::before,.plant-hoa_hong .gp-stem::after {
+  content:''; position:absolute; width:0; height:0;
+}
+.plant-hoa_hong .gp-stem::before {
+  border-top:4px solid transparent; border-bottom:4px solid transparent;
+  border-right:6px solid #3a8030; top:30%; left:-6px;
+}
+.plant-hoa_hong .gp-stem::after {
+  border-top:4px solid transparent; border-bottom:4px solid transparent;
+  border-left:6px solid #3a8030; top:55%; right:-6px;
+}
+
+/* HUONG DUONG */
+.plant-huong_duong .gc-plant-body { width: 56px; }
+.plant-huong_duong.stage-flowering .gc-plant-body,
+.plant-huong_duong.stage-dormant   .gc-plant-body { }
+.plant-huong_duong .gp-bloom {
+  position:relative; width:40px;height:40px; margin:0 auto;
+  animation:huongSway 3s ease-in-out infinite;
+}
+@keyframes huongSway { 0%,100%{transform:rotate(-5deg)} 50%{transform:rotate(5deg)} }
+.plant-huong_duong .gp-petal {
+  position:absolute; width:10px;height:18px;
+  background:linear-gradient(180deg,#ffe840,#ffaa00);
+  border-radius:50% 50% 40% 40%;
+  transform-origin:bottom center;
+}
+.plant-huong_duong .gp-petal:nth-child(1){top:0;left:50%;margin-left:-5px;transform:rotate(0deg);}
+.plant-huong_duong .gp-petal:nth-child(2){top:0;left:50%;margin-left:-5px;transform:rotate(30deg);}
+.plant-huong_duong .gp-petal:nth-child(3){top:0;left:50%;margin-left:-5px;transform:rotate(60deg);}
+.plant-huong_duong .gp-petal:nth-child(4){top:0;left:50%;margin-left:-5px;transform:rotate(90deg);}
+.plant-huong_duong .gp-petal:nth-child(5){top:0;left:50%;margin-left:-5px;transform:rotate(120deg);}
+.plant-huong_duong .gp-petal:nth-child(6){top:0;left:50%;margin-left:-5px;transform:rotate(150deg);}
+.plant-huong_duong .gp-petal:nth-child(7){top:0;left:50%;margin-left:-5px;transform:rotate(180deg);}
+.plant-huong_duong .gp-petal:nth-child(8){top:0;left:50%;margin-left:-5px;transform:rotate(210deg);}
+.plant-huong_duong .gp-petal:nth-child(9){top:0;left:50%;margin-left:-5px;transform:rotate(240deg);}
+.plant-huong_duong .gp-petal:nth-child(10){top:0;left:50%;margin-left:-5px;transform:rotate(270deg);}
+.plant-huong_duong .gp-petal:nth-child(11){top:0;left:50%;margin-left:-5px;transform:rotate(300deg);}
+.plant-huong_duong .gp-petal:nth-child(12){top:0;left:50%;margin-left:-5px;transform:rotate(330deg);}
+.plant-huong_duong .gp-center {
+  position:absolute; width:20px;height:20px;
+  background:radial-gradient(circle at 40% 40%,#7a4800,#4a2800);
+  border-radius:50%; top:50%;left:50%;transform:translate(-50%,-50%);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,.4);
+}
+/* Seeds pattern on center */
+.plant-huong_duong .gp-center::after {
+  content:''; position:absolute; inset:3px;
+  background:repeating-conic-gradient(#5a3200 0deg 10deg, #7a4800 10deg 20deg);
+  border-radius:50%;
+}
+
+/* HOA GIAY — climbing, multiple small blooms */
+.plant-hoa_giay .gc-plant-body { width:70px; }
+.plant-hoa_giay.stage-flowering .gc-plant-body { height:80px; }
+.plant-hoa_giay .gp-vine {
+  position:absolute;
+  background:linear-gradient(0deg,#2a5820,#4ca038);
+  border-radius:1px; width:2.5px;
+}
+.plant-hoa_giay .gp-vine:nth-child(1){height:60px;left:20px;transform:rotate(-8deg);transform-origin:bottom;}
+.plant-hoa_giay .gp-vine:nth-child(2){height:68px;left:34px;}
+.plant-hoa_giay .gp-vine:nth-child(3){height:55px;right:20px;transform:rotate(8deg);transform-origin:bottom;}
+.plant-hoa_giay .gp-bloom-s {
+  position:absolute; width:10px;height:10px;
+  border-radius:50%;
+  animation:flowerPop .4s cubic-bezier(.2,1.5,.4,1) both;
+}
+.plant-hoa_giay .gp-bloom-s:nth-child(4){background:radial-gradient(circle,#ff8090,#e02040);top:0;left:14px;animation-delay:.1s;}
+.plant-hoa_giay .gp-bloom-s:nth-child(5){background:radial-gradient(circle,#ff6070,#cc1830);top:5px;left:28px;animation-delay:.25s;}
+.plant-hoa_giay .gp-bloom-s:nth-child(6){background:radial-gradient(circle,#ff9090,#e03050);top:2px;right:14px;animation-delay:.4s;}
+.plant-hoa_giay .gp-bloom-s:nth-child(7){background:radial-gradient(circle,#ff7080,#d02040);top:18px;left:10px;animation-delay:.55s;}
+.plant-hoa_giay .gp-bloom-s:nth-child(8){background:radial-gradient(circle,#ff8898,#e02850);top:20px;right:10px;animation-delay:.7s;}
+
+/* ═══════════════════════════════════════════════════════════════
+   ARCHETYPE 10 — FENGSHUI
+   ═══════════════════════════════════════════════════════════════ */
+
+/* KIM TIEN — coin-shaped round leaves */
+.plant-kim_tien .gc-plant-body { width:56px; }
+.plant-kim_tien.stage-leafing   .gc-plant-body { height:44px; }
+.plant-kim_tien.stage-flowering .gc-plant-body { height:56px; }
+.plant-kim_tien.stage-dormant   .gc-plant-body { height:44px; filter:saturate(.6); }
+.plant-kim_tien .gp-leaf {
+  position:absolute;
+  border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, #78e860, #28a820);
+  box-shadow:inset -2px -2px 4px rgba(0,0,0,.15), inset 2px 2px 4px rgba(255,255,255,.1);
+}
+.plant-kim_tien .gp-stem { position:absolute; width:2px; background:linear-gradient(0deg,#2a6020,#4aaa30); border-radius:1px; }
+.plant-kim_tien .gp-stem:nth-child(1){height:28px;bottom:0;left:24px;}
+.plant-kim_tien .gp-stem:nth-child(2){height:22px;bottom:0;left:16px;transform:rotate(-15deg);transform-origin:bottom;}
+.plant-kim_tien .gp-stem:nth-child(3){height:22px;bottom:0;left:32px;transform:rotate(15deg);transform-origin:bottom;}
+.plant-kim_tien .gp-leaf:nth-child(4){width:18px;height:18px;top:0;left:16px;}
+.plant-kim_tien .gp-leaf:nth-child(5){width:15px;height:15px;top:4px;left:4px;}
+.plant-kim_tien .gp-leaf:nth-child(6){width:15px;height:15px;top:4px;right:4px;}
+.plant-kim_tien .gp-leaf:nth-child(7){width:12px;height:12px;top:14px;left:2px;}
+.plant-kim_tien .gp-leaf:nth-child(8){width:12px;height:12px;top:14px;right:2px;}
+
+/* KIM NGAN — arching branches with small paired leaves */
+.plant-kim_ngan .gc-plant-body { width:62px; }
+.plant-kim_ngan.stage-leafing   .gc-plant-body { height:52px; }
+.plant-kim_ngan.stage-flowering .gc-plant-body { height:62px; }
+.plant-kim_ngan.stage-dormant   .gc-plant-body { height:52px; filter:saturate(.5); }
+.plant-kim_ngan .gp-trunk { position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:3px; border-radius:1.5px; background:linear-gradient(0deg,#3a2810,#6a4a20); }
+.plant-kim_ngan.stage-leafing   .gp-trunk { height:30px; }
+.plant-kim_ngan.stage-flowering .gp-trunk { height:38px; }
+.plant-kim_ngan .gp-branch {
+  position:absolute; height:2px; border-radius:1px;
+  background:linear-gradient(90deg,#4a3418,#7a6030);
+  transform-origin:right center;
+}
+.plant-kim_ngan .gp-leaf-sm {
+  position:absolute; border-radius:50% 50% 40% 40%;
+  background:radial-gradient(ellipse at 40% 40%,#88ee60,#3aaa28);
+}
+.plant-kim_ngan .gp-branch:nth-child(2){width:22px;top:14px;left:10px;transform:rotate(-30deg);}
+.plant-kim_ngan .gp-branch:nth-child(3){width:22px;top:14px;right:10px;transform:rotate(30deg) scaleX(-1);transform-origin:left center;}
+.plant-kim_ngan .gp-leaf-sm:nth-child(4){width:11px;height:9px;top:4px;left:2px;transform:rotate(-20deg);}
+.plant-kim_ngan .gp-leaf-sm:nth-child(5){width:11px;height:9px;top:4px;right:2px;transform:rotate(20deg);}
+.plant-kim_ngan .gp-leaf-sm:nth-child(6){width:9px;height:7px;top:16px;left:4px;transform:rotate(-10deg);}
+.plant-kim_ngan .gp-leaf-sm:nth-child(7){width:9px;height:7px;top:16px;right:4px;transform:rotate(10deg);}
+
+/* TRUC MAY — bamboo segments */
+.plant-truc_may .gc-plant-body { width:30px; }
+.plant-truc_may.stage-sprout   .gc-plant-body { height:28px; }
+.plant-truc_may.stage-leafing   .gc-plant-body { height:48px; }
+.plant-truc_may.stage-flowering .gc-plant-body { height:60px; }
+.plant-truc_may.stage-dormant   .gc-plant-body { height:48px; filter:saturate(.5); }
+.plant-truc_may .gp-cane { position:relative; width:100%; display:flex; flex-direction:column; align-items:center; }
+.plant-truc_may .gp-segment {
+  width:8px; background:linear-gradient(90deg,#4aaa30,#6acc48,#4aaa30);
+  border-radius:2px; position:relative;
+  box-shadow:inset -2px 0 4px rgba(0,0,0,.15);
+}
+.plant-truc_may .gp-node {
+  width:10px; height:3px;
+  background:linear-gradient(90deg,#3a8828,#5ab840);
+  border-radius:1px; position:relative; z-index:1;
+}
+.plant-truc_may.stage-leafing .gp-segment:nth-child(1){height:14px;}
+.plant-truc_may.stage-leafing .gp-segment:nth-child(3){height:12px;}
+.plant-truc_may.stage-leafing .gp-segment:nth-child(5){height:10px;}
+.plant-truc_may .gp-bamboo-leaf {
+  position:absolute; width:14px;height:5px;
+  background:linear-gradient(90deg,#3a9828,#6acc44,transparent);
+  border-radius:0 50% 0 50%;
+}
+.plant-truc_may .gp-bamboo-leaf.left  { right:8px; transform:rotate(-20deg); }
+.plant-truc_may .gp-bamboo-leaf.right { left:8px;  transform:rotate(20deg) scaleY(-1); }
+
+/* SEN DA — succulent rosette */
+.plant-sen_da .gc-plant-body { width:52px; }
+.plant-sen_da.stage-sprout   .gc-plant-body { height:18px; }
+.plant-sen_da.stage-leafing   .gc-plant-body { height:28px; }
+.plant-sen_da.stage-flowering .gc-plant-body { height:38px; }
+.plant-sen_da.stage-dormant   .gc-plant-body { height:28px; }
+.plant-sen_da .gp-rosette { position:relative; width:52px; height:28px; }
+.plant-sen_da .gp-succulent-leaf {
+  position:absolute;
+  border-radius:40% 40% 50% 50%;
+  transform-origin:bottom center;
+}
+/* Outer ring */
+.plant-sen_da .gp-succulent-leaf:nth-child(1){width:14px;height:18px;bottom:0;left:0;transform:rotate(-60deg);background:linear-gradient(180deg,#7add5a,#3aaa28);}
+.plant-sen_da .gp-succulent-leaf:nth-child(2){width:14px;height:18px;bottom:0;left:8px;transform:rotate(-30deg);background:linear-gradient(180deg,#80e060,#3eaa2a);}
+.plant-sen_da .gp-succulent-leaf:nth-child(3){width:14px;height:18px;bottom:0;left:50%;margin-left:-7px;background:linear-gradient(180deg,#84e264,#40ac2c);}
+.plant-sen_da .gp-succulent-leaf:nth-child(4){width:14px;height:18px;bottom:0;right:8px;transform:rotate(30deg);background:linear-gradient(180deg,#7ade5c,#3caa28);}
+.plant-sen_da .gp-succulent-leaf:nth-child(5){width:14px;height:18px;bottom:0;right:0;transform:rotate(60deg);background:linear-gradient(180deg,#78dc58,#38a826);}
+/* Inner ring */
+.plant-sen_da .gp-succulent-leaf:nth-child(6){width:10px;height:13px;bottom:4px;left:10px;transform:rotate(-20deg);background:linear-gradient(180deg,#90ee70,#4abc34);}
+.plant-sen_da .gp-succulent-leaf:nth-child(7){width:10px;height:13px;bottom:5px;left:50%;margin-left:-5px;background:linear-gradient(180deg,#94f074,#4cbe36);}
+.plant-sen_da .gp-succulent-leaf:nth-child(8){width:10px;height:13px;bottom:4px;right:10px;transform:rotate(20deg);background:linear-gradient(180deg,#8eec6e,#48ba32);}
+/* Center bud */
+.plant-sen_da .gp-center-bud { position:absolute;width:8px;height:8px;bottom:8px;left:50%;transform:translateX(-50%); background:radial-gradient(circle,#b0f090,#60cc40); border-radius:50%; }
+
+/* NGOC BICH & PHAT TAI — similar bushy style */
+.plant-ngoc_bich .gc-plant-body,
+.plant-phat_tai  .gc-plant-body { width:58px; }
+.plant-ngoc_bich.stage-leafing   .gc-plant-body,
+.plant-phat_tai.stage-leafing    .gc-plant-body { height:48px; }
+.plant-ngoc_bich.stage-flowering .gc-plant-body,
+.plant-phat_tai.stage-flowering  .gc-plant-body { height:58px; }
+
+.plant-ngoc_bich .gp-leaf, .plant-phat_tai .gp-leaf {
+  position:absolute; border-radius:50% 50% 45% 45%;
+  box-shadow:inset -2px -2px 4px rgba(0,0,0,.2);
+}
+.plant-ngoc_bich .gp-leaf { background:radial-gradient(ellipse at 35% 35%,#60e8d8,#209880); }
+.plant-phat_tai  .gp-leaf { background:radial-gradient(ellipse at 35% 35%,#88ee60,#2aaa30); }
+.plant-ngoc_bich .gp-trunk,
+.plant-phat_tai  .gp-trunk { position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:4px;border-radius:2px;background:linear-gradient(0deg,#3a2810,#6a4a20); }
+.plant-ngoc_bich.stage-leafing  .gp-trunk,
+.plant-phat_tai.stage-leafing   .gp-trunk { height:24px; }
+.plant-ngoc_bich.stage-flowering .gp-trunk,
+.plant-phat_tai.stage-flowering  .gp-trunk { height:30px; }
+.plant-ngoc_bich .gp-leaf:nth-child(2){width:18px;height:22px;top:0;left:6px;transform:rotate(-15deg);}
+.plant-ngoc_bich .gp-leaf:nth-child(3){width:20px;height:24px;top:-2px;left:50%;transform:translateX(-50%);}
+.plant-ngoc_bich .gp-leaf:nth-child(4){width:18px;height:22px;top:0;right:6px;transform:rotate(15deg);}
+.plant-ngoc_bich .gp-leaf:nth-child(5){width:15px;height:18px;top:14px;left:2px;transform:rotate(-25deg);}
+.plant-ngoc_bich .gp-leaf:nth-child(6){width:15px;height:18px;top:14px;right:2px;transform:rotate(25deg);}
+.plant-phat_tai  .gp-leaf:nth-child(2){width:16px;height:20px;top:0;left:8px;transform:rotate(-20deg);}
+.plant-phat_tai  .gp-leaf:nth-child(3){width:18px;height:22px;top:-2px;left:50%;transform:translateX(-50%);}
+.plant-phat_tai  .gp-leaf:nth-child(4){width:16px;height:20px;top:0;right:8px;transform:rotate(20deg);}
+.plant-phat_tai  .gp-leaf:nth-child(5){width:14px;height:17px;top:16px;left:2px;transform:rotate(-30deg);}
+.plant-phat_tai  .gp-leaf:nth-child(6){width:14px;height:17px;top:16px;right:2px;transform:rotate(30deg);}
+
+/* ═══════════════════════════════════════════════════════════════
+   DEAD PLANT
+   ═══════════════════════════════════════════════════════════════ */
+.gc-dead .gc-pot { filter: saturate(.2) brightness(.6); }
+.gc-dead .gc-pot::before { background: linear-gradient(180deg,#5a4a3a,#3a2a1a) !important; }
+/* Cracked pot effect */
+.gc-dead .gc-pot-m::after,
+.gc-dead .gc-pot-l::after {
+  content:''; position:absolute; inset:0;
+  background: repeating-linear-gradient(35deg, transparent 0px, transparent 8px, rgba(0,0,0,.25) 8px, rgba(0,0,0,.25) 9px);
+}
+.gc-dead .gc-plant-body {
+  filter: saturate(.0) brightness(.5) !important;
+  --sway: 0deg !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HARVEST READY
+   ═══════════════════════════════════════════════════════════════ */
+.gc-harvest .gc-pot { box-shadow: 0 0 14px rgba(255,207,92,.5), 0 0 28px rgba(255,207,92,.2); }
+.gc-harvest .gc-plant-body { filter: brightness(1.1) saturate(1.2); }
+
+/* ═══════════════════════════════════════════════════════════════
+   SHADING OVERLAY
+   ═══════════════════════════════════════════════════════════════ */
+.gc-shaded-1::before, .gc-shaded-2::before {
+  content:''; position:absolute; inset:-2px; border-radius:12px;
+  pointer-events:none; z-index:10;
+}
+.gc-shaded-1::before { background:rgba(0,0,0,.22); }
+.gc-shaded-2::before { background:rgba(0,0,0,.42); }
+
+/* ═══════════════════════════════════════════════════════════════
+   HP BAR (compact, below plant name)
+   ═══════════════════════════════════════════════════════════════ */
+.gc-hp-bar-wrap { width:70%;height:3px;background:rgba(255,255,255,.08);border-radius:2px;margin-top:4px;overflow:hidden; position:relative; z-index:3; }
+.gc-hp-bar { height:100%;border-radius:2px;transition:width .5s ease;box-shadow:0 0 4px currentColor; }
+.gc-plant-name { font-size:8px;color:var(--text2);margin-top:3px;text-align:center;max-width:90%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; position:relative; z-index:3; }
+
+/* ═══════════════════════════════════════════════════════════════
+   WEATHER SWAY INTENSITY — set via JS
+   ═══════════════════════════════════════════════════════════════ */
+.gw-sunny  .gc-plant-body { --sway:2deg; --sway-speed:5s; }
+.gw-cloudy .gc-plant-body { --sway:2deg; --sway-speed:5s; }
+.gw-rainy  .gc-plant-body { --sway:4deg; --sway-speed:3s; }
+.gw-stormy .gc-plant-body { --sway:9deg; --sway-speed:1.2s; --sway-ease:cubic-bezier(.4,0,.6,1); }
+.gw-foggy  .gc-plant-body { --sway:2deg; --sway-speed:6s; }
+.gw-windy  .gc-plant-body { --sway:7deg; --sway-speed:1.8s; }
+
+/* Grass sway with weather */
+.gw-windy  .gc-blade { animation-duration:1s !important; }
+.gw-stormy .gc-blade { animation-duration:.7s !important; }
+.gw-rainy  .gc-blade { animation-duration:2s !important; }

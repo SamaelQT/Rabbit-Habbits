@@ -363,8 +363,32 @@ function getGameTime() {
   return { hour: Math.round(h * 10) / 10, phase, label, icon };
 }
 
+// ── Shading mechanic ─────────────────────────────────────────
+// Large plants (size:'large') at stage growing+ cast shade on 8 neighbors
+const SHADING_STAGES = new Set(['growing','flowering','fruiting','dormant']);
+
+function buildShadingMap(plants) {
+  const map = new Map(); // key "row,col" → shadingLevel (1 = partial, 2+ = heavy)
+  for (const p of plants) {
+    if (!p.isAlive) continue;
+    const pt = getPlantType(p.plantTypeId);
+    if (!pt || pt.size !== 'large') continue;
+    if (!SHADING_STAGES.has(p.stage)) continue;
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        if (dr === 0 && dc === 0) continue;
+        const nr = p.row + dr, nc = p.col + dc;
+        if (nr < 0 || nr >= GRID_ROWS || nc < 0 || nc >= GRID_COLS) continue;
+        const k = `${nr},${nc}`;
+        map.set(k, (map.get(k) || 0) + 1);
+      }
+    }
+  }
+  return map;
+}
+
 // ── Growth Tick (lazy — runs on every GET /api/garden) ──────
-function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {}) {
+function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {}, shadingLevel = 0) {
   if (!plant.isAlive) return false;
 
   const now       = Date.now();
@@ -401,7 +425,12 @@ function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {})
   // Bees boost speed on flowering/fruiting stages
   const beesSpeedBonus = (ecosystem.bees || 0) * 0.04; // +4% per bee
   const inBloom = ['flowering','fruiting'].includes(plant.stage);
-  const speedMult = baseMult * (inBloom ? (1 + beesSpeedBonus) : 1);
+
+  // Shading: large neighbor slows growth + deals damage
+  const shadingSpeedMult = shadingLevel >= 2 ? 0.25 : shadingLevel === 1 ? 0.5 : 1;
+  const shadingDmgPerGD  = shadingLevel >= 2 ? 5    : shadingLevel === 1 ? 2   : 0;
+
+  const speedMult = baseMult * shadingSpeedMult * (inBloom ? (1 + beesSpeedBonus) : 1);
 
   // ── Water decay (weather-modified) ──────────────────────
   plant.waterLevel = Math.max(0, plant.waterLevel - plantType.waterDecay * waterDecayMult * gameDays);
@@ -431,7 +460,7 @@ function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {})
   }
 
   // ── Health penalties ─────────────────────────────────────
-  let dmg = stormDmgPerGD * gameDays;
+  let dmg = (stormDmgPerGD + shadingDmgPerGD) * gameDays;
   if (plant.waterLevel    < 20)  dmg += 6  * gameDays;
   if (plant.waterLevel   === 0)  dmg += 12 * gameDays;
   if (plant.nutrientLevel < 20)  dmg += 3  * gameDays;
@@ -535,15 +564,17 @@ router.get('/', async (req, res) => {
     updateEcosystem(gardenDoc, plants, gameTime, gardenDoc.weather || 'sunny');
     await gardenDoc.save();
 
-    // 3. Apply tick to each plant using current weather + ecosystem
-    const weather = gardenDoc.weather || 'sunny';
-    const eco     = gardenDoc.ecosystem || {};
-    const dirty   = [];
+    // 3. Apply tick to each plant using current weather + ecosystem + shading
+    const weather    = gardenDoc.weather || 'sunny';
+    const eco        = gardenDoc.ecosystem || {};
+    const shadingMap = buildShadingMap(plants);
+    const dirty      = [];
     for (const p of plants) {
-      const pt  = getPlantType(p.plantTypeId);
-      const pot = getPotType(p.potTypeId);
+      const pt    = getPlantType(p.plantTypeId);
+      const pot   = getPotType(p.potTypeId);
       if (!pt) continue;
-      const changed = applyTick(p, pt, pot, weather, eco);
+      const shade   = shadingMap.get(`${p.row},${p.col}`) || 0;
+      const changed = applyTick(p, pt, pot, weather, eco, shade);
       if (changed) dirty.push(p.save());
     }
     if (dirty.length) await Promise.all(dirty);
@@ -560,9 +591,17 @@ router.get('/', async (req, res) => {
     // 5. Enrich plants with type info
     const enriched = plants.map(p => ({
       ...p.toObject(),
-      plantType: getPlantType(p.plantTypeId),
-      potType:   getPotType(p.potTypeId),
+      plantType:    getPlantType(p.plantTypeId),
+      potType:      getPotType(p.potTypeId),
+      shadingLevel: shadingMap.get(`${p.row},${p.col}`) || 0,
     }));
+
+    // 6. Build shadedCells list for frontend overlay
+    const shadedCells = [];
+    for (const [key, level] of shadingMap.entries()) {
+      const [r, c] = key.split(',').map(Number);
+      shadedCells.push({ row: r, col: c, level });
+    }
 
     res.json({
       purchasedCells: gardenDoc.purchasedCells,
@@ -573,6 +612,7 @@ router.get('/', async (req, res) => {
       weather,
       weatherInfo: getWeatherInfo(weather),
       ecosystem: eco,
+      shadedCells,
       migrationRefund: migrationMsg,
     });
   } catch(e) { res.status(500).json({ error: e.message }); }

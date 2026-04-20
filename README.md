@@ -67,32 +67,38 @@ Nền tảng năng suất cá nhân và gamification bằng tiếng Việt. Theo
 - Phân tích giờ làm việc hiệu quả
 - Thống kê kho mục tiêu đã hoàn thành
 
-### 🌿 Vườn Sinh Thái (Garden — Phase 1)
+### 🌿 Vườn Sinh Thái (Garden)
 Mini-game trồng cây với cơ chế lazy tick (tính toán khi mở app, không cần cron job):
 
 **Chu kỳ thời gian**
 - 1 ngày game = 12 giờ thực
 - 5 pha ngày: Sáng sớm 🌅 / Buổi trưa ☀️ / Buổi chiều 🌤️ / Chiều tối 🌇 / Ban đêm 🌙 (7:30–19:30)
 
-**Lưới vườn**
+**Lưới vườn — nền cỏ + chậu**
 - Lưới 6×5 (30 ô), 6 ô trung tâm mở sẵn
 - Mua thêm ô theo khoảng cách Chebyshev: trung tâm 80đ / vùng giữa 50đ / ngoài rìa 30đ
+- Nền ô là thảm cỏ CSS với ngọn cỏ ngẫu nhiên; cây trồng trong chậu (không trực tiếp trên đất)
+- Z-index theo hàng: cây hàng trước che hàng sau — tạo độ sâu 3D giả
 
-**24 loài cây — 4 nhóm**
-| Nhóm | Số loài | Kích thước | Thu hoạch |
-|------|---------|-----------|-----------|
-| Phong thủy | 6 | S / M | ✗ (trang trí) |
-| Rau củ | 6 | S | ✓ food / seed |
-| Ăn quả | 6 | S / M / L | ✓ food / treat |
-| Hoa | 6 | S / M / L | ✓ rose (Hoa Hồng) |
+**30 loài cây — 10 kiểu hình CSS**
+| Nhóm | Loài | Kích thước | Thu hoạch |
+|------|------|-----------|-----------|
+| Phong thủy | Kim tiền, Kim ngân, Trúc may, Sen đá, Ngọc bích, Phát tài | S / M | ✗ (trang trí) |
+| Rau lá / gia vị | Rau muống, Cải xanh, Hành lá | S | ✓ food / seed |
+| Rau quả | Cà chua, Dưa leo, Cà rốt, Dâu tây | S / M | ✓ food / seed |
+| Ăn quả | Chanh, Ổi, Cam, Xoài, Chuối | M / L | ✓ food / treat |
+| Hoa nhỏ | Tulip, Cúc vàng, Lavender | S / M | ✗ cây cảnh |
+| Hoa lớn | Hoa hồng, Hướng dương, Hoa giấy | M / L | ✓ rose (Hoa Hồng) |
 
-**4 loại chậu**
-| Chậu | Kích thước | Giá | Đặc điểm |
+Mỗi loài được vẽ hoàn toàn bằng CSS shapes — không dùng emoji hay ảnh.
+
+**4 loại chậu CSS**
+| Chậu | Kích thước | Giá | Hình dáng |
 |------|-----------|-----|----------|
-| Chậu Đất Nhỏ 🪴 | S | 20đ | Tốt nhất cho cây S |
-| Chậu Gốm 🏺 | M | 40đ | Đa năng nhất |
-| Chậu Gỗ 🪵 | L | 80đ | Tốt nhất cho cây L |
-| Chậu Sứ Lớn 🏛️ | XL | 150đ | +25% tốc độ cây to; +5% mọi cây |
+| Chậu Đất Nhỏ | S | 20đ | Hình thang đất nung |
+| Chậu Gốm | M | 40đ | Gốm bo tròn |
+| Chậu Gỗ | L | 80đ | Gỗ có vân |
+| Chậu Sứ Lớn | XL | 150đ | Sứ trắng hoa văn xanh |
 
 - **Khớp kích thước**: cây × chậu khớp → +20% tốc độ; lệch 1 → -15%; lệch 2 → -40%
 
@@ -104,16 +110,38 @@ Mini-game trồng cây với cơ chế lazy tick (tính toán khi mở app, khô
 - 4 chỉ số: 💧 Nước / 🌿 Dinh dưỡng / 🐛 Sâu bệnh / 🍂 Lá héo
 - Nước cạn → mất máu; sâu ≥ 3 → mất máu nặng; máu = 0 → cây chết
 - Hành động: Tưới nước / Bón phân / Bắt sâu / Gỡ lá héo / Thu hoạch / Nhổ bỏ
+- Panel chăm sóc hiển thị: loài cây, loại cây, giai đoạn, thời gian đến giai đoạn tiếp theo
+
+**Cơ chế che bóng (Shading)**
+- Cây `large` khi đủ lớn (growing → dormant) sẽ che 8 ô xung quanh
+- Cây bị che: tốc độ phát triển giảm 25–75%; mất máu nếu bị che quá nặng
+- Buộc người chơi cân nhắc bố cục khi trồng cây lớn
+
+**Thời tiết — thay đổi mỗi 6 giờ**
+- 6 loại: Nắng ☀️ / Có mây ⛅ / Mưa 🌧️ / Giông bão ⛈️ / Sương mù 🌫️ / Gió 💨
+- Mỗi loại thời tiết thay đổi animation cây (sway), màu nền lưới và hiệu ứng toàn trang
+- Dev endpoint: `POST /api/garden/dev/weather/:type` để thay đổi thời tiết tức thì (không cần restart)
+
+**Hệ sinh thái Canvas 2D**
+- Canvas overlay phủ toàn lưới vườn, render bằng `requestAnimationFrame`
+- **Sinh vật thường trú** (theo data hệ sinh thái): Ong 🐝, Chim 🐦, Dơi 🦇, Sâu 🐛, Giun 🪱
+- **Khách vãng lai** (ngẫu nhiên mỗi 18s): Bướm, Chuồn chuồn, Sên, Ếch, Mèo
+- **Hạt lá / sparkle / giọt nước** bay theo hàng cây và trạng thái cây
+- Canvas tạm dừng khi chuyển tab, tự khởi động lại khi quay về vườn
+
+**Hiệu ứng visual states**
+- Đất: khô / bình thường / ẩm / ướt (màu + texture CSS)
+- Cây: bị bóng che (desaturate), thiếu nước (sepia), bệnh (opacity giảm), chết (grayscale)
 
 **Tích hợp hệ thống**
 - Thu hoạch cho vật phẩm vào túi đồ (food, treat, seed, rose)
 - Trả điểm khi thu hoạch
 - Di cư thú cưng cây cũ → hoàn tiền 70% + tự động chuyển sang vườn
+- Bạn bè thăm vườn: xem vườn bạn bè với CSS plants đầy đủ, tặng tưới nước (+3đ)
 
-**Phase 2/3 (kế hoạch)**
-- Hệ sinh thái: ong 🐝, sâu 🐛, chim 🐦, dơi 🦇, nấm 🍄
-- Thời tiết & mùa
-- Bạn bè thăm vườn, quà tặng hoa
+**Kế hoạch tiếp theo**
+- Hệ sinh thái tương tác: mưa tăng độ ẩm, ong giúp cây ra hoa, sâu gây bệnh
+- Mùa & biến đổi khí hậu theo tháng
 
 ---
 
@@ -180,7 +208,8 @@ rabbit-habits/
     ├── auth.html
     ├── css/
     │   ├── style.css
-    │   └── garden.css   # Styles cho trang vườn
+    │   ├── garden.css         # Layout, panel, thời tiết, hiệu ứng trang vườn
+    │   └── garden-plants.css  # CSS plants — 10 archetypes × 6 stages, chậu, đất, shading
     └── js/app.js
 ```
 
@@ -207,3 +236,4 @@ rabbit-habits/
 | `POST` | `/api/garden/remove-leaf/:id` | Gỡ lá héo |
 | `POST` | `/api/garden/harvest/:id` | Thu hoạch (cây harvestable) |
 | `DELETE` | `/api/garden/plant/:id` | Nhổ bỏ cây |
+| `POST` | `/api/garden/dev/weather/:type` | (Dev) Đổi thời tiết tức thì (sunny/cloudy/rainy/stormy/foggy/windy) |

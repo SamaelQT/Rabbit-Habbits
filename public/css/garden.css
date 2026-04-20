@@ -196,23 +196,58 @@
   transition: background 0.5s ease;
   border-radius: 24px 24px 0 0;
 }
-.gcp-hero-emoji {
-  font-size: 52px;
-  line-height: 1;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+/* CSS plant scene hero (replaces emoji) */
+.gcp-hero-plant {
   position: relative;
   z-index: 1;
-  animation: gcpEmojiFloat 3s ease-in-out infinite;
+  flex-shrink: 0;
+  width: 88px;
+  height: 110px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
-@keyframes gcpEmojiFloat {
-  0%,100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
+.gcp-plant-scene {
+  position: relative;
+  width: 88px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* scale up the pot+plant to fill the scene nicely */
+  transform-origin: bottom center;
+}
+/* Let the inner pot/plant overflow upward within the scene */
+.gcp-plant-scene .gc-pot-s,
+.gcp-plant-scene .gc-pot-m,
+.gcp-plant-scene .gc-pot-l,
+.gcp-plant-scene .gc-pot-xl {
+  position: relative;
+  overflow: visible;
+  transform: scale(1.5);
+  transform-origin: bottom center;
+}
+/* Plant body floats gently */
+.gcp-plant-scene .gc-plant-body {
+  animation: gcpPlantFloat 4s ease-in-out infinite;
+}
+@keyframes gcpPlantFloat {
+  0%,100% { transform: translateY(0) rotate(0deg); }
+  40%     { transform: translateY(-3px) rotate(.5deg); }
+  70%     { transform: translateY(-1px) rotate(-.3deg); }
 }
 .gcp-hero-info { flex: 1; position: relative; z-index: 1; }
 .gcp-plant-name { font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.gcp-species-label {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  letter-spacing: .3px;
+  font-style: italic;
+}
 .gcp-stage-badge {
   display: inline-block;
-  margin-top: 5px;
+  margin-top: 6px;
   font-size: 11px; font-weight: 600;
   border-radius: 6px; padding: 3px 10px;
   letter-spacing: .3px;
@@ -241,52 +276,6 @@
 .gcp-badge-leaf    { background: rgba(200,149,74,.12); color: #c8954a; border: 1px solid #c8954a22; }
 .gcp-badge-warn    { background: rgba(255,153,0,.12); color: #ff9900; border: 1px solid #ff990033; }
 .gcp-badge-cycle   { background: rgba(176,127,255,.12); color: #b07fff; border: 1px solid #b07fff33; }
-
-/* Circular vitals */
-.gcp-vitals {
-  display: flex;
-  justify-content: space-around;
-  gap: 8px;
-  margin-bottom: 18px;
-  padding: 16px 8px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 16px;
-}
-.gcp-vital-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.gcp-gauge-wrap {
-  position: relative;
-  width: 76px; height: 76px;
-}
-.gcp-gauge {
-  width: 76px; height: 76px;
-  border-radius: 50%;
-  transition: background 0.55s ease;
-}
-.gcp-gauge-inner {
-  position: absolute;
-  inset: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.gcp-gauge-inner::before {
-  content: '';
-  position: absolute;
-  width: 56px; height: 56px;
-  background: #111b12;
-  border-radius: 50%;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
-}
-.gcp-gauge-inner span {
-  position: relative; z-index: 1;
-  font-size: 12px; font-weight: 700;
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-}
-.gcp-vital-label {
-  font-size: 10px; color: var(--text3);
-  font-weight: 500; letter-spacing: .2px;
-  text-align: center;
-}
 
 /* Stage progress */
 .gcp-stage-row {
@@ -531,7 +520,20 @@
 }
 .gpm-plant-item:hover { border-color: var(--accent); background: var(--bg4); }
 .gpm-item-selected { border-color: var(--accent) !important; background: rgba(176,127,255,.12) !important; }
-.gpm-item-emoji { font-size: 26px; line-height: 1; }
+/* Mini CSS plant preview in plant-selector modal */
+.gpm-item-plant-preview {
+  position: relative;
+  width: 48px; height: 54px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible;
+  flex-shrink: 0;
+}
+.gpm-item-plant-preview .gc-plant-body {
+  transform: scale(.7);
+  transform-origin: bottom center;
+  animation: none !important; /* no sway in selector */
+  --sway: 0deg;
+}
 .gpm-item-name { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.2; }
 .gpm-item-sub  { font-size: 10px; color: var(--text3); }
 .gpm-item-inv {
@@ -585,7 +587,20 @@
 .gf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .garden-shop-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap: 10px; }
 .gshop-item { background: var(--bg3); border-radius: 12px; padding: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-.gshop-item-emoji { font-size: 28px; }
+/* Mini CSS plant preview in garden shop catalog */
+.gshop-item-plant-preview {
+  position: relative;
+  width: 100%; height: 72px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible;
+  margin-bottom: 2px;
+}
+.gshop-item-plant-preview .gc-plant-body {
+  transform: scale(.85);
+  transform-origin: bottom center;
+  animation: none !important;
+  --sway: 0deg;
+}
 .gshop-item-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .gshop-cat-badge { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 5px; padding: 2px 6px; width: fit-content; }
 .gshop-item-sub { font-size: 11px; color: var(--text3); line-height: 1.4; }

@@ -7,6 +7,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml"/>
   <link rel="stylesheet" href="/css/style.css"/>
   <link rel="stylesheet" href="/css/garden.css"/>
+  <link rel="stylesheet" href="/css/garden-plants.css"/>
   <script src="/js/chart.umd.min.js"></script>
 </head>
 <body>
@@ -684,12 +685,16 @@
 <div class="garden-care-panel" id="garden-care-panel" style="display:none">
   <div class="gcp-handle"></div>
 
-  <!-- Hero -->
+  <!-- Hero: CSS plant visual + name/stage info -->
   <div class="gcp-hero">
     <div class="gcp-hero-glow" id="gcp-hero-glow"></div>
-    <div class="gcp-hero-emoji" id="gcp-emoji">🌿</div>
+    <!-- CSS plant preview (replaces emoji) -->
+    <div class="gcp-hero-plant" id="gcp-hero-plant">
+      <!-- injected by _renderCarePanel: pot + plant body -->
+    </div>
     <div class="gcp-hero-info">
       <div class="gcp-plant-name" id="gcp-name">—</div>
+      <div class="gcp-species-label" id="gcp-species">—</div>
       <div class="gcp-stage-badge" id="gcp-stage">—</div>
     </div>
     <button class="gcp-close" id="gcp-close">✕</button>
@@ -698,34 +703,9 @@
   <!-- Status badges -->
   <div class="gcp-status-row" id="gcp-status-row"></div>
 
-  <!-- Circular vitals -->
-  <div class="gcp-vitals">
-    <div class="gcp-vital-item">
-      <div class="gcp-gauge-wrap">
-        <div class="gcp-gauge" id="gcp-gauge-health"></div>
-        <div class="gcp-gauge-inner"><span id="gcp-health-val">—</span></div>
-      </div>
-      <div class="gcp-vital-label">❤️ Sức khỏe</div>
-    </div>
-    <div class="gcp-vital-item">
-      <div class="gcp-gauge-wrap">
-        <div class="gcp-gauge" id="gcp-gauge-water"></div>
-        <div class="gcp-gauge-inner"><span id="gcp-water-val">—</span></div>
-      </div>
-      <div class="gcp-vital-label">💧 Độ ẩm</div>
-    </div>
-    <div class="gcp-vital-item">
-      <div class="gcp-gauge-wrap">
-        <div class="gcp-gauge" id="gcp-gauge-nutrient"></div>
-        <div class="gcp-gauge-inner"><span id="gcp-nutrient-val">—</span></div>
-      </div>
-      <div class="gcp-vital-label">🌿 Dinh dưỡng</div>
-    </div>
-  </div>
-
   <!-- Stage progress -->
   <div class="gcp-stage-row">
-    <div class="gcp-stage-label">Giai đoạn tiếp theo:</div>
+    <div class="gcp-stage-label">Giai đoạn tiếp theo</div>
     <div class="gcp-stage-progress-wrap">
       <div class="gcp-stage-progress" id="gcp-stage-progress"></div>
     </div>
