@@ -1128,4 +1128,72 @@ router.post('/dev/weather/:type', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /api/garden/dev/mature — set all plants to mature stage (testing visuals)
+// Optional body: { stage: 'flowering' | 'fruiting' | 'growing' | 'dormant' }
+router.post('/dev/mature', async (req, res) => {
+  try {
+    const uid    = req.userId;
+    const plants = await GardenPlant.find({ userId: uid });
+    if (!plants.length) return res.json({ ok: true, updated: 0, message: 'Chưa có cây nào trong vườn' });
+
+    // Determine best mature stage per plant type
+    const forceStage = req.body?.stage || null; // allow override
+    let updated = 0;
+
+    for (const plant of plants) {
+      const pt = getPlantType(plant.plantTypeId);
+      if (!pt) continue;
+
+      let stage = forceStage;
+      if (!stage) {
+        const stageKeys = Object.keys(pt.stages || {});
+        // Pick the most visually impressive stage:
+        // harvestable → fruiting, fengshui/flower → flowering, else last stage
+        if (stageKeys.includes('fruiting') && pt.harvestable) {
+          stage = 'fruiting';
+        } else if (stageKeys.includes('flowering')) {
+          stage = 'flowering';
+        } else if (stageKeys.includes('growing')) {
+          stage = 'growing';
+        } else {
+          stage = stageKeys[stageKeys.length - 1] || 'leafing';
+        }
+      }
+
+      plant.stage          = stage;
+      plant.health         = 100;
+      plant.waterLevel     = 80;
+      plant.nutrientLevel  = 80;
+      plant.bugs           = 0;
+      plant.deadLeaves     = 0;
+      plant.isAlive        = true;
+      plant.readyToHarvest = false;
+      plant.stageStartedAt = new Date();
+      plant.lastTickAt     = new Date();
+      await plant.save();
+      updated++;
+    }
+
+    res.json({ ok: true, updated, message: `Đã cập nhật ${updated} cây sang giai đoạn trưởng thành` });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/dev/stage/:stage — set ALL plants to a specific stage
+router.post('/dev/stage/:stage', async (req, res) => {
+  try {
+    const uid   = req.userId;
+    const stage = req.params.stage;
+    const VALID = ['seed','sprout','leafing','growing','flowering','fruiting','dormant'];
+    if (!VALID.includes(stage)) return res.status(400).json({ error: `Stage không hợp lệ. Dùng: ${VALID.join(', ')}` });
+
+    const result = await GardenPlant.updateMany(
+      { userId: uid },
+      { $set: { stage, health: 100, waterLevel: 80, nutrientLevel: 80,
+                bugs: 0, deadLeaves: 0, isAlive: true, readyToHarvest: false,
+                stageStartedAt: new Date(), lastTickAt: new Date() } }
+    );
+    res.json({ ok: true, updated: result.modifiedCount, stage });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
