@@ -41,7 +41,14 @@
       "Bash(node -e ':*)",
       "Bash(node scripts/refund-plants.js)",
       "Bash(node server.js)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(awk 'NR>=8184 && NR<=8340' D:/Rabbit-Habbits/public/js/app.js)",
+      "Bash(py --version)",
+      "PowerShell(Get-Command python, python3, node -ErrorAction SilentlyContinue)",
+      "Bash(/c/Users/quang.ho/AppData/Local/Microsoft/WindowsApps/python3 --version)",
+      "PowerShell(& \"C:\\\\Users\\\\quang.ho\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\python.exe\" --version 2>&1)",
+      "PowerShell(Get-Command npm.cmd, node.exe -ErrorAction SilentlyContinue | ForEach-Object { \"$\\($_.Name\\) -> $\\($_.Source\\)\" })",
+      "Read(//d/Rabbit-Habbits/**)"
     ]
   }
 }

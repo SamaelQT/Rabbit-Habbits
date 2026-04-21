@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // ─── STATE ────────────────────────────────────────────────
 const today = new Date(); today.setHours(0,0,0,0);
@@ -2164,11 +2164,6 @@ let _statsInited = false;
 
 function navigateTo(page){
   if(_currentPage === page) return;
-  // Stop garden canvas loop when leaving garden tab
-  if (_currentPage === 'garden' && _gardenAnimId) {
-    cancelAnimationFrame(_gardenAnimId);
-    _gardenAnimId = null;
-  }
   _currentPage = page;
   document.querySelectorAll('.page-content').forEach(p=>p.style.display='none');
   document.getElementById(`page-${page}`).style.display='';
@@ -2179,9 +2174,8 @@ function navigateTo(page){
     loadStats();
     setTimeout(()=>_buildHeatmap(), 300);
   }
-  // Re-init garden canvas when returning to garden tab
   if (page === 'garden' && _gardenData) {
-    setTimeout(() => _initGardenCanvas(), 100);
+    setTimeout(() => _initGarden3D(), 100);
   }
 }
 
@@ -6839,6 +6833,21 @@ let _gpmTargetCell    = null;   // { row, col }
 let _gcpPlantId       = null;   // currently open care panel plant id
 let _gardenFriendData = null;   // { friend, plants, ... } when visiting a friend's garden
 
+// ── Garden 3D renderer state ──────────────────────────────────
+let _g3dScene          = null;
+let _g3dCamera         = null;
+let _g3dRenderer       = null;
+let _g3dControls       = null;
+let _g3dCells          = new Map();   // "row,col" → THREE.Group
+let _g3dGrassInstances = null;
+let _g3dHoveredCell    = null;
+let _g3dCellMeshes     = [];
+let _g3dMouseNDC       = { x: 0, y: 0 };
+
+const G3D_ROWS      = 6;
+const G3D_COLS      = 5;
+const G3D_CELL_SIZE = 1.0;
+
 // ── Stage display info ────────────────────────────────────────
 const STAGE_INFO = {
   seed:      { label:'Hạt giống',    emoji:'🌰', color:'#a0844c' },
@@ -6902,11 +6911,302 @@ function _refreshGardenUI() {
   _updateGardenTimeLabel();
   _updateGardenPoints();
   _renderWeatherBanner(_gardenData.weatherInfo, _gardenData.weather, 'garden-weather-banner');
-  _applyWeatherEffectsToGrid(document.getElementById('garden-grid')?.closest('.garden-grid-wrap'), _gardenData.weather);
   _applyWeatherToPage(_gardenData.weather);
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
-  _renderGardenGrid();
+  _initGarden3D();
+  _build3DCells(_gardenData.purchasedCells, _gardenData.plants, _gardenData.shadedCells);
   _renderGardenShop();
+}
+
+// ── Three.js 3D garden renderer ───────────────────────────────
+function _initGarden3D() {
+  const wrap = document.getElementById('garden-3d-wrap');
+  if (!wrap) return;
+
+  if (_g3dScene) {
+    // Re-attach renderer canvas if user navigated away and back
+    if (!wrap.contains(_g3dRenderer.domElement)) {
+      wrap.innerHTML = '';
+      wrap.appendChild(_g3dRenderer.domElement);
+      const W = wrap.clientWidth || 600;
+      const H = wrap.clientHeight || 600;
+      _g3dRenderer.setSize(W, H);
+      _g3dCamera.aspect = W / H;
+      _g3dCamera.updateProjectionMatrix();
+    }
+    return;
+  }
+
+  wrap.innerHTML = '';
+
+  const W = wrap.clientWidth  || 600;
+  const H = wrap.clientHeight || 600;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1c0e);
+  _g3dScene = scene;
+
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
+  camera.position.set(10, 12, 10);
+  camera.lookAt(0, 0, 0);
+  _g3dCamera = camera;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  wrap.appendChild(renderer.domElement);
+  _g3dRenderer = renderer;
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableRotate = false;
+  controls.enableZoom   = true;
+  controls.enablePan    = true;
+  controls.update();
+  _g3dControls = controls;
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(5, 10, 5);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+
+  renderer.domElement.addEventListener('mousemove', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    _g3dMouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    _g3dMouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  });
+
+  _buildGarden3DEnvironment();
+
+  const raycaster = new THREE.Raycaster();
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    if (_g3dCellMeshes.length > 0) {
+      raycaster.setFromCamera(_g3dMouseNDC, camera);
+      const hits   = raycaster.intersectObjects(_g3dCellMeshes);
+      const hitKey = hits.length > 0 ? hits[0].object.userData.cellKey : null;
+
+      if (hitKey !== _g3dHoveredCell) {
+        if (_g3dHoveredCell) {
+          const old = _g3dCells.get(_g3dHoveredCell);
+          if (old && old.userData.baseMesh) old.userData.baseMesh.material.emissive.setHex(0x000000);
+        }
+        _g3dHoveredCell = hitKey;
+        if (hitKey) {
+          const cur = _g3dCells.get(hitKey);
+          if (cur && cur.userData.baseMesh) cur.userData.baseMesh.material.emissive.setHex(0x5ef0a0);
+        }
+      }
+    }
+
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+function _buildGarden3DEnvironment() {
+  const scene = _g3dScene;
+  const ROWS  = G3D_ROWS;
+  const COLS  = G3D_COLS;
+  const CS    = G3D_CELL_SIZE;
+  const W     = COLS * CS;   // 5.0
+  const D     = ROWS * CS;   // 6.0
+  const PAD   = 0.5;
+
+  // Grass floor
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(W + PAD * 2, D + PAD * 2),
+    new THREE.MeshLambertMaterial({ color: 0x2d5a1e })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Horizontal wood paths between rows (5 paths)
+  const matH = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
+  for (let i = 0; i < ROWS - 1; i++) {
+    const z    = (i + 1 - ROWS / 2) * CS;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W + PAD, 0.02, 0.12), matH);
+    mesh.position.set(0, 0.01, z);
+    scene.add(mesh);
+  }
+
+  // Vertical wood paths between cols (4 paths)
+  const matV = new THREE.MeshLambertMaterial({ color: 0x7a5030 });
+  for (let j = 0; j < COLS - 1; j++) {
+    const x    = (j + 1 - COLS / 2) * CS;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, D + PAD), matV);
+    mesh.position.set(x, 0.01, 0);
+    scene.add(mesh);
+  }
+
+  // Garden border (4 sides)
+  const matB  = new THREE.MeshLambertMaterial({ color: 0x4a3520 });
+  const BT    = 0.15;
+  const BY    = 0.05;
+  const halfW = W / 2 + PAD;
+  const halfD = D / 2 + PAD;
+
+  [halfD, -halfD].forEach(z => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W + PAD * 2 + BT * 2, BY, BT), matB);
+    mesh.position.set(0, BY / 2, z);
+    scene.add(mesh);
+  });
+  [-halfW, halfW].forEach(x => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(BT, BY, D + PAD * 2), matB);
+    mesh.position.set(x, BY / 2, 0);
+    scene.add(mesh);
+  });
+}
+
+function _disposeG3DCells() {
+  _g3dCells.forEach(grp => {
+    grp.traverse(obj => {
+      if (obj.isMesh) {
+        obj.geometry.dispose();
+        if (obj.material) {
+          if (obj.material.map) obj.material.map.dispose();
+          obj.material.dispose();
+        }
+      }
+    });
+    if (_g3dScene) _g3dScene.remove(grp);
+  });
+  _g3dCells.clear();
+  _g3dCellMeshes  = [];
+  _g3dHoveredCell = null;
+
+  if (_g3dGrassInstances) {
+    _g3dGrassInstances.geometry.dispose();
+    _g3dGrassInstances.material.dispose();
+    if (_g3dScene) _g3dScene.remove(_g3dGrassInstances);
+    _g3dGrassInstances = null;
+  }
+}
+
+function _build3DCells(purchasedCells, plants, shadedCells) {
+  if (!_g3dScene) return;
+  _disposeG3DCells();
+
+  const ROWS = G3D_ROWS;
+  const COLS = G3D_COLS;
+  const CS   = G3D_CELL_SIZE;
+
+  const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
+  const plantMap     = new Map((plants || []).map(p => [`${p.row},${p.col}`, p]));
+
+  // Grass blades via InstancedMesh (all blades = 1 draw call)
+  const grassBladeGeo = new THREE.BoxGeometry(0.02, 0.12, 0.02);
+  const grassBladeMat = new THREE.MeshLambertMaterial({ color: 0x3a7a25 });
+  const MAX_GRASS     = ROWS * COLS * 12;
+  const grassMesh     = new THREE.InstancedMesh(grassBladeGeo, grassBladeMat, MAX_GRASS);
+  grassMesh.count     = 0;
+  _g3dScene.add(grassMesh);
+  _g3dGrassInstances = grassMesh;
+
+  const dummy    = new THREE.Object3D();
+  let   grassIdx = 0;
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const key = `${row},${col}`;
+      const cx  = (col - COLS / 2 + 0.5) * CS;
+      const cz  = (row - ROWS / 2 + 0.5) * CS;
+      const grp = new THREE.Group();
+      grp.position.set(cx, 0, cz);
+
+      const isPurchased = purchasedSet.has(key);
+      const plant       = plantMap.get(key);
+
+      let state, baseColor, borderColor;
+      if (!isPurchased) {
+        state = 'locked';   baseColor = 0x141b14; borderColor = 0x223022;
+      } else if (!plant) {
+        state = 'empty';    baseColor = 0x1d3019; borderColor = 0x5ef0a0;
+      } else {
+        state = 'planted';  baseColor = 0x1c3020; borderColor = 0x3a6a3a;
+      }
+
+      // Base tile
+      const baseMat  = new THREE.MeshLambertMaterial({ color: baseColor });
+      const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.85), baseMat);
+      baseMesh.position.y       = 0.03;
+      baseMesh.userData.cellKey = key;
+      baseMesh.receiveShadow    = true;
+      grp.add(baseMesh);
+      _g3dCellMeshes.push(baseMesh);
+      grp.userData = { row, col, state, baseMesh };
+
+      // Edge strips shared geometry helper
+      const addEdges = (color, transparent, opacity) => {
+        const mat = new THREE.MeshLambertMaterial({ color, transparent, opacity: opacity || 1 });
+        [
+          [0,      0.03,  0.415, 0.82, 0.04, 0.02],
+          [0,      0.03, -0.415, 0.82, 0.04, 0.02],
+          [ 0.415, 0.03,  0,     0.02, 0.04, 0.82],
+          [-0.415, 0.03,  0,     0.02, 0.04, 0.82],
+        ].forEach(([ex, ey, ez, ew, eh, ed]) => {
+          const em = new THREE.Mesh(new THREE.BoxGeometry(ew, eh, ed), mat);
+          em.position.set(ex, ey, ez);
+          grp.add(em);
+        });
+      };
+
+      if (state === 'locked') {
+        baseMat.transparent = true;
+        baseMat.opacity     = 0.6;
+        _addCellBillboard(grp, '🔒', 0.25, 0.20);
+      } else if (state === 'empty') {
+        addEdges(borderColor, true, 0.4);
+        _addCellBillboard(grp, '+', 0.20, 0.18);
+      } else {
+        addEdges(borderColor, false, 1);
+      }
+
+      _g3dScene.add(grp);
+      _g3dCells.set(key, grp);
+
+      // Grass blades around purchased cells
+      if (isPurchased) {
+        const bladeCount = 8 + Math.floor(Math.random() * 5);
+        for (let b = 0; b < bladeCount && grassIdx < MAX_GRASS; b++) {
+          const angle  = Math.random() * Math.PI * 2;
+          const radius = 0.40 + Math.random() * 0.08;
+          const h      = 0.08 + Math.random() * 0.07;
+          dummy.position.set(cx + Math.cos(angle) * radius, h / 2, cz + Math.sin(angle) * radius);
+          dummy.rotation.set((Math.random() - 0.5) * 0.52, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(1, h / 0.12, 1);
+          dummy.updateMatrix();
+          grassMesh.setMatrixAt(grassIdx++, dummy.matrix);
+        }
+      }
+    }
+  }
+
+  grassMesh.count = grassIdx;
+  grassMesh.instanceMatrix.needsUpdate = true;
+}
+
+function _addCellBillboard(group, text, size, yAboveBase) {
+  const canvas  = document.createElement('canvas');
+  canvas.width  = 64;
+  canvas.height = 64;
+  const ctx     = canvas.getContext('2d');
+  ctx.font      = '42px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, 32, 32);
+
+  const tex  = new THREE.CanvasTexture(canvas);
+  const mat  = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  mesh.position.y = 0.06 + yAboveBase;
+  mesh.rotation.x = -Math.PI / 2;
+  group.add(mesh);
 }
 
 function _updateGardenTimeLabel() {
@@ -6920,277 +7220,6 @@ function _updateGardenPoints() {
   const hdr = document.getElementById('header-points-val');
   const el  = document.getElementById('garden-pts-val');
   if (el && hdr) el.textContent = hdr.textContent + ' điểm';
-}
-
-// ── Plant archetype mapping ────────────────────────────────────
-const PLANT_ARCHETYPE = {
-  rau_muong:'ground-leafy', cai_xanh:'ground-leafy',
-  hanh_la:'hanh_la',
-  ca_chua:'bush-veg',       dua_leo:'bush-veg',
-  ca_rot:'ca_rot',
-  dau_tay:'dau_tay',
-  chanh:'med-tree',         oi:'med-tree',    cam:'med-tree',
-  xoai:'large-tree',        chuoi:'large-tree',
-  tulip:'small-flower',     cuc_vang:'small-flower',  lavender:'small-flower',
-  hoa_hong:'large-flower',  huong_duong:'large-flower', hoa_giay:'large-flower',
-  kim_tien:'kim_tien',      kim_ngan:'kim_ngan',
-  ngoc_bich:'ngoc_bich',    phat_tai:'phat_tai',
-  truc_may:'truc_may',      sen_da:'sen_da',
-};
-
-// Build inner HTML for a CSS plant body based on type + stage
-function _buildPlantBodyHTML(plantTypeId, stage) {
-  const arch = PLANT_ARCHETYPE[plantTypeId] || 'ground-leafy';
-  const s = stage || 'seed';
-
-  // Seed fallback for all types
-  if (s === 'seed') return `<div class="gp-seed"></div>`;
-
-  switch (arch) {
-    case 'ground-leafy':
-      if (s === 'sprout')   return `<div class="gp-leaf-pair"><div class="gp-leaf"></div><div class="gp-leaf"></div></div><div class="gp-stem"></div>`;
-      return `<div class="gp-leaves-wrap">${Array(s==='leafing'?5:s==='growing'?6:6).fill('<div class="gp-leaf"></div>').join('')}</div>`;
-
-    case 'hanh_la': {
-      const cnt = {sprout:3,leafing:4,growing:5,flowering:6,fruiting:6}[s]||3;
-      return `<div class="gp-blades">${Array(cnt).fill('<div class="gp-blade"></div>').join('')}</div>`;
-    }
-
-    case 'bush-veg':
-      if (s === 'sprout') return `<div class="gp-leaf-pair"><div class="gp-leaf"></div><div class="gp-leaf"></div></div><div class="gp-stem"></div>`;
-      if (s === 'leafing') return `<div class="gp-bush"><div class="gp-branch-l"></div><div class="gp-branch-r"></div>${Array(5).fill('<div class="gp-leaf"></div>').join('')}</div>`;
-      if (s === 'growing') return `<div class="gp-bush"><div class="gp-branch-l"></div><div class="gp-branch-r"></div>${Array(7).fill('<div class="gp-leaf"></div>').join('')}</div>`;
-      if (s === 'flowering') return `<div class="gp-bush"><div class="gp-branch-l"></div><div class="gp-branch-r"></div>${Array(5).fill('<div class="gp-leaf"></div>').join('')}<div class="gp-flower"></div><div class="gp-flower"></div></div>`;
-      if (s === 'fruiting') {
-        const fruits = plantTypeId === 'ca_chua'
-          ? Array(3).fill('<div class="gp-fruit"></div>').join('')
-          : Array(2).fill('<div class="gp-fruit"></div>').join('');
-        return `<div class="gp-bush"><div class="gp-branch-l"></div><div class="gp-branch-r"></div>${Array(3).fill('<div class="gp-leaf"></div>').join('')}${fruits}</div>`;
-      }
-      return `<div class="gp-bush"></div>`;
-
-    case 'ca_rot':
-      if (s === 'sprout') return `<div class="gp-fronds">${Array(3).fill('<div class="gp-frond"></div>').join('')}</div>`;
-      const frondCnt = {leafing:4,growing:5,flowering:5,fruiting:5}[s]||4;
-      return `<div class="gp-fronds">${Array(frondCnt).fill('<div class="gp-frond"></div>').join('')}</div><div class="gp-root"></div>`;
-
-    case 'dau_tay':
-      if (s === 'sprout') return `<div class="gp-trifoil"><div class="gp-leaflet"></div><div class="gp-leaflet"></div><div class="gp-leaflet"></div></div>`;
-      if (s === 'leafing' || s === 'growing') return `<div class="gp-leaves-wrap">${Array(5).fill('<div class="gp-leaf"></div>').join('')}</div>`;
-      if (s === 'flowering') return `<div class="gp-leaves-wrap">${Array(5).fill('<div class="gp-leaf"></div>').join('')}<div class="gp-flower"></div><div class="gp-flower"></div><div class="gp-flower"></div></div>`;
-      if (s === 'fruiting') return `<div class="gp-leaves-wrap"><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-berry"></div><div class="gp-berry"></div><div class="gp-berry"></div></div>`;
-      return `<div class="gp-leaves-wrap">${Array(5).fill('<div class="gp-leaf"></div>').join('')}</div>`;
-
-    case 'med-tree':
-      if (s === 'sprout') return `<div class="gp-stem-wrap"><div class="gp-leaf-pair"><div class="gp-leaf"></div><div class="gp-leaf"></div></div><div class="gp-trunk"></div></div>`;
-      if (s === 'fruiting') {
-        const fruitsHTML = Array(5).fill('<div class="gp-fruit"></div>').join('');
-        return `<div class="gp-tree"><div class="gp-canopy">${fruitsHTML}</div><div class="gp-trunk"></div></div>`;
-      }
-      if (s === 'flowering') {
-        return `<div class="gp-tree"><div class="gp-canopy"><div class="gp-blossom"></div><div class="gp-blossom"></div><div class="gp-blossom"></div><div class="gp-blossom"></div><div class="gp-blossom"></div></div><div class="gp-trunk"></div></div>`;
-      }
-      return `<div class="gp-tree"><div class="gp-canopy"></div><div class="gp-trunk"></div></div>`;
-
-    case 'large-tree':
-      if (plantTypeId === 'chuoi') {
-        if (s === 'sprout') return `<div class="gp-stem-wrap"><div class="gp-leaf-pair"><div class="gp-leaf"></div><div class="gp-leaf"></div></div><div class="gp-trunk"></div></div>`;
-        if (s === 'fruiting') return `<div class="gp-tree"><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-fruit"></div><div class="gp-fruit"></div><div class="gp-fruit"></div><div class="gp-trunk"></div></div>`;
-        const leafCnt = {leafing:4,growing:6,flowering:6}[s]||4;
-        return `<div class="gp-tree">${Array(leafCnt).fill('<div class="gp-leaf"></div>').join('')}<div class="gp-trunk"></div></div>`;
-      }
-      // xoai
-      if (s === 'sprout') return `<div class="gp-stem-wrap"><div class="gp-leaf-pair"><div class="gp-leaf"></div><div class="gp-leaf"></div></div><div class="gp-trunk"></div></div>`;
-      if (s === 'fruiting') return `<div class="gp-tree"><div class="gp-canopy"><div class="gp-fruit"></div><div class="gp-fruit"></div><div class="gp-fruit"></div><div class="gp-fruit"></div><div class="gp-fruit"></div></div><div class="gp-trunk"></div></div>`;
-      return `<div class="gp-tree"><div class="gp-canopy"></div><div class="gp-trunk"></div></div>`;
-
-    case 'small-flower':
-      if (s === 'sprout') return `<div class="gp-stem-wrap"><div class="gp-tip"></div><div class="gp-stem"></div></div>`;
-      if (s === 'leafing') return `<div class="gp-stem-wrap"><div class="gp-stem-leaves"><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div></div><div class="gp-stem"></div></div>`;
-      if (s === 'flowering') {
-        let bloom = '';
-        if (plantTypeId === 'tulip')     bloom = `<div class="gp-bloom"></div>`;
-        else if (plantTypeId === 'cuc_vang') bloom = `<div class="gp-bloom"><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-center"></div></div>`;
-        else if (plantTypeId === 'lavender') bloom = `<div class="gp-spikes"><div class="gp-spike"><div class="gp-stem"></div><div class="gp-bud"></div><div class="gp-bud"></div><div class="gp-bud"></div></div><div class="gp-spike"><div class="gp-stem"></div><div class="gp-bud"></div><div class="gp-bud"></div><div class="gp-bud"></div><div class="gp-bud"></div></div><div class="gp-spike"><div class="gp-stem"></div><div class="gp-bud"></div><div class="gp-bud"></div><div class="gp-bud"></div></div></div>`;
-        return `<div class="gp-stem-wrap">${bloom}<div class="gp-stem-leaves"><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div></div><div class="gp-stem"></div></div>`;
-      }
-      if (s === 'dormant') return `<div class="gp-stem-wrap"><div class="gp-stem"></div></div>`;
-      return `<div class="gp-stem-wrap"><div class="gp-stem"></div></div>`;
-
-    case 'large-flower':
-      if (s === 'sprout') return `<div class="gp-stem-wrap"><div class="gp-stem"></div></div>`;
-      if (s === 'leafing') return `<div class="gp-stem-wrap"><div class="gp-stem-leaves"><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div></div><div class="gp-stem"></div></div>`;
-      if (s === 'flowering') {
-        let bloom = '';
-        if (plantTypeId === 'hoa_hong')      bloom = `<div class="gp-bloom"><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-center"></div></div>`;
-        else if (plantTypeId === 'huong_duong') bloom = `<div class="gp-bloom"><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-petal"></div><div class="gp-center"></div></div>`;
-        else if (plantTypeId === 'hoa_giay')   bloom = `<div class="gp-vine"></div><div class="gp-vine"></div><div class="gp-vine"></div><div class="gp-bloom-s"></div><div class="gp-bloom-s"></div><div class="gp-bloom-s"></div><div class="gp-bloom-s"></div><div class="gp-bloom-s"></div>`;
-        return `<div class="gp-stem-wrap">${bloom}<div class="gp-stem-leaves"><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div><div class="gp-stem-leaf"></div></div><div class="gp-stem"></div></div>`;
-      }
-      if (s === 'dormant') return `<div class="gp-stem-wrap"><div class="gp-stem"></div></div>`;
-      return `<div class="gp-stem-wrap"><div class="gp-stem"></div></div>`;
-
-    case 'kim_tien':
-      return `<div class="gp-stem"></div><div class="gp-stem"></div><div class="gp-stem"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div>`;
-
-    case 'kim_ngan':
-      if (s === 'sprout') return `<div class="gp-trunk"></div>`;
-      return `<div class="gp-trunk"></div><div class="gp-branch"></div><div class="gp-branch"></div><div class="gp-leaf-sm"></div><div class="gp-leaf-sm"></div><div class="gp-leaf-sm"></div><div class="gp-leaf-sm"></div>`;
-
-    case 'truc_may':
-      if (s === 'sprout') return `<div class="gp-cane"><div class="gp-segment" style="height:16px"></div></div>`;
-      return `<div class="gp-cane"><div class="gp-segment" style="height:14px"></div><div class="gp-node"></div><div class="gp-segment" style="height:12px"></div><div class="gp-node"></div><div class="gp-segment" style="height:10px"></div><div class="gp-bamboo-leaf left"></div><div class="gp-bamboo-leaf right"></div></div>`;
-
-    case 'ngoc_bich':
-    case 'phat_tai':
-      if (s === 'sprout') return `<div class="gp-trunk"></div>`;
-      return `<div class="gp-trunk"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div><div class="gp-leaf"></div>`;
-
-    case 'sen_da':
-      if (s === 'sprout') return `<div class="gp-rosette"><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-center-bud"></div></div>`;
-      return `<div class="gp-rosette"><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-succulent-leaf"></div><div class="gp-center-bud"></div></div>`;
-
-    default:
-      return `<div class="gp-seed"></div>`;
-  }
-}
-
-// Build grass blades DOM for a cell
-function _buildGrassHTML() {
-  const blades = [];
-  const count = 4 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < count; i++) {
-    const h    = 6 + Math.floor(Math.random() * 10);
-    const left = 5 + Math.floor(Math.random() * 88);
-    const hue  = 100 + Math.floor(Math.random() * 40);
-    const delay = (Math.random() * 2).toFixed(2);
-    blades.push(`<div class="gc-blade" style="height:${h}px;left:${left}%;background:hsl(${hue},60%,${28+Math.floor(Math.random()*12)}%);animation-delay:${delay}s;animation-duration:${(2.5+Math.random()*2).toFixed(1)}s"></div>`);
-  }
-  return `<div class="gc-grass">${blades.join('')}</div>`;
-}
-
-// Soil class based on waterLevel
-function _soilClass(waterLevel) {
-  if (waterLevel <= 20)  return 'gc-soil-dry';
-  if (waterLevel <= 50)  return 'gc-soil-normal';
-  if (waterLevel <= 80)  return 'gc-soil-moist';
-  return 'gc-soil-wet';
-}
-
-// Pot size id → CSS class
-function _potClass(potTypeId) {
-  const map = { pot_s:'gc-pot-s', pot_m:'gc-pot-m', pot_l:'gc-pot-l', pot_xl:'gc-pot-xl' };
-  return map[potTypeId] || 'gc-pot-m';
-}
-
-// ── Render grid ───────────────────────────────────────────────
-function _renderGardenGrid() {
-  const grid = document.getElementById('garden-grid');
-  if (!grid || !_gardenData) return;
-
-  const { gridConfig, cellPrices, purchasedCells, plants, shadedCells } = _gardenData;
-  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
-
-  const purchasedSet = new Set(purchasedCells.map(c => `${c.row},${c.col}`));
-  const plantMap     = {};
-  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
-  const shadingMap   = {};
-  (shadedCells || []).forEach(s => { shadingMap[`${s.row},${s.col}`] = s.level; });
-
-  grid.innerHTML = '';
-  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
-
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const key   = `${r},${c}`;
-      const owned = purchasedSet.has(key);
-      const plant = plantMap[key];
-      const price = cellPrices?.[r]?.[c] || 50;
-      const shade = shadingMap[key] || 0;
-
-      const cell = document.createElement('div');
-      cell.className = 'garden-cell';
-      cell.dataset.row = r;
-      cell.dataset.col = c;
-
-      const grassHTML = _buildGrassHTML();
-
-      if (!owned) {
-        // ── LOCKED ──
-        cell.classList.add('gc-locked');
-        cell.innerHTML = `${grassHTML}<div class="gc-lock-wrap"><div class="gc-lock-icon">🔒</div><div class="gc-price">${price}đ</div></div>`;
-        cell.addEventListener('click', () => _buyCell(r, c, price));
-
-      } else if (plant && !plant.isAlive) {
-        // ── DEAD ──
-        cell.classList.add('gc-dead');
-        const potCls  = _potClass(plant.potTypeId);
-        const arch    = PLANT_ARCHETYPE[plant.plantTypeId] || 'ground-leafy';
-        cell.innerHTML = `${grassHTML}
-          <div class="gc-pot-wrap">
-            <div class="gc-plant-body stage-${plant.stage} plant-${arch} plant-${plant.plantTypeId}">
-              ${_buildPlantBodyHTML(plant.plantTypeId, plant.stage)}
-            </div>
-            <div class="gc-pot ${potCls}">
-              <div class="gc-pot-soil gc-soil-dry"></div>
-            </div>
-          </div>
-          <div class="gc-plant-name">${esc(plant.plantType?.name || '')}</div>
-          <div class="gc-cell-action" style="font-size:8px;color:#ff6b8a88;margin-top:2px">Nhổ cây</div>`;
-        cell.addEventListener('click', () => _openCarePanel(plant));
-
-      } else if (!plant) {
-        // ── EMPTY ──
-        cell.classList.add('gc-empty');
-        cell.innerHTML = `${grassHTML}<div class="gc-empty-plus">+</div><div class="gc-empty-label">Trồng cây</div>`;
-        cell.addEventListener('click', () => _openPlantModal(r, c));
-
-      } else {
-        // ── LIVING PLANT ──
-        const pt      = plant.plantType || {};
-        const potId   = plant.potTypeId || 'pot_m';
-        const potCls  = _potClass(potId);
-        const arch    = PLANT_ARCHETYPE[plant.plantTypeId] || 'ground-leafy';
-        const soilCls = _soilClass(plant.waterLevel ?? 60);
-        const hp      = Math.round(plant.health);
-        const hpColor = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
-
-        // Plant body classes
-        const pbClasses = [
-          'gc-plant-body',
-          `stage-${plant.stage}`,
-          `plant-${arch}`,
-          `plant-${plant.plantTypeId}`,
-          hp < 30 ? 'health-low' : hp < 60 ? 'health-medium' : '',
-          plant.nutrientLevel < 20 ? 'nutr-very-low' : plant.nutrientLevel < 40 ? 'nutr-low' : '',
-          shade >= 2 ? 'shaded-2' : shade === 1 ? 'shaded-1' : '',
-        ].filter(Boolean).join(' ');
-
-        cell.classList.add('gc-planted');
-        if (plant.readyToHarvest) cell.classList.add('gc-harvest');
-        if (shade >= 1)           cell.classList.add(`gc-shaded-${Math.min(shade, 2)}`);
-
-        cell.innerHTML = `${grassHTML}
-          <div class="gc-pot-wrap">
-            <div class="${pbClasses}">
-              ${_buildPlantBodyHTML(plant.plantTypeId, plant.stage)}
-            </div>
-            <div class="gc-pot ${potCls}">
-              <div class="gc-pot-soil ${soilCls}"></div>
-            </div>
-          </div>
-          <div class="gc-plant-name">${esc(pt.name?.split(' ').slice(-1)[0] || '')}</div>
-          ${plant.readyToHarvest ? '<div class="gc-harvest-badge" style="position:absolute;top:4px;right:4px;font-size:13px;animation:gcBounce .9s ease-in-out infinite">🌾</div>' : ''}`;
-
-        cell.addEventListener('click', () => _openCarePanel(plant));
-      }
-
-      grid.appendChild(cell);
-    }
-  }
-
-  // Kick off canvas layer after grid is built
-  _initGardenCanvas();
 }
 
 // ── Buy cell ──────────────────────────────────────────────────
@@ -7489,15 +7518,6 @@ function _renderCarePanel(plant) {
   }
 }
 
-function _potMatchWarning(plantSize, potSize) {
-  const idx  = { small:0, medium:1, large:2, xl:3 };
-  const diff = Math.abs((idx[plantSize]||1) - (idx[potSize]||1));
-  if (potSize === 'xl') return '';
-  if (diff === 0) return '';
-  if (diff === 1) return '⚠️ Chậu hơi lệch, -15% tốc độ';
-  if (diff === 2) return '❌ Chậu sai size, -40% tốc độ';
-  return '❌ Chậu rất sai size, -60% tốc độ';
-}
 
 // ── Care action helper (used by toolbar drag + harvest btn) ───
 async function _cpCareAction(apiFn, successMsg, plantId) {
@@ -7778,562 +7798,6 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
   }).join('');
 }
 
-// ═══════════════════════════════════════════════════════════════
-// 🎨 GARDEN CANVAS — creatures, bugs, leaves, sparkle
-// ═══════════════════════════════════════════════════════════════
-
-let _gardenCanvas = null;
-let _gardenCtx    = null;
-let _gardenAnimId = null;
-let _canvasParticles = [];   // falling leaves, droplets, sparkle
-let _canvasCreatures = [];   // bees, birds, bats, bugs, guest animals
-let _guestSpawnTimer = 0;
-
-// Spawn interval for guest animals (ms)
-const GUEST_SPAWN_INTERVAL = 18000; // every 18s while on garden tab
-const GUESTS = ['butterfly','dragonfly','snail','frog','cat'];
-
-function _initGardenCanvas() {
-  const wrap = document.getElementById('garden-grid')?.closest('.garden-grid-wrap');
-  if (!wrap) return;
-
-  // Remove old canvas
-  const old = wrap.querySelector('.gc-canvas');
-  if (old) old.remove();
-
-  const canvas = document.createElement('canvas');
-  canvas.className = 'gc-canvas';
-  canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:10;';
-  wrap.appendChild(canvas);
-  _gardenCanvas = canvas;
-  _gardenCtx    = canvas.getContext('2d');
-
-  // Resize to actual pixel size
-  const rect = wrap.getBoundingClientRect();
-  canvas.width  = rect.width  || wrap.offsetWidth;
-  canvas.height = rect.height || wrap.offsetHeight;
-
-  // Cancel previous loop
-  if (_gardenAnimId) cancelAnimationFrame(_gardenAnimId);
-  _canvasParticles = [];
-  _canvasCreatures = [];
-
-  // Seed initial effects from current plant data
-  _seedCanvasFromGardenData();
-
-  // Start ecosystem creatures
-  _spawnEcosystemCreatures();
-
-  _gardenCanvasLoop();
-}
-
-function _seedCanvasFromGardenData() {
-  if (!_gardenData || !_gardenCanvas) return;
-  const plants = _gardenData.plants || [];
-  const W = _gardenCanvas.width, H = _gardenCanvas.height;
-
-  plants.forEach(p => {
-    if (!p.isAlive) return;
-    const cellPos = _getCellCanvasPos(p.row, p.col);
-    if (!cellPos) return;
-    const { cx, cy, cw, ch } = cellPos;
-
-    // Falling leaves for dead leaves
-    for (let i = 0; i < Math.min(p.deadLeaves || 0, 5); i++) {
-      _canvasParticles.push(_makeLeaf(cx + (Math.random()-.5)*cw*.8, cy - ch*.3));
-    }
-
-    // Bugs on plant
-    for (let i = 0; i < Math.min(p.bugs || 0, 3); i++) {
-      _canvasCreatures.push(_makeBug(cx + (Math.random()-.5)*20, cy - ch*.5));
-    }
-
-    // Harvest sparkle
-    if (p.readyToHarvest) {
-      for (let i = 0; i < 6; i++) {
-        _canvasParticles.push(_makeSparkle(cx, cy - ch*.4));
-      }
-    }
-
-    // Water droplet if very wet
-    if ((p.waterLevel || 0) > 82) {
-      _canvasParticles.push(_makeDroplet(cx + (Math.random()-.5)*20, cy - 8));
-    }
-  });
-}
-
-function _spawnEcosystemCreatures() {
-  if (!_gardenData || !_gardenCanvas) return;
-  const eco = _gardenData.ecosystem || {};
-  const W = _gardenCanvas.width, H = _gardenCanvas.height;
-  const plants = _gardenData.plants || [];
-  const floweringCells = plants.filter(p => p.isAlive && ['flowering','fruiting'].includes(p.stage)).map(p => _getCellCanvasPos(p.row, p.col)).filter(Boolean);
-  const buggyPlants    = plants.filter(p => p.isAlive && p.bugs > 0).map(p => _getCellCanvasPos(p.row, p.col)).filter(Boolean);
-
-  // Bees — fly between flowering plants
-  for (let i = 0; i < Math.min(eco.bees || 0, 5); i++) {
-    const target = floweringCells.length ? floweringCells[i % floweringCells.length] : null;
-    _canvasCreatures.push(_makeBee(Math.random()*W, Math.random()*H, target));
-  }
-
-  // Bird (morning only — check phase)
-  const phase = _gardenData.gameTime?.phase;
-  if (eco.birds && ['morning','noon'].includes(phase)) {
-    const t = buggyPlants.length ? buggyPlants[0] : { cx: W*.5, cy: H*.4 };
-    _canvasCreatures.push(_makeBird(-40, H*.3, t));
-  }
-
-  // Bat (night/evening)
-  if (eco.bats && ['night','evening'].includes(phase)) {
-    _canvasCreatures.push(_makeBat(W + 40, H*.25));
-  }
-
-  // Worms peeking from pots
-  plants.filter(p => p.isAlive).forEach((p, idx) => {
-    if ((eco.worms || 0) > 0 && idx < eco.worms) {
-      const pos = _getCellCanvasPos(p.row, p.col);
-      if (pos) _canvasCreatures.push(_makeWorm(pos.cx, pos.cy - 8));
-    }
-  });
-}
-
-// Get canvas coordinates for a grid cell
-function _getCellCanvasPos(row, col) {
-  if (!_gardenCanvas) return null;
-  const grid = document.getElementById('garden-grid');
-  if (!grid) return null;
-  const cells = grid.querySelectorAll('.garden-cell');
-  const cell  = [...cells].find(c => +c.dataset.row === row && +c.dataset.col === col);
-  if (!cell) return null;
-  const wrapRect = _gardenCanvas.getBoundingClientRect();
-  const cellRect = cell.getBoundingClientRect();
-  return {
-    cx: cellRect.left - wrapRect.left + cellRect.width / 2,
-    cy: cellRect.top  - wrapRect.top  + cellRect.height / 2,
-    cw: cellRect.width,
-    ch: cellRect.height,
-  };
-}
-
-// ── Particle factories ─────────────────────────────────────────
-function _makeLeaf(x, y) {
-  return {
-    type:'leaf', x, y,
-    vx: (Math.random()-.4) * 1.2,
-    vy: .4 + Math.random() * .6,
-    rot: Math.random() * Math.PI * 2,
-    rotV: (Math.random()-.5) * .06,
-    size: 5 + Math.random() * 4,
-    color: Math.random() > .5 ? '#c8902a' : '#a06020',
-    alpha: .9, life: 1,
-  };
-}
-
-function _makeSparkle(x, y) {
-  const angle = Math.random() * Math.PI * 2;
-  const speed = 1 + Math.random() * 2;
-  return {
-    type:'sparkle', x, y,
-    vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed - 1,
-    size: 2 + Math.random() * 3,
-    color: Math.random() > .5 ? '#ffcf5c' : '#5ef0a0',
-    alpha: 1, life: 1,
-  };
-}
-
-function _makeDroplet(x, y) {
-  return {
-    type:'droplet', x, y,
-    vx: (Math.random()-.5)*.4,
-    vy: .3 + Math.random()*.5,
-    size: 2.5, color:'#60c8f0', alpha:.7, life:1,
-  };
-}
-
-// ── Creature factories ─────────────────────────────────────────
-function _makeBug(x, y) {
-  return {
-    type:'bug', x, y,
-    homeX: x, homeY: y,
-    phase: Math.random()*Math.PI*2,
-    alpha: 1,
-  };
-}
-
-function _makeBee(x, y, target) {
-  return {
-    type:'bee', x, y,
-    tx: target?.cx ?? x, ty: target?.cy ?? y,
-    wingPhase: 0,
-    wanderTimer: 60 + Math.random()*120,
-    alpha: 1, alive: true,
-  };
-}
-
-function _makeBird(x, y, target) {
-  return {
-    type:'bird', x, y,
-    tx: target?.cx ?? 200, ty: target?.cy ?? 150,
-    state:'flying', stateTimer:0, wingPhase:0, alpha:1, alive:true,
-  };
-}
-
-function _makeBat(x, y) {
-  return {
-    type:'bat', x, y,
-    vx: -(1.5+Math.random()), vy:(Math.random()-.5)*.8,
-    wingPhase:0, alpha:1, alive:true,
-  };
-}
-
-function _makeWorm(x, y) {
-  return {
-    type:'worm', x, y,
-    phase:0, peekAmt:0, peekDir:1, alpha:1, alive:true,
-  };
-}
-
-function _makeGuest(type, W, H) {
-  const y = H * (.3 + Math.random()*.5);
-  return { type, x: -40, y, vx: type==='snail' ? .3 : type==='cat'?1.2:1.8,
-           vy:0, phase:0, alpha:1, alive:true,
-           flipTimer: type==='butterfly' ? 30+Math.random()*40 : 0, };
-}
-
-// ── Canvas draw helpers ────────────────────────────────────────
-function _drawBee(ctx, x, y, wingPhase) {
-  ctx.save(); ctx.translate(x, y);
-  // Body
-  ctx.fillStyle = '#f0c020';
-  ctx.beginPath(); ctx.ellipse(0, 0, 5, 3.5, 0, 0, Math.PI*2); ctx.fill();
-  // Stripes
-  ctx.fillStyle = '#1a1a00';
-  ctx.fillRect(-3, -3.5, 2, 7); ctx.fillRect(0, -3.5, 2, 7);
-  ctx.beginPath(); ctx.ellipse(0,0,5,3.5,0,0,Math.PI*2); ctx.clip();
-  ctx.fillRect(-3,-3.5,2,7); ctx.fillRect(0,-3.5,2,7);
-  // Head
-  ctx.fillStyle = '#1a1a00';
-  ctx.beginPath(); ctx.arc(5.5, 0, 2.5, 0, Math.PI*2); ctx.fill();
-  // Wings
-  ctx.fillStyle = 'rgba(200,230,255,.55)';
-  const wf = Math.sin(wingPhase) * 3;
-  ctx.beginPath(); ctx.ellipse(-1, -3-wf, 5, 2.5, -.4, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(-1,  3+wf, 5, 2.5,  .4, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function _drawBird(ctx, x, y, wingPhase, state) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = '#5a4030';
-  // Body
-  ctx.beginPath(); ctx.ellipse(0, 0, 8, 5, 0, 0, Math.PI*2); ctx.fill();
-  // Head
-  ctx.beginPath(); ctx.arc(8, -2, 4, 0, Math.PI*2); ctx.fill();
-  // Beak
-  ctx.fillStyle = '#e8a820';
-  ctx.beginPath(); ctx.moveTo(11,-2); ctx.lineTo(15,-1); ctx.lineTo(11,-0); ctx.fill();
-  if (state === 'flying') {
-    // Wings
-    const wUp = Math.sin(wingPhase)>0;
-    ctx.fillStyle = '#3a2820';
-    ctx.beginPath();
-    ctx.moveTo(-2,-2); ctx.quadraticCurveTo(-8, wUp?-12:-4, -14,-2);
-    ctx.quadraticCurveTo(-8, wUp?-4:-12, -2,2); ctx.fill();
-  }
-  ctx.restore();
-}
-
-function _drawBat(ctx, x, y, wingPhase) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = '#2a1840';
-  const wf = Math.sin(wingPhase);
-  // Left wing
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(-12,-8+wf*6,-22, 2); ctx.quadraticCurveTo(-10,8+wf*4,0,4); ctx.fill();
-  // Right wing
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.quadraticCurveTo(12,-8+wf*6, 22, 2); ctx.quadraticCurveTo(10,8+wf*4,0,4); ctx.fill();
-  // Body
-  ctx.fillStyle = '#3a2050';
-  ctx.beginPath(); ctx.ellipse(0,2,5,4,0,0,Math.PI*2); ctx.fill();
-  // Ears
-  ctx.fillStyle = '#2a1840';
-  ctx.beginPath(); ctx.moveTo(-3,-4); ctx.lineTo(-5,-9); ctx.lineTo(-1,-4); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(3,-4);  ctx.lineTo(5,-9);  ctx.lineTo(1,-4);  ctx.fill();
-  ctx.restore();
-}
-
-function _drawBug(ctx, x, y) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = '#3a8020';
-  ctx.beginPath(); ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#1a4010';
-  ctx.beginPath(); ctx.arc(0, 0, 2, 0, Math.PI*2); ctx.fill();
-  // Legs
-  ctx.strokeStyle = '#2a6018'; ctx.lineWidth = .8;
-  [[-3,-2],[0,-3],[3,-2],[-3,2],[0,3],[3,2]].forEach(([lx,ly]) => {
-    ctx.beginPath(); ctx.moveTo(lx>0?3:-3, 0); ctx.lineTo(lx, ly); ctx.stroke();
-  });
-  ctx.restore();
-}
-
-function _drawWorm(ctx, x, y, peekAmt) {
-  const h = peekAmt * 12;
-  if (h < 1) return;
-  ctx.save(); ctx.translate(x, y);
-  ctx.strokeStyle = '#c87840'; ctx.lineWidth = 4; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -h); ctx.stroke();
-  ctx.fillStyle = '#e89050';
-  ctx.beginPath(); ctx.arc(0, -h, 3, 0, Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function _drawButterfly(ctx, x, y, phase) {
-  ctx.save(); ctx.translate(x, y);
-  const wf = Math.sin(phase) * .4;
-  // Upper wings
-  ctx.fillStyle = 'rgba(200,100,220,.75)';
-  ctx.beginPath(); ctx.ellipse(-5, -3, 8+wf*4, 6, -.3, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse( 5, -3, 8+wf*4, 6,  .3, 0, Math.PI*2); ctx.fill();
-  // Lower wings
-  ctx.fillStyle = 'rgba(160,60,180,.65)';
-  ctx.beginPath(); ctx.ellipse(-5, 3, 6+wf*3, 5, .3, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse( 5, 3, 6+wf*3, 5,-.3, 0, Math.PI*2); ctx.fill();
-  // Body
-  ctx.fillStyle = '#1a0a20';
-  ctx.beginPath(); ctx.ellipse(0,0,1.5,6,0,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function _drawDragonfly(ctx, x, y, phase) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = '#20a8e0';
-  ctx.beginPath(); ctx.ellipse(0,0,10,2,0,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(10,0,3,0,Math.PI*2); ctx.fill();
-  // Wings
-  ctx.strokeStyle='rgba(180,230,255,.7)'; ctx.lineWidth=1;
-  ctx.fillStyle='rgba(180,230,255,.4)';
-  const dy=Math.sin(phase)*2;
-  [[-4,-dy-5],[4,-dy-5],[-4,dy+5],[4,dy+5]].forEach(([wx,wy])=>{
-    ctx.beginPath();ctx.ellipse(wx,wy,9,3.5,wx<0?-.4:.4,0,Math.PI*2);ctx.fill();ctx.stroke();
-  });
-  ctx.restore();
-}
-
-function _drawSnail(ctx, x, y) {
-  ctx.save(); ctx.translate(x, y);
-  // Shell
-  ctx.fillStyle='#c8a060';
-  ctx.beginPath(); ctx.arc(0,-4,8,0,Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#8a6030'; ctx.lineWidth=1.5;
-  ctx.beginPath(); ctx.arc(0,-4,8,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-4,5,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0,-4,2,0,Math.PI*2); ctx.stroke();
-  // Body
-  ctx.fillStyle='#b8d088';
-  ctx.beginPath(); ctx.ellipse(2,2,10,4,0,0,Math.PI*2); ctx.fill();
-  // Antennae
-  ctx.strokeStyle='#6a8040'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(-4,0); ctx.lineTo(-8,-6); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-2,0); ctx.lineTo(-5,-7); ctx.stroke();
-  ctx.restore();
-}
-
-function _drawFrog(ctx, x, y) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle='#50c040';
-  ctx.beginPath(); ctx.ellipse(0,0,10,8,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#40a030';
-  ctx.beginPath(); ctx.ellipse(-4,-8,5,4,-.3,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(4,-8,5,4,.3,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#f0f0e0';
-  ctx.beginPath(); ctx.arc(-4,-9,2.5,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(4,-9,2.5,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#1a1a00';
-  ctx.beginPath(); ctx.arc(-4,-9,1.2,0,Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(4,-9,1.2,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-}
-
-function _drawCat(ctx, x, y, phase) {
-  ctx.save(); ctx.translate(x, y);
-  const walk = Math.sin(phase) * 2;
-  ctx.fillStyle='#d4b090';
-  // Body
-  ctx.beginPath(); ctx.ellipse(0,0,14,8,0,0,Math.PI*2); ctx.fill();
-  // Head
-  ctx.beginPath(); ctx.arc(14,0,7,0,Math.PI*2); ctx.fill();
-  // Ears
-  ctx.beginPath(); ctx.moveTo(10,-6); ctx.lineTo(12,-13); ctx.lineTo(16,-6); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(16,-6); ctx.lineTo(18,-12); ctx.lineTo(21,-5); ctx.fill();
-  // Eyes
-  ctx.fillStyle='#40ff80';
-  ctx.beginPath(); ctx.ellipse(14,-1,2,2.5,0,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='#101010';
-  ctx.beginPath(); ctx.ellipse(14,-1,.8,2,0,0,Math.PI*2); ctx.fill();
-  // Tail
-  ctx.strokeStyle='#d4b090'; ctx.lineWidth=3; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(-14,0); ctx.quadraticCurveTo(-22,-8,-18,-16); ctx.stroke();
-  // Legs (walking)
-  ctx.strokeStyle='#c4a080'; ctx.lineWidth=4;
-  [[-8,walk],[-2,-walk],[4,walk],[10,-walk]].forEach(([lx,ly])=>{
-    ctx.beginPath(); ctx.moveTo(lx,6); ctx.lineTo(lx+1,12+ly); ctx.stroke();
-  });
-  ctx.restore();
-}
-
-// ── Main canvas loop ───────────────────────────────────────────
-function _gardenCanvasLoop() {
-  if (!_gardenCanvas || !_gardenCtx) return;
-  const ctx = _gardenCtx;
-  const W = _gardenCanvas.width, H = _gardenCanvas.height;
-
-  ctx.clearRect(0, 0, W, H);
-
-  const now = Date.now();
-
-  // ── Update & draw particles ──
-  _canvasParticles = _canvasParticles.filter(p => p.alpha > 0);
-  for (const p of _canvasParticles) {
-    ctx.save();
-    ctx.globalAlpha = p.alpha;
-    if (p.type === 'leaf') {
-      p.x += p.vx; p.y += p.vy; p.rot += p.rotV;
-      p.vy += .01; p.vx *= .99;
-      p.alpha -= .003;
-      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.ellipse(0, 0, p.size, p.size*.55, 0, 0, Math.PI*2); ctx.fill();
-      // Vein
-      ctx.strokeStyle='rgba(0,0,0,.2)'; ctx.lineWidth=.7;
-      ctx.beginPath(); ctx.moveTo(-p.size,0); ctx.lineTo(p.size,0); ctx.stroke();
-    } else if (p.type === 'sparkle') {
-      p.x += p.vx; p.y += p.vy; p.vy += .04;
-      p.alpha -= .02;
-      ctx.translate(p.x, p.y);
-      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      for (let i=0;i<4;i++) {
-        const a=i*Math.PI/2, r=p.size;
-        i===0 ? ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r) : ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
-      }
-      ctx.fill();
-    } else if (p.type === 'droplet') {
-      p.x += p.vx; p.y += p.vy; p.vy += .015;
-      p.alpha -= .015;
-      ctx.translate(p.x, p.y);
-      ctx.fillStyle = p.color;
-      ctx.beginPath(); ctx.arc(0,0,p.size,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  // Periodically spawn sparkles for harvest plants
-  if (Math.random() < .06 && _gardenData) {
-    (_gardenData.plants || []).filter(p => p.isAlive && p.readyToHarvest).forEach(p => {
-      const pos = _getCellCanvasPos(p.row, p.col);
-      if (pos) _canvasParticles.push(_makeSparkle(pos.cx + (Math.random()-.5)*30, pos.cy - pos.ch*.4));
-    });
-  }
-
-  // ── Update & draw creatures ──
-  _canvasCreatures = _canvasCreatures.filter(c => c.alive !== false);
-  for (const c of _canvasCreatures) {
-    ctx.save(); ctx.globalAlpha = c.alpha ?? 1;
-    if (c.type === 'bee') {
-      c.wingPhase += .35;
-      c.wanderTimer--;
-      if (c.wanderTimer <= 0) {
-        // Pick new target flower cell
-        const plants = _gardenData?.plants || [];
-        const flowers = plants.filter(p=>p.isAlive&&['flowering','fruiting'].includes(p.stage));
-        if (flowers.length) {
-          const fp = _getCellCanvasPos(flowers[Math.floor(Math.random()*flowers.length)].row, flowers[Math.floor(Math.random()*flowers.length)].col);
-          if (fp) { c.tx=fp.cx; c.ty=fp.cy; }
-        }
-        c.wanderTimer = 80 + Math.random()*120;
-      }
-      const dx=c.tx-c.x, dy=c.ty-c.y, dist=Math.sqrt(dx*dx+dy*dy);
-      if (dist > 8) { c.x += dx/dist*1.8; c.y += dy/dist*1.8; }
-      // Gentle hover wobble
-      c.x += Math.sin(now*.002+c.wingPhase*.1)*1.5;
-      c.y += Math.cos(now*.003+c.wingPhase*.08)*1;
-      _drawBee(ctx, c.x, c.y, c.wingPhase);
-
-    } else if (c.type === 'bird') {
-      c.wingPhase += .2;
-      if (c.state === 'flying') {
-        const dx=c.tx-c.x, dy=c.ty-c.y, dist=Math.sqrt(dx*dx+dy*dy);
-        if (dist > 10) { c.x+=dx/dist*2.5; c.y+=dy/dist*2; }
-        else { c.state='perched'; c.stateTimer=200+Math.random()*200; }
-      } else {
-        c.stateTimer--;
-        if (c.stateTimer <= 0) c.alive = false;
-      }
-      _drawBird(ctx, c.x, c.y, c.wingPhase, c.state);
-
-    } else if (c.type === 'bat') {
-      c.wingPhase += .28;
-      c.x += c.vx; c.y += c.vy;
-      c.vy += Math.sin(now*.002)*.05;
-      if (c.x < -60) c.alive = false;
-      _drawBat(ctx, c.x, c.y, c.wingPhase);
-
-    } else if (c.type === 'bug') {
-      c.phase += .03;
-      const bx = c.homeX + Math.sin(c.phase)*14;
-      const by = c.homeY + Math.cos(c.phase*.7)*6;
-      _drawBug(ctx, bx, by);
-
-    } else if (c.type === 'worm') {
-      c.phase += .02;
-      c.peekAmt += c.peekDir * .008;
-      if (c.peekAmt > 1) c.peekDir = -1;
-      if (c.peekAmt < 0) { c.peekDir = 1; c.peekAmt = 0; }
-      _drawWorm(ctx, c.x, c.y, c.peekAmt);
-
-    } else if (c.type === 'butterfly') {
-      c.phase += .12;
-      c.x += c.vx; c.y += Math.sin(c.phase)*.8;
-      if (c.x > W + 60) c.alive = false;
-      _drawButterfly(ctx, c.x, c.y, c.phase);
-
-    } else if (c.type === 'dragonfly') {
-      c.phase += .25;
-      c.x += c.vx; c.y += Math.sin(c.phase*.5)*1.5;
-      if (c.x > W + 60) c.alive = false;
-      _drawDragonfly(ctx, c.x, c.y, c.phase);
-
-    } else if (c.type === 'snail') {
-      c.x += c.vx;
-      if (c.x > W + 60) c.alive = false;
-      _drawSnail(ctx, c.x, c.y);
-
-    } else if (c.type === 'frog') {
-      c.phase += .05;
-      if (Math.random() < .01) c.x += 20 + Math.random()*15; // jump
-      if (c.x > W + 60) c.alive = false;
-      _drawFrog(ctx, c.x, c.y);
-
-    } else if (c.type === 'cat') {
-      c.phase += .15;
-      c.x += c.vx;
-      if (c.x > W + 80) c.alive = false;
-      _drawCat(ctx, c.x, c.y, c.phase);
-    }
-    ctx.restore();
-  }
-
-  // ── Guest spawning timer ──
-  _guestSpawnTimer++;
-  if (_guestSpawnTimer > GUEST_SPAWN_INTERVAL / 16) { // ~16ms per frame
-    _guestSpawnTimer = 0;
-    if (document.getElementById('page-garden')?.style.display !== 'none') {
-      const type = GUESTS[Math.floor(Math.random() * GUESTS.length)];
-      _canvasCreatures.push(_makeGuest(type, W, H));
-    }
-  }
-
-  _gardenAnimId = requestAnimationFrame(_gardenCanvasLoop);
-}
 
 // ── Weather grid effects ──────────────────────────────────────
 function _applyWeatherEffectsToGrid(wrap, weatherId) {
@@ -8671,116 +8135,5 @@ async function _openFriendGarden(friendId) {
   } catch(e) {
     if (ownerEl) ownerEl.textContent = '❌ Không thể tải vườn';
     toast('❌ ' + e.message);
-  }
-}
-
-function _renderFriendGardenGrid(data, friendId) {
-  const grid = document.getElementById('gfv-grid');
-  if (!grid || !data) return;
-
-  const { gridConfig, purchasedCells, plants, shadedCells } = data;
-  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
-
-  const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
-  const plantMap     = {};
-  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
-  const shadingMap   = {};
-  (shadedCells || []).forEach(s => { shadingMap[`${s.row},${s.col}`] = s.level; });
-
-  grid.innerHTML = '';
-  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
-
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const key   = `${r},${c}`;
-      const owned = purchasedSet.has(key);
-      const plant = plantMap[key];
-      const shade = shadingMap[key] || 0;
-      const cell  = document.createElement('div');
-      cell.className = 'garden-cell';
-      cell.dataset.row = r;
-      cell.dataset.col = c;
-      const grassHTML = _buildGrassHTML();
-
-      if (!owned) {
-        // ── LOCKED ──
-        cell.classList.add('gc-locked');
-        cell.innerHTML = `${grassHTML}<div class="gc-lock-wrap"><div class="gc-lock-icon">🔒</div></div>`;
-
-      } else if (plant && !plant.isAlive) {
-        // ── DEAD ──
-        cell.classList.add('gc-dead');
-        const potCls = _potClass(plant.potTypeId);
-        const arch   = PLANT_ARCHETYPE[plant.plantTypeId] || 'ground-leafy';
-        cell.innerHTML = `${grassHTML}
-          <div class="gc-pot-wrap">
-            <div class="gc-plant-body stage-${plant.stage} plant-${arch} plant-${plant.plantTypeId}">
-              ${_buildPlantBodyHTML(plant.plantTypeId, plant.stage)}
-            </div>
-            <div class="gc-pot ${potCls}">
-              <div class="gc-pot-soil gc-soil-dry"></div>
-            </div>
-          </div>
-          <div class="gc-plant-name">${esc(plant.plantType?.name || '')}</div>`;
-
-      } else if (!plant) {
-        // ── EMPTY ──
-        cell.classList.add('gc-empty');
-        cell.innerHTML = `${grassHTML}<div class="gc-empty-plus" style="color:#5ef0a033">·</div>`;
-
-      } else {
-        // ── LIVING PLANT ──
-        const pt      = plant.plantType || {};
-        const potCls  = _potClass(plant.potTypeId || 'pot_m');
-        const arch    = PLANT_ARCHETYPE[plant.plantTypeId] || 'ground-leafy';
-        const soilCls = _soilClass(plant.waterLevel ?? 60);
-        const hp      = Math.round(plant.health);
-
-        const pbClasses = [
-          'gc-plant-body',
-          `stage-${plant.stage}`,
-          `plant-${arch}`,
-          `plant-${plant.plantTypeId}`,
-          hp < 30 ? 'health-low' : hp < 60 ? 'health-medium' : '',
-          plant.nutrientLevel < 20 ? 'nutr-very-low' : plant.nutrientLevel < 40 ? 'nutr-low' : '',
-          shade >= 2 ? 'shaded-2' : shade === 1 ? 'shaded-1' : '',
-        ].filter(Boolean).join(' ');
-
-        cell.classList.add('gc-planted');
-        if (plant.readyToHarvest) cell.classList.add('gc-harvest');
-        if (shade >= 1)           cell.classList.add(`gc-shaded-${Math.min(shade, 2)}`);
-
-        cell.innerHTML = `${grassHTML}
-          <div class="gc-pot-wrap">
-            <div class="${pbClasses}">
-              ${_buildPlantBodyHTML(plant.plantTypeId, plant.stage)}
-            </div>
-            <div class="gc-pot ${potCls}">
-              <div class="gc-pot-soil ${soilCls}"></div>
-            </div>
-          </div>
-          <div class="gc-plant-name">${esc(pt.name?.split(' ').slice(-1)[0] || '')}</div>
-          ${plant.readyToHarvest ? '<div class="gc-harvest-badge" style="position:absolute;top:4px;right:4px;font-size:13px;animation:gcBounce .9s ease-in-out infinite">🌾</div>' : ''}
-          ${plant.bugs > 0 ? `<div class="gc-bug-badge" style="position:absolute;top:4px;left:4px;font-size:10px;background:rgba(0,0,0,.5);border-radius:4px;padding:1px 4px">🐛${plant.bugs}</div>` : ''}
-          <div class="gfv-gift-btn" data-pid="${esc(plant._id)}" title="Tặng tưới nước">💧</div>`;
-
-        cell.querySelector('.gfv-gift-btn')?.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const btn = e.currentTarget;
-          btn.textContent = '⏳';
-          try {
-            const r = await apiGarden.giftWater(friendId, plant._id);
-            if (r.error) { toast('❌ ' + r.error); btn.textContent = '💧'; return; }
-            toast('💧 Đã tặng tưới nước! Bạn được +3 điểm.');
-            if (r.points !== undefined) updatePointsUI(r.points);
-            _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
-            _renderFriendGardenGrid(_gardenFriendData, friendId);
-            quickNotifCheck();
-          } catch(err) { toast('❌ ' + err.message); btn.textContent = '💧'; }
-        });
-      }
-
-      grid.appendChild(cell);
-    }
   }
 }
