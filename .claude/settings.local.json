@@ -51,7 +51,10 @@
       "Read(//d/Rabbit-Habbits/**)",
       "WebFetch(domain:cdn.jsdelivr.net)",
       "WebFetch(domain:unpkg.com)",
-      "Bash(curl -L \"https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js\" -o \"D:/Rabbit-Habbits/public/js/OrbitControls.js\")"
+      "Bash(curl -L \"https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js\" -o \"D:/Rabbit-Habbits/public/js/OrbitControls.js\")",
+      "Bash(node --check D:/Rabbit-Habbits/public/js/app.js)",
+      "PowerShell(node --check D:/Rabbit-Habbits/public/js/app.js)",
+      "PowerShell(if \\($?\\) { \"OK\" })"
     ]
   }
 }

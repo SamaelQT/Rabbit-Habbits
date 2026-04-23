@@ -6844,6 +6844,10 @@ let _g3dHoveredCell    = null;
 let _g3dCellMeshes     = [];
 let _g3dMouseNDC       = { x: 0, y: 0 };
 
+// ── Session D: Plant scene state ──────────────────────────────
+// gardenScene.plots[plotIndex] = { mesh, type, stage, health, hasFruit }
+const gardenScene = { plots: {} };
+
 const G3D_ROWS      = 6;
 const G3D_COLS      = 5;
 const G3D_CELL_SIZE = 1.0;
@@ -7079,6 +7083,7 @@ function _buildGarden3DEnvironment() {
 }
 
 function _disposeG3DCells() {
+  _disposeAllPlants();
   _g3dCells.forEach(grp => {
     grp.traverse(obj => {
       if (obj.isMesh) {
@@ -7307,6 +7312,401 @@ function _getSoilStateFromWater(waterLevel) {
   return 'wet';
 }
 
+// ── Session D: Plant models (Nhóm 1 — Rau & Củ quả) ─────────────────────────
+// Container soil-top Y (in cell-local coords; container is already offset by 0.03)
+const CONTAINER_SOIL_TOP = {
+  pot_s: 0.24,
+  pot_m: 0.32,
+  bed_s: 0.18,
+  bed_m: 0.29,
+};
+
+// Map backend string stage → 0–5 int
+const STAGE_STR_TO_INT = {
+  seed: 0, sprout: 1, leafing: 2, growing: 3, flowering: 4, fruiting: 5, dormant: 5,
+};
+
+// Map backend plant object → Session D health string
+function _plantHealthString(plant) {
+  if (!plant.isAlive) return 'dead';
+  const h = plant.health ?? 100;
+  if (h < 30) return 'sick';
+  return 'healthy';
+}
+
+// Apply health tint to a base hex color → THREE.Color
+function _applyHealthColor(hex, health) {
+  const c = new THREE.Color(hex);
+  if (health === 'sick') {
+    // desaturate + lerp toward yellow 50%
+    const hsl = { h: 0, s: 0, l: 0 };
+    c.getHSL(hsl);
+    c.setHSL(hsl.h, hsl.s * 0.4, hsl.l);
+    c.lerp(new THREE.Color(0xd4c43a), 0.5);
+  } else if (health === 'dead') {
+    c.set(0x6b4f2a); // nâu khô
+  }
+  return c;
+}
+
+// Scale factor per stage (0=mầm, 5=trưởng thành)
+function _stageScale(stage) {
+  const s = Math.max(0, Math.min(5, stage | 0));
+  return 0.25 + s * 0.15; // 0.25, 0.40, 0.55, 0.70, 0.85, 1.00
+}
+
+const PLANT_DEF = {
+  rau_muong: {
+    name: 'Rau muống',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0x7aba5f,
+    leafColor: 0x1e5a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemH = 0.28 * sc;
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nStems = Math.max(2, 2 + Math.floor(stage * 0.8));
+      for (let i = 0; i < nStems; i++) {
+        const a = (i / nStems) * Math.PI * 2;
+        const r = 0.08 * sc;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, stemH, 6), stemMat);
+        stem.position.set(Math.cos(a) * r, stemH / 2, Math.sin(a) * r);
+        stem.rotation.z = (Math.random() - 0.5) * 0.3;
+        g.add(stem);
+        const nLeaves = 1 + Math.floor(stage * 0.6);
+        for (let k = 0; k < nLeaves; k++) {
+          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.12 * sc, 0.06 * sc), leafMat);
+          leaf.position.set(Math.cos(a) * r, stemH * (0.4 + k * 0.25), Math.sin(a) * r);
+          leaf.rotation.y = a + Math.PI / 2;
+          leaf.rotation.z = Math.PI / 6;
+          g.add(leaf);
+        }
+      }
+      return g;
+    },
+  },
+
+  cai_xanh: {
+    name: 'Cải xanh',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0xa8d070,
+    leafColor: 0x4ca13a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.06 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const r = 0.08 * sc + i * 0.005;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09 * sc, 8, 6), leafMat);
+        leaf.scale.set(1, 0.35, 0.7);
+        leaf.position.set(Math.cos(a) * r, stemH + 0.02 * sc, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 8;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  hanh_la: {
+    name: 'Hành lá',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0xf0f0d8,
+    leafColor: 0x2d8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const bulbMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nStalks = 3 + stage;
+      for (let i = 0; i < nStalks; i++) {
+        const a = (i / nStalks) * Math.PI * 2;
+        const r = 0.04 * sc;
+        const bulbH = 0.05 * sc;
+        const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, bulbH, 6), bulbMat);
+        bulb.position.set(Math.cos(a) * r, bulbH / 2, Math.sin(a) * r);
+        g.add(bulb);
+        const leafH = 0.35 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.025 * sc, leafH), leafMat);
+        leaf.position.set(Math.cos(a) * r, bulbH + leafH / 2, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.2;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  ca_chua: {
+    name: 'Cà chua',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x5a7a3a,
+    leafColor: 0x2d5a2a,
+    fruit: { color: 0xd93a2e, count: 4, offsetY: 0.3 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.55 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.022, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      // Vine wrapping around
+      const vineMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      for (let i = 0; i < 3 + stage; i++) {
+        const t = (i + 1) / (4 + stage);
+        const a = t * Math.PI * 4;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.3, 1);
+        leaf.position.set(Math.cos(a) * 0.08 * sc, stemH * t, Math.sin(a) * 0.08 * sc);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  dua_leo: {
+    name: 'Dưa leo',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x4a7a3a,
+    leafColor: 0x1e4a1a,
+    fruit: { color: 0x3a7a2a, count: 3, offsetY: 0.15 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.35 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      // horizontal vines
+      for (let i = 0; i < 2 + stage; i++) {
+        const a = (i / (2 + stage)) * Math.PI * 2;
+        const vineL = 0.18 * sc;
+        const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, vineL, 4), stemMat);
+        vine.position.set(Math.cos(a) * vineL / 2, stemH * 0.6, Math.sin(a) * vineL / 2);
+        vine.rotation.z = Math.PI / 2;
+        vine.rotation.y = -a;
+        g.add(vine);
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.07 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.25, 1);
+        leaf.position.set(Math.cos(a) * vineL, stemH * 0.6, Math.sin(a) * vineL);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  ca_rot: {
+    name: 'Cà rốt',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0xe87a1a,
+    leafColor: 0x3a8a2a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      // Carrot root — mostly below soil, small tip visible
+      const rootMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const rootH = 0.10 * sc;
+      const root = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * sc, 0.01, rootH, 8), rootMat);
+      root.position.y = rootH / 2 - rootH * 0.7; // mostly buried
+      g.add(root);
+      // Leaf fronds
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nLeaves = 3 + stage;
+      const leafH = 0.22 * sc;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.04 * sc, leafH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.02, leafH / 2, Math.sin(a) * 0.02);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.4;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  dau_tay: {
+    name: 'Dâu tây',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a9a4a,
+    leafColor: 0x2e6a2a,
+    fruit: { color: 0xe02030, count: 5, offsetY: 0.04 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.05 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const r = 0.07 * sc;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.055 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.3, 0.8);
+        leaf.position.set(Math.cos(a) * r, stemH + 0.015, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+};
+
+function buildPlantMesh(type, stage, health) {
+  const def = PLANT_DEF[type];
+  if (!def) return new THREE.Group();
+  const stemCol = _applyHealthColor(def.stemColor, health);
+  const leafCol = _applyHealthColor(def.leafColor, health);
+  const group = def.build(stage, stemCol, leafCol);
+
+  // Fruit at stage 5 (if this plant has fruit)
+  if (def.fruit && (stage | 0) >= 5 && health !== 'dead') {
+    const fruitColor = _applyHealthColor(def.fruit.color, health);
+    const fruitMat = new THREE.MeshLambertMaterial({ color: fruitColor });
+    for (let i = 0; i < def.fruit.count; i++) {
+      const a = (i / def.fruit.count) * Math.PI * 2;
+      const r = 0.08;
+      let fruit;
+      if (type === 'dua_leo') {
+        fruit = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.07, 4, 6), fruitMat);
+        fruit.rotation.z = Math.PI / 2;
+      } else {
+        fruit = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), fruitMat);
+      }
+      fruit.position.set(Math.cos(a) * r, def.fruit.offsetY, Math.sin(a) * r);
+      group.add(fruit);
+    }
+    group.userData.hasFruit = true;
+  } else {
+    group.userData.hasFruit = false;
+  }
+
+  if (health === 'dead') {
+    group.rotation.x = -Math.PI / 6;
+  }
+  group.userData.plantType = type;
+  group.userData.plantStage = stage | 0;
+  group.userData.plantHealth = health;
+  return group;
+}
+
+function _plotIndexToRowCol(plotIndex) {
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return { row, col };
+}
+
+function placePlantInPlot(plotIndex, type, stage, health) {
+  if (!_g3dScene) return null;
+  const def = PLANT_DEF[type];
+  if (!def) return null;
+
+  // Remove prior plant at this index
+  if (gardenScene.plots[plotIndex]) removePlantMesh(plotIndex);
+
+  const { row, col } = _plotIndexToRowCol(plotIndex);
+  const cx = (col - G3D_COLS / 2 + 0.5) * G3D_CELL_SIZE;
+  const cz = (row - G3D_ROWS / 2 + 0.5) * G3D_CELL_SIZE;
+
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.set(cx, def.yOffset, cz);
+  _g3dScene.add(mesh);
+
+  gardenScene.plots[plotIndex] = {
+    mesh,
+    type,
+    stage: stage | 0,
+    health,
+    hasFruit: !!mesh.userData.hasFruit,
+  };
+  return mesh;
+}
+
+function updatePlantStage(plotIndex, stage) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  const { type, health } = entry;
+  const pos = entry.mesh.position.clone();
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.copy(pos);
+  if (_g3dScene) _g3dScene.add(mesh);
+  entry.mesh     = mesh;
+  entry.stage    = stage | 0;
+  entry.hasFruit = !!mesh.userData.hasFruit;
+}
+
+function updatePlantHealth(plotIndex, health) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  const { type, stage } = entry;
+  const pos = entry.mesh.position.clone();
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.copy(pos);
+  if (_g3dScene) _g3dScene.add(mesh);
+  entry.mesh   = mesh;
+  entry.health = health;
+}
+
+function removePlantMesh(plotIndex) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  delete gardenScene.plots[plotIndex];
+}
+
+function _disposePlantGroup(group) {
+  group.traverse(obj => {
+    if (obj.isMesh) {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    }
+  });
+}
+
+function _disposeAllPlants() {
+  Object.keys(gardenScene.plots).forEach(k => {
+    const entry = gardenScene.plots[k];
+    _disposePlantGroup(entry.mesh);
+    if (_g3dScene) _g3dScene.remove(entry.mesh);
+  });
+  gardenScene.plots = {};
+}
+
 function _build3DCells(purchasedCells, plants, shadedCells) {
   if (!_g3dScene) return;
   _disposeG3DCells();
@@ -7397,6 +7797,16 @@ function _build3DCells(purchasedCells, plants, shadedCells) {
           });
         }
         grp.add(container);
+
+        // Session D: Plant mesh on top of container
+        if (PLANT_DEF[plant.plantTypeId]) {
+          const stageInt = typeof plant.stage === 'number'
+            ? plant.stage
+            : (STAGE_STR_TO_INT[plant.stage] ?? 0);
+          const healthStr = _plantHealthString(plant);
+          const plotIndex = row * G3D_COLS + col;
+          placePlantInPlot(plotIndex, plant.plantTypeId, stageInt, healthStr);
+        }
       }
 
       _g3dScene.add(grp);
