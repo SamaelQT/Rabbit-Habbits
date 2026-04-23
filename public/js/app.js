@@ -7087,6 +7087,210 @@ function _disposeG3DCells() {
   }
 }
 
+// ── Session C: Container helpers ────────────────────────────────────────────
+
+function _getSoilMaterial(state) {
+  const colors = { dry: 0xc8a06e, normal: 0x8b5e3c, moist: 0x5c3d1e, wet: 0x3d2710 };
+  const col = colors[state] || colors.normal;
+  if (state === 'wet') {
+    return new THREE.MeshLambertMaterial({ color: col, emissive: new THREE.Color(0x1a0f08), emissiveIntensity: 0.1 });
+  }
+  return new THREE.MeshLambertMaterial({ color: col });
+}
+
+function _addSoilCracks(grp, y, radius) {
+  const mat = new THREE.LineBasicMaterial({ color: 0x9a7550 });
+  const n = 3 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < n; i++) {
+    const a   = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+    const len = 0.04 + Math.random() * 0.05;
+    const cx  = (Math.random() - 0.5) * radius * 1.1;
+    const cz  = (Math.random() - 0.5) * radius * 1.1;
+    const pts = [
+      new THREE.Vector3(cx, y, cz),
+      new THREE.Vector3(cx + Math.cos(a) * len, y, cz + Math.sin(a) * len)
+    ];
+    grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+  }
+}
+
+function _make3DContainer(containerType, soilState) {
+  const grp     = new THREE.Group();
+  const soilMat = _getSoilMaterial(soilState);
+
+  if (containerType === 'pot_s') {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc4622d });
+    const body    = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.11, 0.20, 12), bodyMat);
+    body.position.y = 0.10;
+    grp.add(body);
+    const rimMat = new THREE.MeshLambertMaterial({ color: 0xb5572a });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.018, 6, 12), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.20;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.02, 12), soilMat);
+    soil.position.y = 0.20;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.21, 0.14);
+
+  } else if (containerType === 'pot_m') {
+    const pts = [
+      new THREE.Vector2(0.10, 0),
+      new THREE.Vector2(0.22, 0.10),
+      new THREE.Vector2(0.24, 0.18),
+      new THREE.Vector2(0.20, 0.26),
+      new THREE.Vector2(0.16, 0.28)
+    ];
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7ab5c8, shininess: 40 });
+    const body    = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), bodyMat);
+    grp.add(body);
+    const rimMat = new THREE.MeshPhongMaterial({ color: 0x5a9ab5 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.015, 8, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.28;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.148, 0.148, 0.02, 16), soilMat);
+    soil.position.y = 0.28;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.29, 0.13);
+
+  } else if (containerType === 'pot_l') {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
+    const body    = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.28, 0.55), bodyMat);
+    body.position.y = 0.14;
+    grp.add(body);
+    const grainMat = new THREE.MeshLambertMaterial({ color: 0x5a3818 });
+    [-0.08, 0.0, 0.08].forEach(yOff => {
+      [0.28, -0.28].forEach(zOff => {
+        const g = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.02, 0.01), grainMat);
+        g.position.set(0, 0.14 + yOff, zOff);
+        grp.add(g);
+      });
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.02, 0.50), soilMat);
+    soil.position.y = 0.28;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.29, 0.22);
+
+  } else if (containerType === 'pot_xl') {
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0xf0ece0, shininess: 80 });
+    const body    = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.18, 0.38, 16), bodyMat);
+    body.position.y = 0.19;
+    grp.add(body);
+    const bandMat = new THREE.MeshPhongMaterial({ color: 0x1a5fa8 });
+    [0.13, 0.25].forEach(y => {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 16), bandMat);
+      band.position.y = y;
+      grp.add(band);
+    });
+    const rimMat = new THREE.MeshPhongMaterial({ color: 0xe0dcd0 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.018, 8, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.38;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), soilMat);
+    soil.position.y = 0.38;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.39, 0.21);
+
+  } else if (containerType === 'bed_s') {
+    const woodMat   = new THREE.MeshLambertMaterial({ color: 0x7a5030 });
+    const cornerMat = new THREE.MeshLambertMaterial({ color: 0x5a3820 });
+    const fW = 0.80, fH = 0.12, fT = 0.06;
+    [
+      [0,            fH/2, -(fW/2-fT/2), fW, fH, fT],
+      [0,            fH/2,  (fW/2-fT/2), fW, fH, fT],
+      [-(fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+      [ (fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+    ].forEach(([x, y, z, w, h, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodMat);
+      m.position.set(x, y, z);
+      grp.add(m);
+    });
+    [[-0.37, fH/2, -0.37], [0.37, fH/2, -0.37], [-0.37, fH/2, 0.37], [0.37, fH/2, 0.37]].forEach(([x, y, z]) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, fH + 0.04, 0.06), cornerMat);
+      post.position.set(x, y, z);
+      grp.add(post);
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.06, 0.76), soilMat);
+    soil.position.y = fH;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, fH + 0.03, 0.35);
+
+  } else if (containerType === 'bed_m') {
+    const woodMat  = new THREE.MeshLambertMaterial({ color: 0x8B6914 });
+    const brickMat = new THREE.MeshLambertMaterial({ color: 0x9a7520 });
+    const fW = 0.80, fH = 0.22, fT = 0.07;
+    [
+      [0,            fH/2, -(fW/2-fT/2), fW, fH, fT],
+      [0,            fH/2,  (fW/2-fT/2), fW, fH, fT],
+      [-(fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+      [ (fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+    ].forEach(([x, y, z, w, h, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodMat);
+      m.position.set(x, y, z);
+      grp.add(m);
+    });
+    [-0.06, 0.06].forEach(yOff => {
+      [-(fW/2-fT/2), (fW/2-fT/2)].forEach(z => {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(fW + 0.01, 0.03, fT + 0.01), brickMat);
+        strip.position.set(0, fH/2 + yOff, z);
+        grp.add(strip);
+      });
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.72), soilMat);
+    soil.position.y = fH;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, fH + 0.04, 0.34);
+
+  } else {
+    // hole_l
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x2d5a1e });
+    const ground    = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.85), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0.01;
+    grp.add(ground);
+    const holeMat = new THREE.MeshLambertMaterial({ color: 0x3d2710, side: THREE.BackSide });
+    const hole    = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.25, 0.25, 16, 1, true), holeMat);
+    hole.position.y = -0.10;
+    grp.add(hole);
+    const rimMat = new THREE.MeshLambertMaterial({ color: 0x4a3215 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.03, 6, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.01;
+    grp.add(rim);
+    const moundMat = new THREE.MeshLambertMaterial({ color: 0x5c3d1e });
+    const mound    = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), moundMat);
+    mound.scale.y = 0.5;
+    mound.position.set(0.38, 0.09, 0.10);
+    grp.add(mound);
+    [[0.30, 0.05, 0.28], [0.44, 0.04, -0.05], [0.22, 0.04, 0.38]].forEach(([x, y, z]) => {
+      const clump = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), moundMat);
+      clump.scale.y = 0.5;
+      clump.position.set(x, y, z);
+      grp.add(clump);
+    });
+  }
+
+  return grp;
+}
+
+function _getContainerType(plantTypeId, potTypeId) {
+  const pt = _gardenCatalog?.plants?.find(p => p.id === plantTypeId);
+  if (!pt) return 'bed_s';
+  if (pt.category === 'fengshui' || pt.category === 'flower') return potTypeId || 'pot_m';
+  if (pt.size === 'large')  return 'hole_l';
+  if (pt.size === 'medium') return 'bed_m';
+  return 'bed_s';
+}
+
+function _getSoilStateFromWater(waterLevel) {
+  if (waterLevel <= 20) return 'dry';
+  if (waterLevel <= 50) return 'normal';
+  if (waterLevel <= 80) return 'moist';
+  return 'wet';
+}
+
 function _build3DCells(purchasedCells, plants, shadedCells) {
   if (!_g3dScene) return;
   _disposeG3DCells();
@@ -7164,6 +7368,19 @@ function _build3DCells(purchasedCells, plants, shadedCells) {
         _addCellBillboard(grp, '+', 0.20, 0.18);
       } else {
         addEdges(borderColor, false, 1);
+        const containerType = _getContainerType(plant.plantTypeId, plant.potTypeId);
+        const soilState     = _getSoilStateFromWater(plant.waterLevel ?? 50);
+        const container     = _make3DContainer(containerType, soilState);
+        container.position.y = 0.03;
+        if (!plant.isAlive) {
+          container.traverse(child => {
+            if (child.isMesh && child.material) {
+              child.material = child.material.clone();
+              child.material.color.multiplyScalar(0.4);
+            }
+          });
+        }
+        grp.add(container);
       }
 
       _g3dScene.add(grp);
