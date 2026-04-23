@@ -6866,6 +6866,10 @@ const CAT_INFO = {
   fengshui:  { label:'Phong thủy', emoji:'🎍', color:'#b07fff' },
 };
 
+// Stub — sẽ được thay thế ở Session D/E (plant models)
+const PLANT_ARCHETYPE = {};
+function _buildPlantBodyHTML() { return ''; }
+
 // ── Init ──────────────────────────────────────────────────────
 async function initGarden() {
   if (_gardenInited) { _refreshGardenUI(); return; }
@@ -6959,9 +6963,21 @@ function _initGarden3D() {
   _g3dRenderer = renderer;
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.enableRotate = false;
+  controls.enableRotate = true;
   controls.enableZoom   = true;
   controls.enablePan    = true;
+  controls.minDistance  = 3;
+  controls.maxDistance  = 30;
+  controls.maxPolarAngle = Math.PI / 2 - 0.05; // không cho xoay xuống dưới mặt đất
+  controls.mouseButtons = {
+    LEFT:   THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT:  THREE.MOUSE.PAN,
+  };
+  controls.touches = {
+    ONE:  THREE.TOUCH.ROTATE,
+    TWO:  THREE.TOUCH.DOLLY_PAN,
+  };
   controls.update();
   _g3dControls = controls;
 
