@@ -6844,6 +6844,14 @@ let _g3dHoveredCell    = null;
 let _g3dCellMeshes     = [];
 let _g3dMouseNDC       = { x: 0, y: 0 };
 
+// ── Session G: Interaction state ──────────────────────────────
+let _g3dPlantMeshes    = [];   // plant Group meshes (for raycaster plant-hits)
+let _g3dHoveredPlant   = null; // plotIndex of currently-hovered plant
+let _g3dTooltipEl      = null; // floating DOM tooltip
+let _g3dDown           = null; // pointerdown state: { x, y, pid, hit, plantId? }
+let _g3dDragActive     = false;
+let _g3dGhostEl        = null; // ghost element while dragging plant
+
 // ── Session F: Weather / Rain / Creatures ─────────────────────
 let _g3dAmbientLight   = null;
 let _g3dDirLight       = null;
@@ -7078,28 +7086,364 @@ function _initGarden3D() {
     }
     _updateCreatures(delta);
 
-    // ── Raycaster hover ──
-    if (_g3dCellMeshes.length > 0) {
-      raycaster.setFromCamera(_g3dMouseNDC, camera);
-      const hits   = raycaster.intersectObjects(_g3dCellMeshes);
-      const hitKey = hits.length > 0 ? hits[0].object.userData.cellKey : null;
-
-      if (hitKey !== _g3dHoveredCell) {
-        if (_g3dHoveredCell) {
-          const old = _g3dCells.get(_g3dHoveredCell);
-          if (old && old.userData.baseMesh) old.userData.baseMesh.material.emissive.setHex(0x000000);
-        }
-        _g3dHoveredCell = hitKey;
-        if (hitKey) {
-          const cur = _g3dCells.get(hitKey);
-          if (cur && cur.userData.baseMesh) cur.userData.baseMesh.material.emissive.setHex(0x5ef0a0);
-        }
-      }
-    }
+    // ── Session G: Raycaster hover (cells + plants) ──
+    _updateG3DHover(raycaster, camera);
 
     renderer.render(scene, camera);
   }
   animate();
+
+  _setupGarden3DInteractions(renderer, raycaster, camera);
+}
+
+// ── Session G: Hover detection + tooltip + emissive highlight ──
+function _g3dRaycast(raycaster, camera) {
+  raycaster.setFromCamera(_g3dMouseNDC, camera);
+  const plantHits = _g3dPlantMeshes.length
+    ? raycaster.intersectObjects(_g3dPlantMeshes, true)
+    : [];
+  const cellHits = _g3dCellMeshes.length
+    ? raycaster.intersectObjects(_g3dCellMeshes)
+    : [];
+
+  let plantHit = null;
+  for (const h of plantHits) {
+    let o = h.object;
+    while (o) {
+      if (o.userData && typeof o.userData.plotIndex === 'number') {
+        plantHit = { plotIndex: o.userData.plotIndex, distance: h.distance };
+        break;
+      }
+      o = o.parent;
+    }
+    if (plantHit) break;
+  }
+
+  const cellHit = cellHits.length
+    ? { cellKey: cellHits[0].object.userData.cellKey, distance: cellHits[0].distance }
+    : null;
+
+  // Plants sit on top of cell tiles — if a plant hit exists at the same cell, prefer it.
+  if (plantHit) {
+    return { type: 'plant', plotIndex: plantHit.plotIndex, cellKey: cellHit?.cellKey || null };
+  }
+  if (cellHit) return { type: 'cell', cellKey: cellHit.cellKey };
+  return null;
+}
+
+function _ensureG3DTooltip() {
+  if (_g3dTooltipEl) return _g3dTooltipEl;
+  const el = document.createElement('div');
+  el.className = 'garden-3d-tooltip';
+  el.id = 'garden-3d-tooltip';
+  el.style.display = 'none';
+  document.body.appendChild(el);
+  _g3dTooltipEl = el;
+  return el;
+}
+
+function _hideG3DTooltip() {
+  if (_g3dTooltipEl) _g3dTooltipEl.style.display = 'none';
+}
+
+function _showG3DTooltip(html) {
+  const el = _ensureG3DTooltip();
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+function _positionG3DTooltip(clientX, clientY) {
+  if (!_g3dTooltipEl || _g3dTooltipEl.style.display === 'none') return;
+  const pad = 14;
+  _g3dTooltipEl.style.left = (clientX + pad) + 'px';
+  _g3dTooltipEl.style.top  = (clientY + pad) + 'px';
+}
+
+function _setCellHoverEmissive(cellKey, colorHex) {
+  if (!cellKey) return;
+  const grp = _g3dCells.get(cellKey);
+  if (grp && grp.userData.baseMesh) {
+    grp.userData.baseMesh.material.emissive.setHex(colorHex);
+  }
+}
+
+function _updateG3DHover(raycaster, camera) {
+  if (!_g3dCellMeshes.length && !_g3dPlantMeshes.length) return;
+
+  const hit = _g3dRaycast(raycaster, camera);
+
+  const prevCellKey  = _g3dHoveredCell;
+  const prevPlantIdx = _g3dHoveredPlant;
+
+  const newCellKey  = hit ? (hit.cellKey || _keyFromPlot(hit.plotIndex)) : null;
+  const newPlantIdx = (hit && hit.type === 'plant') ? hit.plotIndex : null;
+
+  if (prevCellKey && prevCellKey !== newCellKey) _setCellHoverEmissive(prevCellKey, 0x000000);
+
+  if (!hit) {
+    if (prevCellKey) _setCellHoverEmissive(prevCellKey, 0x000000);
+    _g3dHoveredCell  = null;
+    _g3dHoveredPlant = null;
+    _hideG3DTooltip();
+    _g3dRenderer.domElement.style.cursor = '';
+    return;
+  }
+
+  const grp = newCellKey ? _g3dCells.get(newCellKey) : null;
+  const state = grp?.userData?.state || null;
+
+  let highlightHex = 0x000000;
+  let cursor       = '';
+  let tooltipHTML  = '';
+
+  if (hit.type === 'plant' || state === 'planted') {
+    highlightHex = 0x2a6a3a;
+    cursor       = 'pointer';
+    const plant  = _getPlantByPlotIndex(hit.plotIndex ?? _plotFromKey(newCellKey));
+    if (plant) {
+      const stageInt  = typeof plant.stage === 'number' ? plant.stage : (STAGE_STR_TO_INT[plant.stage] ?? 0);
+      const stageMax  = Object.keys(plant.plantType?.stages || {}).length || 5;
+      const name      = plant.plantType?.name || 'Cây';
+      const healthLbl = !plant.isAlive ? '💀 Đã chết'
+                       : (plant.health < 30 ? '⚠️ Yếu'
+                       : (plant.health < 60 ? '🙂 Khoẻ nhẹ' : '💚 Khoẻ mạnh'));
+      tooltipHTML = `<div class="g3d-tt-title">${esc(name)}</div>
+        <div class="g3d-tt-sub">Giai đoạn ${stageInt}/${stageMax} · ${healthLbl}</div>
+        <div class="g3d-tt-hint">Click để mở, kéo xuống 🗑️ để nhổ</div>`;
+    } else {
+      tooltipHTML = `<div class="g3d-tt-title">Cây trồng</div>`;
+    }
+  } else if (state === 'empty') {
+    highlightHex = 0xffcf5c;
+    cursor       = 'pointer';
+    tooltipHTML  = `<div class="g3d-tt-title">Ô đất trống</div>
+      <div class="g3d-tt-hint">Click để trồng cây</div>`;
+  } else if (state === 'locked') {
+    highlightHex = 0x000000;
+    cursor       = 'help';
+    tooltipHTML  = `<div class="g3d-tt-title">🔒 Chưa mở</div>
+      <div class="g3d-tt-hint">Click để mở khoá</div>`;
+  }
+
+  if (newCellKey) _setCellHoverEmissive(newCellKey, highlightHex);
+  _g3dHoveredCell  = newCellKey;
+  _g3dHoveredPlant = newPlantIdx;
+  _g3dRenderer.domElement.style.cursor = cursor;
+  if (tooltipHTML) _showG3DTooltip(tooltipHTML);
+  else _hideG3DTooltip();
+}
+
+function _keyFromPlot(plotIndex) {
+  if (typeof plotIndex !== 'number') return null;
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return `${row},${col}`;
+}
+
+function _plotFromKey(key) {
+  if (!key) return null;
+  const [r, c] = key.split(',').map(Number);
+  return r * G3D_COLS + c;
+}
+
+function _getPlantByPlotIndex(plotIndex) {
+  if (typeof plotIndex !== 'number' || !_gardenData?.plants) return null;
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return _gardenData.plants.find(p => p.row === row && p.col === col) || null;
+}
+
+function _getCellRowColFromKey(key) {
+  if (!key) return null;
+  const [r, c] = key.split(',').map(Number);
+  return { row: r, col: c };
+}
+
+// ── Session G: Pointer interactions (click + drag-uproot) ──
+function _setupGarden3DInteractions(renderer, raycaster, camera) {
+  const canvas = renderer.domElement;
+
+  // Track mouse NDC for raycaster from pointer events too (mousemove already handled).
+  const updateNDC = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    _g3dMouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    _g3dMouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  };
+
+  const pickAt = (e) => {
+    updateNDC(e);
+    return _g3dRaycast(raycaster, camera);
+  };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;   // left button only
+    const hit = pickAt(e);
+    _g3dDown = { x: e.clientX, y: e.clientY, pid: e.pointerId, hit };
+
+    // Plant-drag arm: disable OrbitControls so pointer stays with us.
+    if (hit?.type === 'plant') {
+      const plant = _getPlantByPlotIndex(hit.plotIndex);
+      if (plant && plant.isAlive) {
+        _g3dDown.plantId    = plant._id;
+        _g3dDown.plotIndex  = hit.plotIndex;
+        _g3dDown.plantName  = plant.plantType?.name || 'cây';
+        _g3dDown.plantStage = typeof plant.stage === 'string' ? plant.stage : 'leafing';
+        if (_g3dControls) _g3dControls.enabled = false;
+      }
+    }
+  });
+
+  const onMove = (e) => {
+    _positionG3DTooltip(e.clientX, e.clientY);
+
+    if (!_g3dDown || e.pointerId !== _g3dDown.pid) return;
+
+    if (_g3dDragActive) {
+      _moveG3DGhost(e.clientX, e.clientY);
+      _updateTrashHoverState(e.clientX, e.clientY);
+      return;
+    }
+
+    const dx = e.clientX - _g3dDown.x;
+    const dy = e.clientY - _g3dDown.y;
+    if (!_g3dDown.plantId) return;                   // only plants can start a drag
+    if (Math.hypot(dx, dy) < 8) return;
+
+    _startG3DPlantDrag(_g3dDown, e.clientX, e.clientY);
+    _g3dDragActive = true;
+  };
+
+  const onUp = async (e) => {
+    if (!_g3dDown || e.pointerId !== _g3dDown.pid) return;
+    const down            = _g3dDown;
+    const wasDragActive   = _g3dDragActive;
+    _g3dDown       = null;
+    _g3dDragActive = false;
+    if (_g3dControls) _g3dControls.enabled = true;
+
+    if (wasDragActive) {
+      const overTrash = _elementAtIsTrash(e.clientX, e.clientY);
+      _endG3DPlantDrag();
+      if (overTrash) await _handleG3DUproot(down.plantId, down.plotIndex);
+      return;
+    }
+
+    // Treat as click only if movement was tiny (otherwise user was rotating the camera).
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if (Math.hypot(dx, dy) > 6) return;
+
+    _handleG3DClick(down.hit, e);
+  };
+
+  const onCancel = () => {
+    if (_g3dDragActive) _endG3DPlantDrag();
+    _g3dDown       = null;
+    _g3dDragActive = false;
+    if (_g3dControls) _g3dControls.enabled = true;
+  };
+
+  window.addEventListener('pointermove',  onMove);
+  window.addEventListener('pointerup',    onUp);
+  window.addEventListener('pointercancel', onCancel);
+
+  canvas.addEventListener('pointerleave', () => _hideG3DTooltip());
+}
+
+function _handleG3DClick(hit, _evt) {
+  if (!hit) return;
+
+  if (hit.type === 'plant') {
+    const plant = _getPlantByPlotIndex(hit.plotIndex);
+    if (plant) _openCarePanel(plant);
+    return;
+  }
+
+  if (hit.type === 'cell') {
+    const grp   = _g3dCells.get(hit.cellKey);
+    const state = grp?.userData?.state;
+    const rc    = _getCellRowColFromKey(hit.cellKey);
+    if (!rc) return;
+
+    if (state === 'empty') {
+      _openPlantModal(rc.row, rc.col);
+    } else if (state === 'locked') {
+      const price = _gardenData?.cellPrices?.[rc.row]?.[rc.col];
+      if (typeof price === 'number') _buyCell(rc.row, rc.col, price);
+    } else if (state === 'planted') {
+      // Fallback: click on container/soil (no plant mesh hit) — treat as plant click.
+      const plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
+      if (plant) _openCarePanel(plant);
+    }
+  }
+}
+
+function _startG3DPlantDrag(down, x, y) {
+  _hideG3DTooltip();
+  const si      = STAGE_INFO[down.plantStage] || STAGE_INFO.leafing;
+  const emoji   = si.emoji || '🌱';
+  const ghost   = document.createElement('div');
+  ghost.className = 'garden-ghost';
+  ghost.innerHTML = `
+    <div class="gg-plant">${emoji}</div>
+    <div class="gg-label">${esc(down.plantName || 'cây')}</div>`;
+  document.body.appendChild(ghost);
+  _g3dGhostEl = ghost;
+  _moveG3DGhost(x, y);
+  _setTrashZoneArmed(true);
+}
+
+function _moveG3DGhost(x, y) {
+  if (!_g3dGhostEl) return;
+  _g3dGhostEl.style.left = (x - 28) + 'px';
+  _g3dGhostEl.style.top  = (y - 28) + 'px';
+}
+
+function _endG3DPlantDrag() {
+  if (_g3dGhostEl) { _g3dGhostEl.remove(); _g3dGhostEl = null; }
+  _setTrashZoneArmed(false);
+}
+
+function _trashZoneEls() {
+  return Array.from(document.querySelectorAll(
+    '#garden-trash, #gtb-trash, [data-zone="trash"]'
+  ));
+}
+
+function _setTrashZoneArmed(on) {
+  _trashZoneEls().forEach(el => {
+    if (on) el.classList.add('g3d-trash-armed');
+    else el.classList.remove('g3d-trash-armed', 'g3d-trash-hot');
+  });
+}
+
+function _elementAtIsTrash(x, y) {
+  const els    = document.elementsFromPoint(x, y);
+  const trash  = _trashZoneEls();
+  return els.some(el => trash.some(t => t === el || t.contains(el)));
+}
+
+function _updateTrashHoverState(x, y) {
+  const over = _elementAtIsTrash(x, y);
+  _trashZoneEls().forEach(el => {
+    if (over) el.classList.add('g3d-trash-hot');
+    else      el.classList.remove('g3d-trash-hot');
+  });
+}
+
+async function _handleG3DUproot(plantId, plotIndex) {
+  if (!plantId) return;
+  try {
+    const r = await apiGarden.uproot(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
+    if (r.points !== undefined) updatePointsUI(r.points);
+    if (typeof plotIndex === 'number') removePlantMesh(plotIndex);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
 }
 
 function _buildGarden3DEnvironment() {
@@ -8483,7 +8827,10 @@ function placePlantInPlot(plotIndex, type, stage, health) {
 
   const mesh = buildPlantMesh(type, stage, health);
   mesh.position.set(cx, def.yOffset, cz);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
   _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
 
   gardenScene.plots[plotIndex] = {
     mesh,
@@ -8501,11 +8848,16 @@ function updatePlantStage(plotIndex, stage) {
   if (!entry) return;
   const { type, health } = entry;
   const pos = entry.mesh.position.clone();
+  const oldIdx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (oldIdx >= 0) _g3dPlantMeshes.splice(oldIdx, 1);
   _disposePlantGroup(entry.mesh);
   if (_g3dScene) _g3dScene.remove(entry.mesh);
   const mesh = buildPlantMesh(type, stage, health);
   mesh.position.copy(pos);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
   if (_g3dScene) _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
   entry.mesh     = mesh;
   entry.stage    = stage | 0;
   entry.hasFruit = !!mesh.userData.hasFruit;
@@ -8516,11 +8868,16 @@ function updatePlantHealth(plotIndex, health) {
   if (!entry) return;
   const { type, stage } = entry;
   const pos = entry.mesh.position.clone();
+  const oldIdx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (oldIdx >= 0) _g3dPlantMeshes.splice(oldIdx, 1);
   _disposePlantGroup(entry.mesh);
   if (_g3dScene) _g3dScene.remove(entry.mesh);
   const mesh = buildPlantMesh(type, stage, health);
   mesh.position.copy(pos);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
   if (_g3dScene) _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
   entry.mesh   = mesh;
   entry.health = health;
 }
@@ -8528,6 +8885,8 @@ function updatePlantHealth(plotIndex, health) {
 function removePlantMesh(plotIndex) {
   const entry = gardenScene.plots[plotIndex];
   if (!entry) return;
+  const idx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (idx >= 0) _g3dPlantMeshes.splice(idx, 1);
   _disposePlantGroup(entry.mesh);
   if (_g3dScene) _g3dScene.remove(entry.mesh);
   delete gardenScene.plots[plotIndex];
@@ -8552,6 +8911,8 @@ function _disposeAllPlants() {
     if (_g3dScene) _g3dScene.remove(entry.mesh);
   });
   gardenScene.plots = {};
+  _g3dPlantMeshes   = [];
+  _g3dHoveredPlant  = null;
 }
 
 function _build3DCells(purchasedCells, plants, shadedCells) {

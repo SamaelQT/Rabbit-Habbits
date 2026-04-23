@@ -139,6 +139,13 @@ Mỗi loài được vẽ hoàn toàn bằng CSS shapes — không dùng emoji h
 - Di cư thú cưng cây cũ → hoàn tiền 70% + tự động chuyển sang vườn
 - Bạn bè thăm vườn: xem vườn bạn bè với CSS plants đầy đủ, tặng tưới nước (+3đ)
 
+**Vườn 3D (Three.js) — tương tác**
+- Render WebGL: cỏ instanced, lối đi, viền vườn, chậu & cây 3D, mưa instanced 500 hạt, sprite sinh vật
+- Điều khiển camera: chuột trái xoay, chuột phải pan, scroll zoom (OrbitControls)
+- **Hover tooltip** bám theo con trỏ: ô trống → viền vàng "Click để trồng"; cây → viền xanh "[Tên cây] · Giai đoạn X/Y"; ô khoá → gợi ý mở khoá
+- **Click routing**: ô trống → modal chọn cây & chậu · cây → panel chăm sóc · ô khoá → lời mời mua ô
+- **Ghost drag — nhổ cây**: nhấn giữ rồi kéo cây ra thùng rác 🗑️ để nhổ. Khi kéo, OrbitControls tự tạm khoá để không xoay camera; thùng rác nhấp nháy viền đỏ, sáng đậm khi con trỏ đi vào, gọi `DELETE /api/garden/plant/:id` và hoàn lại một phần điểm
+
 **Kế hoạch tiếp theo**
 - Hệ sinh thái tương tác: mưa tăng độ ẩm, ong giúp cây ra hoa, sâu gây bệnh
 - Mùa & biến đổi khí hậu theo tháng

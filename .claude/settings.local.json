@@ -56,7 +56,12 @@
       "PowerShell(node --check D:/Rabbit-Habbits/public/js/app.js)",
       "PowerShell(if \\($?\\) { \"OK\" })",
       "Bash(node --input-type=module)",
-      "Bash(node -e \"require\\('fs'\\).readFileSync\\('D:/Rabbit-Habbits/public/js/app.js','utf8'\\)\")"
+      "Bash(node -e \"require\\('fs'\\).readFileSync\\('D:/Rabbit-Habbits/public/js/app.js','utf8'\\)\")",
+      "Bash(where npm.cmd)",
+      "PowerShell(Get-Command node -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Command npm -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-ChildItem \"C:\\\\Program Files\",\"C:\\\\Program Files \\(x86\\)\",\"$env:LOCALAPPDATA\",\"$env:APPDATA\" -Filter node.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -First 5 FullName)",
+      "PowerShell($env:PATH -split ';' | Where-Object { $_ -match 'node|npm' }; \"---\"; Get-ChildItem \"C:\\\\Users\\\\quang.ho\\\\AppData\\\\Roaming\\\\npm\" -ErrorAction SilentlyContinue | Select-Object -First 3 Name; \"---\"; Test-Path \"C:\\\\Program Files\\\\nodejs\\\\node.exe\"; Test-Path \"C:\\\\Users\\\\quang.ho\\\\AppData\\\\Local\\\\Programs\\\\node\\\\node.exe\")"
     ]
   }
 }
