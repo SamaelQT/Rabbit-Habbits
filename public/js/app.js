@@ -6844,6 +6844,46 @@ let _g3dHoveredCell    = null;
 let _g3dCellMeshes     = [];
 let _g3dMouseNDC       = { x: 0, y: 0 };
 
+// ── Session F: Weather / Rain / Creatures ─────────────────────
+let _g3dAmbientLight   = null;
+let _g3dDirLight       = null;
+let _g3dRain           = null;          // THREE.InstancedMesh (500 drops)
+let _g3dRainActive     = false;
+let _g3dWindOffset     = 0;             // stormy x-drift per frame
+let _g3dCreatures      = [];            // active creature objects
+let _g3dCreatureTimer  = 0;            // seconds until next spawn
+let _g3dCurrentWeather = 'sunny';
+let _g3dClock          = null;          // THREE.Clock
+
+const WEATHER_PRESET = {
+  sunny:  { skyColor: 0x87ceeb, ambientInt: 0.6, dirInt: 1.4, fogDensity: 0    },
+  cloudy: { skyColor: 0xaaaaaa, ambientInt: 0.8, dirInt: 0.4, fogDensity: 0.01 },
+  rainy:  { skyColor: 0x556677, ambientInt: 0.5, dirInt: 0.2, fogDensity: 0.02 },
+  stormy: { skyColor: 0x334455, ambientInt: 0.3, dirInt: 0.1, fogDensity: 0.04 },
+  foggy:  { skyColor: 0xcccccc, ambientInt: 0.4, dirInt: 0.3, fogDensity: 0.06 },
+  night:  { skyColor: 0x111133, ambientInt: 0.1, dirInt: 0.05,fogDensity: 0.01 },
+};
+
+const SWAY_PARAMS = {
+  sunny:  { windSpeed: 0.5, swayAmp: 0.02 },
+  cloudy: { windSpeed: 0.8, swayAmp: 0.04 },
+  rainy:  { windSpeed: 1.2, swayAmp: 0.06 },
+  stormy: { windSpeed: 2.5, swayAmp: 0.15 },
+  foggy:  { windSpeed: 0.3, swayAmp: 0.01 },
+  night:  { windSpeed: 0.3, swayAmp: 0.01 },
+};
+
+// Creatures active per weather
+const CREATURE_WEATHER = {
+  bee:      ['sunny', 'cloudy'],
+  bird:     ['sunny'],
+  bat:      ['night'],
+  worm:     ['rainy'],
+  caterpillar: ['rainy', 'stormy'],
+  butterfly:['sunny', 'foggy'],
+  visitor:  ['sunny'],
+};
+
 // ── Session D: Plant scene state ──────────────────────────────
 // gardenScene.plots[plotIndex] = { mesh, type, stage, health, hasFruit }
 const gardenScene = { plots: {} };
@@ -6922,6 +6962,7 @@ function _refreshGardenUI() {
   _applyWeatherToPage(_gardenData.weather);
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
   _initGarden3D();
+  applyWeather(_gardenData.weather || 'sunny');
   _build3DCells(_gardenData.purchasedCells, _gardenData.plants, _gardenData.shadedCells);
   _renderGardenShop();
 }
@@ -6989,7 +7030,15 @@ function _initGarden3D() {
   dirLight.position.set(5, 10, 5);
   dirLight.castShadow = true;
   scene.add(dirLight);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  _g3dDirLight = dirLight;
+
+  const ambLight = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(ambLight);
+  _g3dAmbientLight = ambLight;
+
+  _g3dClock = new THREE.Clock();
+  _buildRainSystem();
+  applyWeather(_gardenData?.weather || 'sunny');
 
   renderer.domElement.addEventListener('mousemove', (e) => {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -7004,6 +7053,32 @@ function _initGarden3D() {
     requestAnimationFrame(animate);
     controls.update();
 
+    const delta = _g3dClock ? _g3dClock.getDelta() : 0.016;
+    const time  = _g3dClock ? _g3dClock.elapsedTime : 0;
+
+    // ── Sway ──
+    const sw = SWAY_PARAMS[_g3dCurrentWeather] || SWAY_PARAMS.sunny;
+    Object.values(gardenScene.plots).forEach(entry => {
+      if (entry && entry.mesh) {
+        const offset = entry.swayOffset || 0;
+        entry.mesh.rotation.z = Math.sin(time * sw.windSpeed + offset) * sw.swayAmp;
+      }
+    });
+
+    // ── Rain ──
+    if (_g3dRainActive && _g3dRain) {
+      _updateRain(delta);
+    }
+
+    // ── Creatures ──
+    _g3dCreatureTimer -= delta;
+    if (_g3dCreatureTimer <= 0) {
+      _trySpawnCreature();
+      _g3dCreatureTimer = 5 + Math.random() * 10;
+    }
+    _updateCreatures(delta);
+
+    // ── Raycaster hover ──
     if (_g3dCellMeshes.length > 0) {
       raycaster.setFromCamera(_g3dMouseNDC, camera);
       const hits   = raycaster.intersectObjects(_g3dCellMeshes);
@@ -7080,6 +7155,183 @@ function _buildGarden3DEnvironment() {
     mesh.position.set(x, BY / 2, 0);
     scene.add(mesh);
   });
+}
+
+// ── Session F: Weather ────────────────────────────────────────
+function applyWeather(weatherId) {
+  if (!_g3dScene) return;
+  const preset = WEATHER_PRESET[weatherId] || WEATHER_PRESET.sunny;
+  _g3dCurrentWeather = weatherId;
+
+  _g3dScene.background = new THREE.Color(preset.skyColor);
+
+  if (!_g3dScene.fog) {
+    _g3dScene.fog = new THREE.FogExp2(preset.skyColor, preset.fogDensity);
+  } else {
+    _g3dScene.fog.color.setHex(preset.skyColor);
+    _g3dScene.fog.density = preset.fogDensity;
+  }
+
+  if (_g3dAmbientLight) _g3dAmbientLight.intensity = preset.ambientInt;
+  if (_g3dDirLight)     _g3dDirLight.intensity     = preset.dirInt;
+
+  const rainWeathers = ['rainy', 'stormy'];
+  _g3dRainActive = rainWeathers.includes(weatherId);
+  _g3dWindOffset = weatherId === 'stormy' ? 0.015 : 0;
+  if (_g3dRain) _g3dRain.visible = _g3dRainActive;
+
+  _g3dCreatureTimer = 2; // trigger first spawn soon after weather change
+}
+
+// ── Session F: Rain ───────────────────────────────────────────
+function _buildRainSystem() {
+  if (!_g3dScene) return;
+  const COUNT  = 500;
+  const geo    = new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4);
+  const mat    = new THREE.MeshBasicMaterial({ color: 0xaaccff, transparent: true, opacity: 0.6 });
+  const rain   = new THREE.InstancedMesh(geo, mat, COUNT);
+  rain.visible = false;
+
+  const dummy  = new THREE.Object3D();
+  const SPREAD = 8;
+  const TOP    = 6;
+  for (let i = 0; i < COUNT; i++) {
+    dummy.position.set(
+      (Math.random() - 0.5) * SPREAD,
+      Math.random() * TOP,
+      (Math.random() - 0.5) * SPREAD
+    );
+    dummy.rotation.z = 0.15; // slight tilt
+    dummy.updateMatrix();
+    rain.setMatrixAt(i, dummy.matrix);
+  }
+  rain.instanceMatrix.needsUpdate = true;
+  _g3dScene.add(rain);
+  _g3dRain = rain;
+}
+
+function _updateRain(delta) {
+  const COUNT  = 500;
+  const SPREAD = 8;
+  const TOP    = 6;
+  const BOTTOM = -0.5;
+  const SPEED  = 6;
+  const dummy  = new THREE.Object3D();
+  const mat    = new THREE.Matrix4();
+
+  for (let i = 0; i < COUNT; i++) {
+    _g3dRain.getMatrixAt(i, mat);
+    dummy.position.setFromMatrixPosition(mat);
+
+    dummy.position.y -= SPEED * delta;
+    dummy.position.x += _g3dWindOffset;
+
+    if (dummy.position.y < BOTTOM) {
+      dummy.position.set(
+        (Math.random() - 0.5) * SPREAD,
+        TOP,
+        (Math.random() - 0.5) * SPREAD
+      );
+    }
+    dummy.rotation.z = _g3dWindOffset !== 0 ? 0.3 : 0.1;
+    dummy.updateMatrix();
+    _g3dRain.setMatrixAt(i, dummy.matrix);
+  }
+  _g3dRain.instanceMatrix.needsUpdate = true;
+}
+
+// ── Session F: Creatures ──────────────────────────────────────
+const _CREATURE_COLORS = {
+  bee:         0xffdd00,
+  bird:        0x44aaff,
+  bat:         0x553366,
+  worm:        0xdd6633,
+  caterpillar: 0x66bb44,
+  butterfly:   0xff88cc,
+  visitor:     0xffccaa,
+};
+
+function _trySpawnCreature() {
+  if (!_g3dScene) return;
+  const eligible = Object.entries(CREATURE_WEATHER)
+    .filter(([, weathers]) => weathers.includes(_g3dCurrentWeather))
+    .map(([type]) => type);
+  if (eligible.length === 0) return;
+
+  const type = eligible[Math.floor(Math.random() * eligible.length)];
+  _spawnCreature(type);
+}
+
+function _spawnCreature(type) {
+  const color   = _CREATURE_COLORS[type] || 0xffffff;
+  const mat     = new THREE.SpriteMaterial({ color });
+  const sprite  = new THREE.Sprite(mat);
+  sprite.scale.set(0.25, 0.25, 1);
+
+  const HALF = 4;
+  // Spawn off one edge, move toward the other
+  const side = Math.random() < 0.5 ? -1 : 1;
+
+  let startX, startY, startZ, velX, velY, velZ, pattern;
+
+  if (type === 'bird') {
+    startX = side * HALF; startY = 3 + Math.random() * 1.5; startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 3; velY = 0; velZ = 0;
+    pattern = 'straight';
+  } else if (type === 'bat') {
+    startX = side * HALF; startY = 2 + Math.random(); startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 1.2; velY = 0; velZ = 0;
+    pattern = 'swoop';
+  } else if (type === 'bee' || type === 'butterfly') {
+    startX = side * HALF; startY = 1 + Math.random(); startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 1.0; velY = 0; velZ = 0;
+    pattern = 'zigzag';
+  } else if (type === 'worm' || type === 'caterpillar') {
+    startX = side * HALF; startY = 0.05; startZ = (Math.random() - 0.5) * 3;
+    velX   = -side * 0.3; velY = 0; velZ = 0;
+    pattern = 'crawl';
+  } else { // visitor
+    startX = side * HALF; startY = 0.1; startZ = 0;
+    velX   = -side * 1.5; velY = 0; velZ = 0;
+    pattern = 'straight';
+  }
+
+  sprite.position.set(startX, startY, startZ);
+  _g3dScene.add(sprite);
+
+  _g3dCreatures.push({
+    sprite, type, pattern,
+    vel: new THREE.Vector3(velX, velY, velZ),
+    age: 0,
+    phaseOffset: Math.random() * Math.PI * 2,
+  });
+}
+
+function _updateCreatures(delta) {
+  const BOUNDS = 6;
+  for (let i = _g3dCreatures.length - 1; i >= 0; i--) {
+    const c = _g3dCreatures[i];
+    c.age += delta;
+
+    const p = c.sprite.position;
+    p.x += c.vel.x * delta;
+
+    if (c.pattern === 'zigzag') {
+      p.y += Math.sin(c.age * 3 + c.phaseOffset) * 0.015;
+      p.z += Math.cos(c.age * 2 + c.phaseOffset) * 0.01;
+    } else if (c.pattern === 'swoop') {
+      p.y += Math.sin(c.age * 1.5 + c.phaseOffset) * 0.01;
+    } else if (c.pattern === 'crawl') {
+      p.z += Math.sin(c.age * 0.8 + c.phaseOffset) * 0.005;
+    }
+
+    // Remove when out of bounds or too old (>20s)
+    if (Math.abs(p.x) > BOUNDS || c.age > 20) {
+      _g3dScene.remove(c.sprite);
+      c.sprite.material.dispose();
+      _g3dCreatures.splice(i, 1);
+    }
+  }
 }
 
 function _disposeG3DCells() {
@@ -8239,6 +8491,7 @@ function placePlantInPlot(plotIndex, type, stage, health) {
     stage: stage | 0,
     health,
     hasFruit: !!mesh.userData.hasFruit,
+    swayOffset: Math.random() * Math.PI * 2,
   };
   return mesh;
 }
