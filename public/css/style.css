@@ -3493,3 +3493,94 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 
 /* ── Friendship badge on gf-fl-card (gamification tab) ── */
 .gf-fs-badge{font-size:10px;}
+
+/* ═══════════════════════════════════════════════════════
+   SESSION H — Global Trash Bin (fixed, CSS-drawn)
+   ═══════════════════════════════════════════════════════ */
+
+@keyframes trash-shake {
+  0%,100%{transform:translateX(0) scale(1);}
+  20%     {transform:translateX(-5px) scale(1.05);}
+  40%     {transform:translateX(5px)  scale(1.05);}
+  60%     {transform:translateX(-4px) scale(1.05);}
+  80%     {transform:translateX(4px)  scale(1.05);}
+}
+
+.trash-bin {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+  cursor: default;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
+}
+.trash-bin.visible,
+.trash-bin.g3d-trash-armed {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Lid — inverted trapezoid via clip-path */
+.trash-lid {
+  width: 46px;
+  height: 11px;
+  background: #8a8a8a;
+  border-radius: 4px 4px 0 0;
+  clip-path: polygon(5% 100%, 95% 100%, 85% 0%, 15% 0%);
+  transform-origin: bottom center;
+  transition: transform .18s ease;
+  position: relative;
+  z-index: 1;
+}
+
+/* Body — rectangle rounded at bottom */
+.trash-body {
+  width: 40px;
+  height: 52px;
+  background: #8a8a8a;
+  border-radius: 0 0 7px 7px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-evenly;
+  padding: 8px 6px 6px;
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* 3 vertical lines */
+.trash-line {
+  width: 3px;
+  background: rgba(0,0,0,.22);
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+/* Lid open — rotate on hover during drag or drag-over */
+.trash-bin.lid-open .trash-lid,
+.trash-bin.g3d-trash-hot .trash-lid,
+.trash-bin.drag-over .trash-lid,
+.trash-bin:hover.g3d-trash-armed .trash-lid {
+  transform: rotate(-30deg);
+}
+
+/* Drag-over highlight */
+.trash-bin.drag-over,
+.trash-bin.g3d-trash-hot {
+  outline: 2px solid #e74c3c;
+  border-radius: 4px;
+  transform: translateY(-50%) scale(1.1);
+}
+
+/* Shake on successful drop */
+.trash-bin.shake {
+  animation: trash-shake .4s ease;
+}

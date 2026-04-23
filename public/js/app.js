@@ -6945,6 +6945,7 @@ async function initGarden() {
   _setupCarePanelInteractions();
   _setupGardenToolbar();
   _setupGardenFriendsView();
+  _initGardenTrashBin();
 
   _refreshGardenUI();
 
@@ -7409,11 +7410,21 @@ function _trashZoneEls() {
   ));
 }
 
+function showTrash() {
+  const el = document.getElementById('garden-trash');
+  if (el) el.classList.add('visible');
+}
+function hideTrash() {
+  const el = document.getElementById('garden-trash');
+  if (el) el.classList.remove('visible', 'lid-open', 'drag-over', 'shake');
+}
+
 function _setTrashZoneArmed(on) {
   _trashZoneEls().forEach(el => {
     if (on) el.classList.add('g3d-trash-armed');
     else el.classList.remove('g3d-trash-armed', 'g3d-trash-hot');
   });
+  if (on) showTrash(); else hideTrash();
 }
 
 function _elementAtIsTrash(x, y) {
@@ -7428,6 +7439,62 @@ function _updateTrashHoverState(x, y) {
     if (over) el.classList.add('g3d-trash-hot');
     else      el.classList.remove('g3d-trash-hot');
   });
+  const gt = document.getElementById('garden-trash');
+  if (gt) {
+    if (over) gt.classList.add('lid-open');
+    else      gt.classList.remove('lid-open');
+  }
+}
+
+function _initGardenTrashBin() {
+  const trash = document.getElementById('garden-trash');
+  if (!trash) return;
+
+  trash.addEventListener('dragover', e => {
+    e.preventDefault();
+    trash.classList.add('drag-over', 'lid-open');
+  });
+
+  trash.addEventListener('dragleave', () => {
+    trash.classList.remove('drag-over', 'lid-open');
+  });
+
+  trash.addEventListener('drop', e => {
+    e.preventDefault();
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      _handleTrashDrop(data);
+    } catch (_) {}
+    trash.classList.remove('drag-over', 'lid-open');
+    trash.classList.add('shake');
+    setTimeout(() => trash.classList.remove('shake'), 400);
+    hideTrash();
+    quickNotifCheck();
+  });
+}
+
+async function _handleTrashDrop(data) {
+  if (!data?.type) return;
+  try {
+    if (data.type === 'plant') {
+      const r = await apiGarden.uproot(data.plantId || data.id);
+      if (r.error) { toast('❌ ' + r.error); return; }
+      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
+      if (r.points !== undefined) updatePointsUI(r.points);
+      if (typeof data.plotIndex === 'number') removePlantMesh(data.plotIndex);
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+    } else if (data.type === 'pest' || data.type === 'leaf') {
+      const r = await fetch(`/api/garden/creatures/${data.creatureId || data.id}/discard`, {method:'POST'});
+      const json = await r.json();
+      if (json.error) { toast('❌ ' + json.error); return; }
+      toast('🗑️ Đã bỏ.');
+      _gardenData = await apiGarden.load();
+      _refreshGardenUI();
+    }
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
 }
 
 async function _handleG3DUproot(plantId, plotIndex) {
