@@ -7319,6 +7319,7 @@ const CONTAINER_SOIL_TOP = {
   pot_m: 0.32,
   bed_s: 0.18,
   bed_m: 0.29,
+  hole_l: 0.02,
 };
 
 // Map backend string stage → 0–5 int
@@ -7572,6 +7573,599 @@ const PLANT_DEF = {
         leaf.scale.set(1, 0.3, 0.8);
         leaf.position.set(Math.cos(a) * r, stemH + 0.015, Math.sin(a) * r);
         leaf.rotation.y = a;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm cây ăn quả ────────────────────────────────────────────────────────
+
+  chanh: {
+    name: 'Chanh',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x7a5a30,
+    leafColor: 0x1a6a20,
+    fruit: { color: 0xd0e020, count: 6, offsetY: 0.70 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.60 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025 * sc, 0.04 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.22 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.position.y = stemH + cr * 0.65;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  oi: {
+    name: 'Ổi',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x8a7a60,
+    leafColor: 0x2a7a2a,
+    fruit: { color: 0xc8d050, count: 5, offsetY: 0.65 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.55 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * sc, 0.05 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.28 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.scale.x = 1.2;
+        canopy.scale.z = 1.2;
+        canopy.position.y = stemH + cr * 0.5;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  cam: {
+    name: 'Cam',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x6a4a20,
+    leafColor: 0x1e5a1a,
+    fruit: { color: 0xff8020, count: 6, offsetY: 0.75 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.65 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * sc, 0.05 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.30 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.position.y = stemH + cr * 0.6;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  xoai: {
+    name: 'Xoài',
+    container: 'hole_l',
+    yOffset: CONTAINER_SOIL_TOP.hole_l,
+    stemColor: 0x4a2a10,
+    leafColor: 0x1a4a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const fruitMat = new THREE.MeshLambertMaterial({ color: stage >= 5 ? 0xffcc30 : 0x5a9a30 });
+      const stemH = 0.85 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * sc, 0.07 * sc, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.35 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 9, 8), leafMat);
+        canopy.scale.y = 0.85;
+        canopy.position.y = stemH + cr * 0.5;
+        g.add(canopy);
+      }
+      if (stage >= 4) {
+        const nFruit = stage >= 5 ? 5 : 3;
+        for (let i = 0; i < nFruit; i++) {
+          const a = (i / nFruit) * Math.PI * 2;
+          const fruit = new THREE.Mesh(new THREE.BoxGeometry(0.06 * sc, 0.04 * sc, 0.10 * sc), fruitMat);
+          fruit.position.set(Math.cos(a) * 0.15 * sc, stemH + 0.15 * sc, Math.sin(a) * 0.15 * sc);
+          fruit.rotation.z = 0.3;
+          g.add(fruit);
+        }
+      }
+      return g;
+    },
+  },
+
+  chuoi: {
+    name: 'Chuối',
+    container: 'hole_l',
+    yOffset: CONTAINER_SOIL_TOP.hole_l,
+    stemColor: 0x6a8a40,
+    leafColor: 0x2a8a2a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const fruitMat = new THREE.MeshLambertMaterial({ color: 0xf0d820 });
+      const stemH = 0.90 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * sc, 0.09 * sc, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 2 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lW = 0.35 * sc, lH = 0.55 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(lW, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.12 * sc, stemH + lH * 0.4, Math.sin(a) * 0.12 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 6;
+        g.add(leaf);
+      }
+      if (stage >= 4) {
+        const bunch = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * sc, 0.04 * sc, 0.30 * sc, 6), fruitMat);
+        bunch.position.set(0.12 * sc, stemH * 0.6, 0);
+        bunch.rotation.z = Math.PI / 4;
+        g.add(bunch);
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm hoa ───────────────────────────────────────────────────────────────
+
+  tulip: {
+    name: 'Tulip',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x3a8a3a,
+    leafColor: 0xdd2060,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const flowerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.45 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const bladeMat = new THREE.MeshLambertMaterial({ color: stemCol, side: THREE.DoubleSide });
+        for (let i = 0; i < 2; i++) {
+          const a = i * Math.PI;
+          const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.22 * sc), bladeMat);
+          blade.position.set(Math.cos(a) * 0.03, stemH * 0.35, Math.sin(a) * 0.03);
+          blade.rotation.y = a;
+          blade.rotation.z = Math.PI / 8;
+          g.add(blade);
+        }
+      }
+      if (stage >= 2) {
+        const scaleX = stage >= 4 ? 1.2 : 0.8;
+        const scaleY = stage >= 4 ? 0.8 : 1.4;
+        const bud = new THREE.Mesh(new THREE.SphereGeometry(0.07 * sc, 8, 7), flowerMat);
+        bud.scale.set(scaleX, scaleY, scaleX);
+        bud.position.y = stemH + 0.07 * sc;
+        g.add(bud);
+      }
+      return g;
+    },
+  },
+
+  cuc_vang: {
+    name: 'Cúc vàng',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x3a8a3a,
+    leafColor: 0xffcc00,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const stemH = 0.35 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.013, stemH, 5), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 2) {
+        const nPetals = 6 + Math.floor(stage * 1.5);
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.10 * sc), petalMat);
+          petal.position.set(Math.cos(a) * 0.05 * sc, stemH + 0.05 * sc, Math.sin(a) * 0.05 * sc);
+          petal.rotation.y = a;
+          petal.rotation.z = -Math.PI / 8;
+          g.add(petal);
+        }
+        const centerMat = new THREE.MeshLambertMaterial({ color: 0xffaa00 });
+        const center = new THREE.Mesh(new THREE.SphereGeometry(0.03 * sc, 6, 5), centerMat);
+        center.scale.y = 0.4;
+        center.position.y = stemH + 0.05 * sc;
+        g.add(center);
+      }
+      return g;
+    },
+  },
+
+  lavender: {
+    name: 'Lavender',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a8a60,
+    leafColor: 0x9a3ab8,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const flowerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const nSpikes = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nSpikes; i++) {
+        const a = (i / nSpikes) * Math.PI * 2;
+        const r = 0.05 * sc;
+        const spikeH = 0.40 * sc;
+        const spike = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, spikeH, 5), stemMat);
+        spike.position.set(Math.cos(a) * r, spikeH / 2, Math.sin(a) * r);
+        spike.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.1;
+        g.add(spike);
+        if (stage >= 2) {
+          const nClusters = 2 + Math.floor(stage * 0.6);
+          for (let k = 0; k < nClusters; k++) {
+            const bead = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.025 * sc, 5), flowerMat);
+            bead.position.set(Math.cos(a) * r, spikeH * 0.6 + k * 0.028 * sc, Math.sin(a) * r);
+            g.add(bead);
+          }
+        }
+      }
+      return g;
+    },
+  },
+
+  hoa_hong: {
+    name: 'Hoa hồng',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x3a7a3a,
+    leafColor: 0xdd1a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.50 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 2) {
+        for (let t = 0; t < 3; t++) {
+          const thorn = new THREE.Mesh(new THREE.BoxGeometry(0.02 * sc, 0.01, 0.01), stemMat);
+          thorn.position.set(0.012, stemH * (0.3 + t * 0.2), 0);
+          thorn.rotation.z = Math.PI / 6;
+          g.add(thorn);
+        }
+        const nLayers = Math.min(stage, 4);
+        for (let l = 0; l < nLayers; l++) {
+          const r = (0.04 + l * 0.025) * sc;
+          const layer = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 6), petalMat);
+          layer.scale.y = 0.6 - l * 0.08;
+          layer.position.y = stemH + 0.04 * sc + l * 0.015 * sc;
+          g.add(layer);
+        }
+      }
+      return g;
+    },
+  },
+
+  huong_duong: {
+    name: 'Hướng dương',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x5a8a3a,
+    leafColor: 0xffcc00,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const centerMat = new THREE.MeshLambertMaterial({ color: 0x4a2a08 });
+      const stemH = 0.70 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const bladeMat = new THREE.MeshLambertMaterial({ color: stemCol, side: THREE.DoubleSide });
+        [0, Math.PI].forEach(a => {
+          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.12 * sc, 0.08 * sc), bladeMat);
+          leaf.position.set(Math.cos(a) * 0.06, stemH * 0.5, Math.sin(a) * 0.06);
+          leaf.rotation.y = a;
+          leaf.rotation.z = -Math.PI / 5;
+          g.add(leaf);
+        });
+      }
+      if (stage >= 2) {
+        const nPetals = 10 + Math.floor(stage * 2);
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.14 * sc), petalMat);
+          petal.position.set(Math.cos(a) * 0.09 * sc, stemH + 0.02, Math.sin(a) * 0.09 * sc);
+          petal.rotation.y = a;
+          g.add(petal);
+        }
+        const diskR = 0.08 * sc;
+        const disk = new THREE.Mesh(new THREE.SphereGeometry(diskR, 8, 6), centerMat);
+        disk.scale.y = 0.4;
+        disk.position.y = stemH + 0.02;
+        g.add(disk);
+      }
+      return g;
+    },
+  },
+
+  hoa_giay: {
+    name: 'Hoa giấy',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x3a7a3a,
+    leafColor: 0xff3aa0,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nVines = 2 + Math.floor(stage * 0.5);
+      for (let i = 0; i < nVines; i++) {
+        const a = (i / nVines) * Math.PI * 2;
+        const vH = 0.55 * sc;
+        const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, vH, 5), stemMat);
+        vine.position.set(Math.cos(a) * 0.05 * sc, vH / 2, Math.sin(a) * 0.05 * sc);
+        vine.rotation.z = Math.cos(a) * 0.2;
+        g.add(vine);
+        if (stage >= 2) {
+          const nBracts = 2 + stage;
+          for (let k = 0; k < nBracts; k++) {
+            const ba = a + (k / nBracts) * Math.PI;
+            const bract = new THREE.Mesh(new THREE.PlaneGeometry(0.07 * sc, 0.07 * sc), petalMat);
+            bract.position.set(
+              Math.cos(a) * 0.05 * sc + Math.cos(ba) * 0.05 * sc,
+              vH * 0.8 + k * 0.03 * sc,
+              Math.sin(a) * 0.05 * sc + Math.sin(ba) * 0.05 * sc,
+            );
+            bract.rotation.y = ba;
+            bract.rotation.x = -Math.PI / 6;
+            g.add(bract);
+          }
+        }
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm cây cảnh ──────────────────────────────────────────────────────────
+
+  kim_tien: {
+    name: 'Kim tiền',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x5a3a20,
+    leafColor: 0x1a5a20,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const trunkH = 0.15 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * sc, 0.03 * sc, trunkH, 6), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nBranches = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nBranches; i++) {
+        const a = (i / nBranches) * Math.PI * 2;
+        const r = 0.10 * sc;
+        const leafR = (0.055 + stage * 0.005) * sc;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(leafR, 7, 6), leafMat);
+        leaf.scale.set(1.1, 0.3, 1.0);
+        leaf.position.set(Math.cos(a) * r, trunkH + leafR * 0.2, Math.sin(a) * r);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  kim_ngan: {
+    name: 'Kim ngân',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x4a3a20,
+    leafColor: 0x2a8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const trunkH = 0.40 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.025 * sc, 0.03 * sc, trunkH, 6), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lH = 0.30 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.04 * sc, trunkH + lH * 0.4, Math.sin(a) * 0.04 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.3;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  truc_may: {
+    name: 'Trúc may',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x7aba60,
+    leafColor: 0x3a8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const nodeMat = new THREE.MeshLambertMaterial({ color: 0x5a8a50 });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nSegments = 3 + Math.floor(stage * 0.8);
+      const segH = 0.15 * sc;
+      const gap = 0.02 * sc;
+      for (let i = 0; i < nSegments; i++) {
+        const baseY = i * (segH + gap);
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.020 * sc, 0.022 * sc, segH, 7), stemMat);
+        seg.position.y = baseY + segH / 2;
+        g.add(seg);
+        const node = new THREE.Mesh(new THREE.TorusGeometry(0.022 * sc, 0.006, 4, 8), nodeMat);
+        node.rotation.x = Math.PI / 2;
+        node.position.y = baseY + segH;
+        g.add(node);
+        if (stage >= 2 && i >= 1) {
+          const a = (i * 1.3) % (Math.PI * 2);
+          const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.04 * sc, 0.10 * sc), leafMat);
+          blade.position.set(Math.cos(a) * 0.04 * sc, baseY + segH, Math.sin(a) * 0.04 * sc);
+          blade.rotation.y = a;
+          blade.rotation.z = -Math.PI / 6;
+          g.add(blade);
+        }
+      }
+      return g;
+    },
+  },
+
+  sen_da: {
+    name: 'Sen đá',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a9a70,
+    leafColor: 0x8a5a90,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const outerMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const innerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const nLayers = 2 + Math.floor(stage * 0.6);
+      for (let l = 0; l < nLayers; l++) {
+        const layerR = (0.16 - l * 0.03) * sc;
+        const nPetals = 6 + (nLayers - l) * 2;
+        const mat = l === 0 ? outerMat : innerMat;
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.SphereGeometry(0.05 * sc, 6, 5), mat);
+          petal.scale.set(0.7, 0.3, 1.0);
+          petal.position.set(Math.cos(a) * layerR, l * 0.025 * sc + 0.01, Math.sin(a) * layerR);
+          petal.rotation.y = a;
+          petal.rotation.z = Math.PI / 6;
+          g.add(petal);
+        }
+      }
+      const bud = new THREE.Mesh(new THREE.SphereGeometry(0.04 * sc, 6, 5), innerMat);
+      bud.scale.y = 1.5;
+      bud.position.y = nLayers * 0.025 * sc;
+      g.add(bud);
+      return g;
+    },
+  },
+
+  ngoc_bich: {
+    name: 'Ngọc bích',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a3a20,
+    leafColor: 0x1a7a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const trunkH = 0.22 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * sc, 0.06 * sc, trunkH, 7), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nBranches = 3 + Math.floor(stage * 0.6);
+      for (let i = 0; i < nBranches; i++) {
+        const a = (i / nBranches) * Math.PI * 2;
+        const bH = 0.12 * sc;
+        const br = new THREE.Mesh(new THREE.CylinderGeometry(0.010 * sc, 0.015 * sc, bH, 5), trunkMat);
+        br.position.set(Math.cos(a) * 0.06 * sc, trunkH, Math.sin(a) * 0.06 * sc);
+        br.rotation.z = (i % 2 === 0 ? 1 : -1) * Math.PI / 6;
+        g.add(br);
+        const leafMesh = new THREE.Mesh(new THREE.SphereGeometry(0.045 * sc, 6, 5), leafMat);
+        leafMesh.scale.set(0.9, 0.5, 1.3);
+        leafMesh.position.set(Math.cos(a) * 0.10 * sc, trunkH + bH * 0.7, Math.sin(a) * 0.10 * sc);
+        g.add(leafMesh);
+      }
+      return g;
+    },
+  },
+
+  phat_tai: {
+    name: 'Phát tài',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x6a4a20,
+    leafColor: 0x1a5a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const trunkH = 0.55 * sc;
+      for (let b = 0; b < 3; b++) {
+        const ba = (b / 3) * Math.PI * 2;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.018 * sc, 0.025 * sc, trunkH, 6), trunkMat);
+        trunk.position.set(Math.cos(ba) * 0.03 * sc, trunkH / 2, Math.sin(ba) * 0.03 * sc);
+        trunk.rotation.z = Math.cos(ba) * 0.12;
+        trunk.rotation.x = Math.sin(ba) * 0.12;
+        g.add(trunk);
+      }
+      const nLeaves = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lH = 0.28 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.08 * sc, trunkH + lH * 0.45, Math.sin(a) * 0.08 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 4;
         g.add(leaf);
       }
       return g;
