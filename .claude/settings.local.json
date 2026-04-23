@@ -48,7 +48,10 @@
       "Bash(/c/Users/quang.ho/AppData/Local/Microsoft/WindowsApps/python3 --version)",
       "PowerShell(& \"C:\\\\Users\\\\quang.ho\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\python.exe\" --version 2>&1)",
       "PowerShell(Get-Command npm.cmd, node.exe -ErrorAction SilentlyContinue | ForEach-Object { \"$\\($_.Name\\) -> $\\($_.Source\\)\" })",
-      "Read(//d/Rabbit-Habbits/**)"
+      "Read(//d/Rabbit-Habbits/**)",
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "WebFetch(domain:unpkg.com)",
+      "Bash(curl -L \"https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js\" -o \"D:/Rabbit-Habbits/public/js/OrbitControls.js\")"
     ]
   }
 }
