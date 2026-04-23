@@ -6921,6 +6921,13 @@ const CAT_INFO = {
 // Stub — sẽ được thay thế ở Session D/E (plant models)
 const PLANT_ARCHETYPE = {};
 function _buildPlantBodyHTML() { return ''; }
+function _potClass(potTypeId) {
+  const map = { pot_s:'gc-pot gc-pot-s', pot_m:'gc-pot gc-pot-m', bed_s:'gc-bed gc-bed-s', bed_m:'gc-bed gc-bed-m', hole_l:'gc-hole gc-hole-l' };
+  return map[potTypeId] || 'gc-pot gc-pot-m';
+}
+function _soilClass(waterLevel) {
+  return 'gc-soil-' + _getSoilStateFromWater(waterLevel ?? 50);
+}
 
 // ── Init ──────────────────────────────────────────────────────
 async function initGarden() {
