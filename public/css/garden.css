@@ -848,21 +848,42 @@
 .gpp-btn-uproot { color: #ff8a8a !important; }
 .gpp-btn-uproot:hover { background: rgba(255,100,100,.15) !important; border-color: rgba(255,100,100,.3) !important; }
 
-/* Trash drop-zone while a plant is being dragged */
-.g3d-trash-armed {
-  outline: 2px dashed rgba(255, 112, 112, 0.55) !important;
-  outline-offset: 3px;
-  animation: g3dTrashPulse 1.1s ease-in-out infinite;
-  position: relative;
+
+/* ═══════════════════════════════════════════════════════════════
+   🧰 TOOL HUD — Session I
+   ═══════════════════════════════════════════════════════════════ */
+
+#garden-tool-hud {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; flex-wrap: wrap;
 }
-.g3d-trash-hot {
-  outline-color: #ff5252 !important;
-  background: rgba(255, 82, 82, 0.22) !important;
-  transform: scale(1.08);
-  transition: transform .12s ease, background .12s ease;
-  box-shadow: 0 0 24px rgba(255, 82, 82, .45);
+.gtool-item, .gtool-pot {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px;
+  user-select: none;
+  transition: all .15s;
 }
-@keyframes g3dTrashPulse {
-  0%, 100% { outline-color: rgba(255,112,112,.35); }
-  50%      { outline-color: rgba(255,112,112,.75); }
+.gtool-item { cursor: pointer; }
+.gtool-item:hover  { border-color: var(--accent); }
+.gtool-item.gtool-active {
+  border-color: var(--accent);
+  background: rgba(94,240,160,.12);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(94,240,160,.25);
 }
+.gtool-item.gtool-empty { opacity: .35; pointer-events: none; }
+.gtool-pot { cursor: default; opacity: .85; }
+.gtool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+
+/* Tool-tab shop entries */
+.gshop-tool-item { display: flex; flex-direction: column; gap: 4px; }
+.gshop-tool-uses { font-size: 11px; color: var(--text2); }
+.gshop-tool-buy {
+  margin-top: 6px; padding: 6px 10px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.gshop-tool-buy:disabled { opacity: .5; cursor: not-allowed; }

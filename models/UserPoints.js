@@ -24,6 +24,14 @@ const userPointsSchema = new mongoose.Schema({
   // Garden inventory (seeds & pots bought from shop)
   gardenSeeds: { type: Map, of: Number, default: () => ({}) },
   gardenPots:  { type: Map, of: Number, default: () => ({}) },
+  // ── Garden tools (consumable + pot inventory) ─────────────
+  gardenTools: {
+    tool_cuoc:  { type: Number, default: 0 },
+    tool_xuong: { type: Number, default: 0 },
+    tool_bay:   { type: Number, default: 0 },
+    pot_s:      { type: Number, default: 0 },
+    pot_m:      { type: Number, default: 0 },
+  },
   // Badges earned
   badges: [{
     id:     String,

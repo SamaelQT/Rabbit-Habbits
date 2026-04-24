@@ -29,126 +29,150 @@ const CYCLES = {
 };
 
 const PLANT_TYPES = [
-  // ── PHONG THỦY (size: small / medium) ──────────────────────
+  // ── PHONG THỦY (size: small / medium) — pot group ──────────
   { id:'kim_tien',  name:'Cây Kim Tiền',    emoji:'🌿', category:'fengshui', size:'medium',
+    plantGroup:'pot', potType:'pot_s',
     price:40, stages:{seed:1,sprout:2,leafing:5,flowering:6,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:7, nutrientDecay:4,
     desc:'Cây phong thủy hút tài lộc, lá tròn xanh bóng mang may mắn' },
 
   { id:'kim_ngan',  name:'Cây Kim Ngân',    emoji:'🌳', category:'fengshui', size:'medium',
+    plantGroup:'pot', potType:'pot_s',
     price:50, stages:{seed:1,sprout:3,leafing:6,flowering:7,dormant:3},
     harvestable:false, harvestItem:null, waterDecay:6, nutrientDecay:4,
     desc:'Tượng trưng sự giàu có, đặt bàn làm việc chiêu tài' },
 
   { id:'ngoc_bich', name:'Cây Ngọc Bích',   emoji:'🎍', category:'fengshui', size:'medium',
+    plantGroup:'pot', potType:'pot_s',
     price:55, stages:{seed:1,sprout:3,leafing:7,flowering:8,dormant:3},
     harvestable:false, harvestItem:null, waterDecay:6, nutrientDecay:5,
     desc:'Lá xanh ngọc, tượng trưng tiền bạc và hòa hợp' },
 
   { id:'phat_tai',  name:'Cây Phát Tài',    emoji:'🎋', category:'fengshui', size:'medium',
+    plantGroup:'pot', potType:'pot_m',
     price:45, stages:{seed:1,sprout:2,leafing:5,flowering:5,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:7, nutrientDecay:4,
     desc:'Biểu tượng may mắn, phú quý, phát đạt' },
 
   { id:'truc_may',  name:'Trúc May Mắn',    emoji:'🪴', category:'fengshui', size:'small',
+    plantGroup:'pot', potType:'pot_s',
     price:30, stages:{seed:1,sprout:2,leafing:4,flowering:4,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:8, nutrientDecay:3,
     desc:'Tre trúc nhỏ xinh, mang lại bình an và may mắn' },
 
   { id:'sen_da',    name:'Cây Sen Đá',       emoji:'🌵', category:'fengshui', size:'small',
+    plantGroup:'pot', potType:'pot_s',
     price:25, stages:{seed:1,sprout:2,leafing:6,flowering:5,dormant:3},
     harvestable:false, harvestItem:null, waterDecay:3, nutrientDecay:2,
     desc:'Sức khỏe dồi dào, rất dễ chăm, chịu khô hạn tốt' },
 
-  // ── RAU (size: small) ────────────────────────────────────────
+  // ── RAU (size: small) — ground group ─────────────────────────
   { id:'ca_chua',   name:'Cà Chua',          emoji:'🍅', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:20, stages:{seed:1,sprout:2,leafing:2,growing:3,flowering:2,fruiting:3},
     harvestable:true, harvestItem:'food', harvestPoints:8, waterDecay:10, nutrientDecay:7,
     desc:'Cà chua chín đỏ, thu hoạch được thức ăn cho thú cưng' },
 
   { id:'dua_leo',   name:'Dưa Leo',          emoji:'🥒', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:20, stages:{seed:1,sprout:2,leafing:2,growing:4,flowering:2,fruiting:3},
     harvestable:true, harvestItem:'food', harvestPoints:8, waterDecay:11, nutrientDecay:7,
     desc:'Dưa leo xanh mát, cần tưới nhiều nước' },
 
   { id:'cai_xanh',  name:'Cải Xanh',         emoji:'🥬', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:15, stages:{seed:1,sprout:1,leafing:2,growing:3,flowering:2,fruiting:2},
     harvestable:true, harvestItem:'food', harvestPoints:6, waterDecay:9, nutrientDecay:6,
     desc:'Rau cải ngọt mau thu hoạch, rất dễ trồng' },
 
   { id:'ca_rot',    name:'Cà Rốt',           emoji:'🥕', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:18, stages:{seed:1,sprout:2,leafing:3,growing:4,flowering:2,fruiting:4},
     harvestable:true, harvestItem:'food', harvestPoints:8, waterDecay:8, nutrientDecay:6,
     desc:'Cà rốt ngọt bùi, rất được thỏ yêu thích' },
 
   { id:'hanh_la',   name:'Hành Lá',          emoji:'🧅', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:12, stages:{seed:1,sprout:1,leafing:2,growing:2,flowering:1,fruiting:2},
     harvestable:true, harvestItem:'seed', harvestPoints:5, waterDecay:7, nutrientDecay:5,
     desc:'Hành lá nhanh thu hoạch nhất, chu kỳ ngắn' },
 
   { id:'rau_muong', name:'Rau Muống',        emoji:'🌱', category:'vegetable', size:'small',
+    plantGroup:'ground',
     price:12, stages:{seed:1,sprout:1,leafing:2,growing:2,flowering:1,fruiting:2},
     harvestable:true, harvestItem:'food', harvestPoints:5, waterDecay:10, nutrientDecay:5,
     desc:'Rau muống tươi, cần nhiều nước, lớn rất nhanh' },
 
-  // ── ĂN QUẢ (size: medium / large) ───────────────────────────
+  // ── ĂN QUẢ (size: medium / large) — ground group ────────────
   { id:'dau_tay',   name:'Dâu Tây',          emoji:'🍓', category:'fruit', size:'small',
+    plantGroup:'ground',
     price:45, stages:{seed:2,sprout:3,leafing:4,growing:5,flowering:4,fruiting:5},
     harvestable:true, harvestItem:'treat', harvestPoints:15, waterDecay:9, nutrientDecay:7,
     desc:'Dâu tây ngọt chua, quý hiếm và ngon miệng' },
 
   { id:'chanh',     name:'Cây Chanh',        emoji:'🍋', category:'fruit', size:'medium',
+    plantGroup:'ground',
     price:50, stages:{seed:2,sprout:3,leafing:5,growing:7,flowering:5,fruiting:8},
     harvestable:true, harvestItem:'food', harvestPoints:18, waterDecay:8, nutrientDecay:6,
     desc:'Chanh tươi chua ngọt, trồng một lần thu hoạch nhiều mùa' },
 
   { id:'oi',        name:'Cây Ổi',           emoji:'🍈', category:'fruit', size:'large',
+    plantGroup:'ground',
     price:55, stages:{seed:2,sprout:4,leafing:6,growing:8,flowering:6,fruiting:10},
     harvestable:true, harvestItem:'treat', harvestPoints:20, waterDecay:8, nutrientDecay:7,
     desc:'Ổi thơm ngon, cây lớn cần chậu rộng để phát triển' },
 
   { id:'cam',       name:'Cây Cam',          emoji:'🍊', category:'fruit', size:'large',
+    plantGroup:'ground',
     price:60, stages:{seed:2,sprout:4,leafing:7,growing:9,flowering:7,fruiting:10},
     harvestable:true, harvestItem:'treat', harvestPoints:22, waterDecay:8, nutrientDecay:7,
     desc:'Cam chín vàng óng, mọng nước, thú cưng rất thích' },
 
   { id:'xoai',      name:'Cây Xoài',         emoji:'🥭', category:'fruit', size:'large',
+    plantGroup:'ground',
     price:70, stages:{seed:3,sprout:5,leafing:8,growing:10,flowering:8,fruiting:12},
     harvestable:true, harvestItem:'treat', harvestPoints:25, waterDecay:7, nutrientDecay:7,
     desc:'Xoài ngọt đặc trưng, cây lớn đẹp, quả nhiều' },
 
   { id:'chuoi',     name:'Cây Chuối',        emoji:'🍌', category:'fruit', size:'large',
+    plantGroup:'ground',
     price:65, stages:{seed:2,sprout:4,leafing:7,growing:9,flowering:7,fruiting:10},
     harvestable:true, harvestItem:'food', harvestPoints:22, waterDecay:9, nutrientDecay:8,
     desc:'Chuối vàng ngọt bùi, cây nhanh cho trái nhất trong nhóm to' },
 
-  // ── HOA (size: small / medium / large) ─────────────────────
+  // ── HOA (size: small / medium / large) — pot group ──────────
   { id:'huong_duong',name:'Hướng Dương',     emoji:'🌻', category:'flower', size:'medium',
+    plantGroup:'pot', potType:'pot_m',
     price:35, stages:{seed:1,sprout:2,leafing:4,flowering:7,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:8, nutrientDecay:5,
     desc:'Hoa hướng dương rực rỡ, luôn quay về phía mặt trời' },
 
   { id:'hoa_hong',  name:'Hoa Hồng',         emoji:'🌹', category:'flower', size:'medium',
+    plantGroup:'pot', potType:'pot_m',
     price:40, stages:{seed:1,sprout:2,leafing:4,flowering:6,dormant:2},
     harvestable:true, harvestItem:'rose', harvestPoints:12, waterDecay:8, nutrientDecay:6,
     desc:'Hoa hồng tươi thắm, thu hoạch được hoa tặng bạn bè' },
 
   { id:'tulip',     name:'Hoa Tulip',        emoji:'🌷', category:'flower', size:'small',
+    plantGroup:'pot', potType:'pot_s',
     price:30, stages:{seed:1,sprout:2,leafing:3,flowering:5,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:7, nutrientDecay:4,
     desc:'Tulip sắc màu rực rỡ, thanh lịch và sang trọng' },
 
   { id:'cuc_vang',  name:'Hoa Cúc Vàng',    emoji:'🌼', category:'flower', size:'small',
+    plantGroup:'pot', potType:'pot_s',
     price:25, stages:{seed:1,sprout:2,leafing:3,flowering:5,dormant:2},
     harvestable:false, harvestItem:null, waterDecay:7, nutrientDecay:4,
     desc:'Cúc vàng tươi sáng, biểu tượng của niềm vui' },
 
   { id:'lavender',  name:'Hoa Lavender',     emoji:'💜', category:'flower', size:'small',
+    plantGroup:'pot', potType:'pot_s',
     price:35, stages:{seed:1,sprout:2,leafing:4,flowering:6,dormant:3},
     harvestable:false, harvestItem:null, waterDecay:5, nutrientDecay:4,
     desc:'Lavender tím thơm nhẹ, giúp thư giãn và dễ chịu' },
 
   { id:'hoa_giay',  name:'Hoa Giấy',         emoji:'🌸', category:'flower', size:'large',
+    plantGroup:'pot', potType:'pot_m',
     price:45, stages:{seed:1,sprout:3,leafing:5,flowering:8,dormant:3},
     harvestable:false, harvestItem:null, waterDecay:6, nutrientDecay:5,
     desc:'Hoa giấy đỏ rực, leo giàn đẹp, nở hoa quanh năm' },
@@ -605,6 +629,7 @@ router.get('/', async (req, res) => {
 
     res.json({
       purchasedCells: gardenDoc.purchasedCells,
+      tilledCells:    gardenDoc.tilledCells || [],
       plants: enriched,
       gridConfig: { rows: GRID_ROWS, cols: GRID_COLS },
       cellPrices,
@@ -618,9 +643,22 @@ router.get('/', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/garden/catalog — plant + pot catalog for shop
+const TOOL_CATALOG = [
+  { id:'tool_cuoc',  name:'Cuốc đất',  emoji:'⛏️', price:15, type:'tool', uses:3,
+    desc:'Chuẩn bị 3 ô đất để trồng cây rau/quả/cây lớn' },
+  { id:'tool_xuong', name:'Xẻng',      emoji:'🪏', price:12, type:'tool', uses:3,
+    desc:'Nhổ 3 cây trồng dưới đất không cần kéo thả' },
+  { id:'tool_bay',   name:'Bình tưới', emoji:'🪣', price:10, type:'tool', uses:3,
+    desc:'Tưới 3 lần, mỗi lần +25 nước' },
+  { id:'pot_s',      name:'Chậu nhỏ',  emoji:'🪴', price:20, type:'pot',  uses:1,
+    desc:'Để trồng hoa nhỏ và cây phong thủy nhỏ' },
+  { id:'pot_m',      name:'Chậu vừa',  emoji:'🏺', price:30, type:'pot',  uses:1,
+    desc:'Để trồng hoa lớn và cây phong thủy lớn' },
+];
+
+// GET /api/garden/catalog — plant + pot + tool catalog for shop
 router.get('/catalog', (req, res) => {
-  res.json({ plants: PLANT_TYPES, pots: POT_TYPES });
+  res.json({ plants: PLANT_TYPES, pots: POT_TYPES, tools: TOOL_CATALOG });
 });
 
 // POST /api/garden/plots/buy — purchase a grid cell
@@ -655,11 +693,9 @@ router.post('/plots/buy', async (req, res) => {
 // POST /api/garden/plant — plant a plant in a purchased cell
 router.post('/plant', async (req, res) => {
   try {
-    const { row, col, plantTypeId, potTypeId } = req.body;
+    const { row, col, plantTypeId } = req.body;
     const pt  = getPlantType(plantTypeId);
-    const pot = getPotType(potTypeId);
     if (!pt)  return res.status(400).json({ error: 'Loại cây không hợp lệ' });
-    if (!pot) return res.status(400).json({ error: 'Loại chậu không hợp lệ' });
 
     // Verify cell is purchased
     const gardenDoc = await GardenPlot.findOne({ userId: req.userId });
@@ -672,20 +708,47 @@ router.post('/plant', async (req, res) => {
       return res.status(400).json({ error: 'Ô này đã có cây rồi' });
     }
 
-    // Check & deduct from inventory (seeds and pots bought in shop)
+    // Fetch user points (inventory)
     const up = await UserPoints.findOne({ userId: req.userId });
-    const seedCount = (up?.gardenSeeds?.get(plantTypeId)) || 0;
-    const potCount  = (up?.gardenPots?.get(potTypeId))    || 0;
+    if (!up) return res.status(400).json({ error: 'Không tìm thấy dữ liệu người dùng' });
+
+    // Check seed inventory
+    const seedCount = (up.gardenSeeds?.get(plantTypeId)) || 0;
     if (seedCount < 1) {
       return res.status(400).json({ error: `Bạn chưa có hạt giống ${pt.name}. Hãy mua trong Cửa hàng!` });
     }
-    if (potCount < 1) {
-      return res.status(400).json({ error: `Bạn chưa có ${pot.name}. Hãy mua trong Cửa hàng!` });
+
+    // ── Branch by plant group ──────────────────────────────
+    let finalPotTypeId;
+    const group = pt.plantGroup || 'ground';
+
+    if (group === 'ground') {
+      // Require tilled cell
+      const isTilled = (gardenDoc.tilledCells || []).some(c => c.row === row && c.col === col);
+      if (!isTilled) {
+        return res.status(400).json({ error: 'Cần cuốc đất trước khi trồng cây này (dùng ⛏️)' });
+      }
+      // Choose container based on plant size: small→bed_s, medium→bed_m, large→hole_l
+      finalPotTypeId = (pt.size === 'large') ? 'hole_l' : (pt.size === 'medium' ? 'bed_m' : 'bed_s');
+      // Consume tilled mark
+      gardenDoc.tilledCells = gardenDoc.tilledCells.filter(c => !(c.row === row && c.col === col));
+      await gardenDoc.save();
+    } else {
+      // Pot group — consume required pot from gardenTools
+      const needPot = pt.potType || 'pot_s';
+      const have = (up.gardenTools && up.gardenTools[needPot]) || 0;
+      if (have < 1) {
+        const label = needPot === 'pot_s' ? 'chậu nhỏ 🪴' : 'chậu vừa 🏺';
+        return res.status(400).json({ error: `Cần 1 ${label} để trồng cây này. Mua trong Cửa hàng!` });
+      }
+      up.gardenTools[needPot] = have - 1;
+      up.markModified('gardenTools');
+      finalPotTypeId = needPot;
     }
+
+    // Deduct seed
     up.gardenSeeds.set(plantTypeId, seedCount - 1);
-    up.gardenPots.set(potTypeId,  potCount  - 1);
     up.markModified('gardenSeeds');
-    up.markModified('gardenPots');
     await up.save();
 
     // Remove dead plant in slot if any
@@ -693,7 +756,7 @@ router.post('/plant', async (req, res) => {
 
     const plant = new GardenPlant({
       userId: req.userId, row, col,
-      plantTypeId, potTypeId,
+      plantTypeId, potTypeId: finalPotTypeId,
       plantedAt: new Date(), stageStartedAt: new Date(), lastTickAt: new Date(),
       waterLevel: 70, nutrientLevel: 70,
     });
@@ -702,8 +765,9 @@ router.post('/plant', async (req, res) => {
     res.status(201).json({
       success: true, points: up.points,
       gardenSeeds: Object.fromEntries(up.gardenSeeds),
-      gardenPots:  Object.fromEntries(up.gardenPots),
-      plant: { ...plant.toObject(), plantType: pt, potType: pot }
+      gardenPots:  Object.fromEntries(up.gardenPots || new Map()),
+      gardenTools: up.gardenTools || {},
+      plant: { ...plant.toObject(), plantType: pt, potType: getPotType(finalPotTypeId) || { id: finalPotTypeId } }
     });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
@@ -841,25 +905,14 @@ router.post('/harvest/:id', async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/garden/plant/:id — remove/uproot a plant (partial refund)
+// DELETE /api/garden/plant/:id — remove/uproot a plant (no refund)
 router.delete('/plant/:id', async (req, res) => {
   try {
     const plant = await GardenPlant.findOne({ _id: req.params.id, userId: req.userId });
     if (!plant) return res.status(404).json({ error: 'Không tìm thấy cây' });
 
-    const pt = getPlantType(plant.plantTypeId);
-    // 50% refund if uprooted early, 30% if already dead
-    const refundRate  = plant.isAlive ? 0.5 : 0.3;
-    const refund      = Math.floor((pt?.price || 0) * refundRate);
-
-    const up = await UserPoints.findOne({ userId: req.userId });
-    if (up && refund > 0) {
-      up.points += refund;
-      await up.save();
-    }
-
     await GardenPlant.deleteOne({ _id: plant._id });
-    res.json({ success: true, refund, points: up?.points });
+    res.json({ success: true });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1193,6 +1246,185 @@ router.post('/dev/stage/:stage', async (req, res) => {
                 stageStartedAt: new Date(), lastTickAt: new Date() } }
     );
     res.json({ ok: true, updated: result.modifiedCount, stage });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// ══════════════════════════════════════════════════════════════
+// TOOL SYSTEM — tilling, watering, uprooting (consumable tools)
+// ══════════════════════════════════════════════════════════════
+
+const TOOL_CAP = 9;
+
+function _toolCounts(up) {
+  const gt = (up && up.gardenTools) || {};
+  return {
+    tool_cuoc:  gt.tool_cuoc  || 0,
+    tool_xuong: gt.tool_xuong || 0,
+    tool_bay:   gt.tool_bay   || 0,
+    pot_s:      gt.pot_s      || 0,
+    pot_m:      gt.pot_m      || 0,
+  };
+}
+
+// GET /api/garden/tools — current tool + pot counts
+router.get('/tools', async (req, res) => {
+  try {
+    const up = await UserPoints.findOne({ userId: req.userId });
+    res.json(_toolCounts(up));
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/tools/till  { row, col } — consume 1 tool_cuoc, mark cell tilled
+router.post('/tools/till', async (req, res) => {
+  try {
+    const { row, col } = req.body;
+    if (row == null || col == null) return res.status(400).json({ error: 'Thiếu vị trí ô' });
+
+    const gardenDoc = await GardenPlot.findOne({ userId: req.userId });
+    if (!gardenDoc) return res.status(400).json({ error: 'Chưa có vườn' });
+
+    const owned = gardenDoc.purchasedCells.find(c => c.row === row && c.col === col);
+    if (!owned) return res.status(400).json({ error: 'Chưa mua ô đất này' });
+
+    // Cell must not already have a plant
+    const existing = await GardenPlant.findOne({ userId: req.userId, row, col, isAlive: true });
+    if (existing) return res.status(400).json({ error: 'Ô này đã có cây' });
+
+    // Cell must not already be tilled
+    gardenDoc.tilledCells = gardenDoc.tilledCells || [];
+    if (gardenDoc.tilledCells.some(c => c.row === row && c.col === col)) {
+      return res.status(400).json({ error: 'Ô này đã cuốc rồi' });
+    }
+
+    const up = await UserPoints.findOne({ userId: req.userId });
+    if (!up || !up.gardenTools || (up.gardenTools.tool_cuoc || 0) < 1) {
+      return res.status(400).json({ error: 'Hết lượt cuốc! Mua ⛏️ trong Cửa hàng.' });
+    }
+
+    up.gardenTools.tool_cuoc -= 1;
+    up.markModified('gardenTools');
+    gardenDoc.tilledCells.push({ row, col });
+
+    await Promise.all([up.save(), gardenDoc.save()]);
+    res.json({ ok: true, toolCounts: _toolCounts(up), tilledCells: gardenDoc.tilledCells });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/tools/water/:plantId — consume 1 tool_bay, +25 water
+router.post('/tools/water/:plantId', async (req, res) => {
+  try {
+    const plant = await GardenPlant.findOne({ _id: req.params.plantId, userId: req.userId });
+    if (!plant || !plant.isAlive) return res.status(404).json({ error: 'Không tìm thấy cây' });
+
+    const up = await UserPoints.findOne({ userId: req.userId });
+    if (!up || !up.gardenTools || (up.gardenTools.tool_bay || 0) < 1) {
+      return res.status(400).json({ error: 'Hết lượt tưới! Mua 🪣 trong Cửa hàng.' });
+    }
+
+    up.gardenTools.tool_bay -= 1;
+    up.markModified('gardenTools');
+    plant.waterLevel    = Math.min(100, plant.waterLevel + 25);
+    plant.lastWateredAt = new Date();
+    plant.health        = Math.min(100, plant.health + 1);
+
+    await Promise.all([up.save(), plant.save()]);
+    res.json({
+      ok: true,
+      toolCounts: _toolCounts(up),
+      waterLevel: plant.waterLevel,
+      health:     plant.health,
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/tools/uproot/:plantId — consume 1 tool_xuong, uproot ground plant
+router.post('/tools/uproot/:plantId', async (req, res) => {
+  try {
+    const plant = await GardenPlant.findOne({ _id: req.params.plantId, userId: req.userId });
+    if (!plant) return res.status(404).json({ error: 'Không tìm thấy cây' });
+
+    const pt = getPlantType(plant.plantTypeId);
+    const group = pt?.plantGroup || 'ground';
+    if (group !== 'ground') {
+      return res.status(400).json({ error: 'Xẻng chỉ nhổ được cây trồng dưới đất. Cây chậu hãy nhổ bằng nút trong bảng chăm sóc.' });
+    }
+
+    const up = await UserPoints.findOne({ userId: req.userId });
+    if (!up || !up.gardenTools || (up.gardenTools.tool_xuong || 0) < 1) {
+      return res.status(400).json({ error: 'Hết lượt xẻng! Mua 🪏 trong Cửa hàng.' });
+    }
+
+    const refundRate = plant.isAlive ? 0.5 : 0.3;
+    const refund     = Math.floor((pt?.price || 0) * refundRate);
+
+    up.gardenTools.tool_xuong -= 1;
+    up.markModified('gardenTools');
+    if (refund > 0) {
+      up.points      = (up.points      || 0) + refund;
+      up.totalEarned = (up.totalEarned || 0) + refund;
+    }
+
+    await up.save();
+    await GardenPlant.deleteOne({ _id: plant._id });
+
+    res.json({
+      ok: true, success: true,
+      refund,
+      points: up.points,
+      toolCounts: _toolCounts(up),
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/tools/buy  { id, qty? } — purchase tool/pot; consumables cap at 9, pots uncapped
+router.post('/tools/buy', async (req, res) => {
+  try {
+    const { id } = req.body;
+    const qty = Math.max(1, parseInt(req.body.qty) || 1);
+    const CATALOG = {
+      tool_cuoc:  { price: 15, uses: 3, type: 'tool' },
+      tool_xuong: { price: 12, uses: 3, type: 'tool' },
+      tool_bay:   { price: 10, uses: 3, type: 'tool' },
+      pot_s:      { price: 20, uses: 1, type: 'pot'  },
+      pot_m:      { price: 30, uses: 1, type: 'pot'  },
+    };
+    const def = CATALOG[id];
+    if (!def) return res.status(400).json({ error: 'Vật phẩm không hợp lệ' });
+
+    const totalCost = def.price * qty;
+    const up = await UserPoints.findOne({ userId: req.userId });
+    if (!up) return res.status(400).json({ error: 'Không tìm thấy dữ liệu người dùng' });
+    if ((up.points || 0) < totalCost) return res.status(400).json({ error: 'Không đủ điểm!' });
+
+    up.gardenTools = up.gardenTools || {};
+    const cur  = up.gardenTools[id] || 0;
+    const gain = def.uses * qty;
+    const next = def.type === 'tool' ? Math.min(TOOL_CAP, cur + gain) : (cur + gain);
+    up.gardenTools[id] = next;
+    up.points -= totalCost;
+    up.markModified('gardenTools');
+    await up.save();
+
+    res.json({
+      ok: true, success: true,
+      points: up.points,
+      toolCounts: _toolCounts(up),
+      bought: { id, added: next - cur },
+    });
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// POST /api/garden/dev/clear-plants — wipe all plants + tilled cells for testing
+router.post('/dev/clear-plants', async (req, res) => {
+  try {
+    const uid = req.userId;
+    const gardenDoc = await GardenPlot.findOne({ userId: uid });
+    const { deletedCount } = await GardenPlant.deleteMany({ userId: uid });
+    if (gardenDoc) {
+      gardenDoc.tilledCells = [];
+      await gardenDoc.save();
+    }
+    res.json({ ok: true, deleted: deletedCount || 0 });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 

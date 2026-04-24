@@ -143,8 +143,29 @@ Mỗi loài được vẽ hoàn toàn bằng CSS shapes — không dùng emoji h
 - Render WebGL: cỏ instanced, lối đi, viền vườn, chậu & cây 3D, mưa instanced 500 hạt, sprite sinh vật
 - Điều khiển camera: chuột trái xoay, chuột phải pan, scroll zoom (OrbitControls)
 - **Hover tooltip** bám theo con trỏ: ô trống → viền vàng "Click để trồng"; cây → viền xanh "[Tên cây] · Giai đoạn X/Y"; ô khoá → gợi ý mở khoá
-- **Click routing**: ô trống → modal chọn cây & chậu · cây → panel chăm sóc · ô khoá → lời mời mua ô
+- **Click routing**: ô trống → modal chọn cây & chậu · ô đã cuốc → modal cây xuống đất · cây → panel chăm sóc · ô khoá → lời mời mua ô
 - **Ghost drag — nhổ cây**: nhấn giữ rồi kéo cây ra thùng rác 🗑️ để nhổ. Khi kéo, OrbitControls tự tạm khoá để không xoay camera; thùng rác nhấp nháy viền đỏ, sáng đậm khi con trỏ đi vào, gọi `DELETE /api/garden/plant/:id` và hoàn lại một phần điểm
+
+**🧰 Công cụ & Chậu (Session I)**
+- **HUD công cụ** cố định phía trên vườn 3D: ⛏️ cuốc · 🪏 xẻng · 🪣 bình tưới · 🪴 chậu nhỏ · 🏺 chậu vừa, mỗi mục hiển thị số lượt còn lại
+- **3 công cụ tiêu hao** (mua ở tab **🧰 Công cụ & Chậu** trong Cửa hàng, cap 9 lượt):
+  | Công cụ | Emoji | Giá | Lượt/lần mua | Công dụng |
+  |---------|-------|-----|--------------|-----------|
+  | Cuốc | ⛏️ | 15đ | +3 | Cuốc đất ô trống → thành "đã cuốc" (mở khoá trồng cây xuống đất) |
+  | Xẻng | 🪏 | 12đ | +3 | Nhổ nhanh một cây (thay ghost-drag) |
+  | Bình tưới | 🪣 | 10đ | +3 | Tưới nước miễn phí, không tốn nước túi đồ |
+- **2 loại chậu tiêu hao** (bắt buộc phải mua trước khi trồng cây nhóm chậu):
+  | Chậu | Emoji | Giá | Dùng cho |
+  |------|-------|-----|---------|
+  | Chậu nhỏ 🪴 | pot_s | 20đ | Cây phong thủy & hoa nhỏ (Kim Tiền, Tulip, Sen Đá…) |
+  | Chậu vừa 🏺 | pot_m | 30đ | Cây phong thủy lớn & hoa lớn (Phát Tài, Hướng Dương, Hoa Hồng…) |
+- **2 nhóm cây — quy tắc bất biến**:
+  - **Nhóm chậu** (hoa + phong thủy): trồng trong chậu `pot_s`/`pot_m` đã mua. Nhổ cây **không** hoàn lại chậu.
+  - **Nhóm đất** (rau + quả + cây lớn): phải **cuốc đất** trước khi trồng; khi nhổ, ô trở về trạng thái trống (phải cuốc lại).
+- **Luồng cuốc đất**: chọn ⛏️ trong HUD → click ô trống đã mua → ô chuyển màu nâu với icon ⛏️ → click để mở modal trồng cây nhóm đất
+- **Luồng mua chậu khi trồng**: mở modal trồng cây nhóm chậu → nếu thiếu pot_s/pot_m, modal hiển thị thông báo và chặn xác nhận → mua chậu trong tab **🧰 Công cụ & Chậu**
+- **Endpoint mới**: `GET /api/garden/tools`, `POST /api/garden/tools/till`, `POST /api/garden/tools/water/:plantId`, `POST /api/garden/tools/uproot/:plantId`, `POST /api/garden/tools/buy`, `POST /api/garden/dev/clear-plants`
+- **Dev helper**: gõ `devClearPlants()` trong console để xoá sạch cây + ô đã cuốc (testing)
 
 **Kế hoạch tiếp theo**
 - Hệ sinh thái tương tác: mưa tăng độ ẩm, ong giúp cây ra hoa, sâu gây bệnh

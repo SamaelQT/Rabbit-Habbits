@@ -6809,8 +6809,7 @@ const apiGarden = {
   load:             ()                        => API.g('/api/garden'),
   catalog:          ()                        => API.g('/api/garden/catalog'),
   buyPlot:          (row, col)                => API.p('/api/garden/plots/buy', { row, col }),
-  plant:            (row, col, plantTypeId, potTypeId) =>
-                                                 API.p('/api/garden/plant', { row, col, plantTypeId, potTypeId }),
+  plant:            (row, col, plantTypeId)   => API.p('/api/garden/plant', { row, col, plantTypeId }),
   water:            (id)                      => API.p(`/api/garden/water/${id}`, {}),
   fertilize:        (id)                      => API.p(`/api/garden/fertilize/${id}`, {}),
   catchBug:         (id)                      => API.p(`/api/garden/catch-bug/${id}`, {}),
@@ -6821,17 +6820,29 @@ const apiGarden = {
   loadFriendGarden: (friendId)               => API.g(`/api/garden/friend/${friendId}`),
   giftWater:        (friendId, plantId)      => API.p(`/api/garden/friend/${friendId}/water/${plantId}`, {}),
   giftRose:         (friendId)               => API.p(`/api/garden/friend/${friendId}/gift-rose`, {}),
+  // ── Session I: Tools ──
+  getTools:         ()                        => API.g('/api/garden/tools'),
+  till:             (row, col)                => API.p('/api/garden/tools/till', { row, col }),
+  toolWater:        (plantId)                 => API.p(`/api/garden/tools/water/${plantId}`, {}),
+  toolUproot:       (plantId)                 => API.p(`/api/garden/tools/uproot/${plantId}`, {}),
+  buyTool:          (id, qty)                 => API.p('/api/garden/tools/buy', { id, qty: qty || 1 }),
+  devClear:         ()                        => API.p('/api/garden/dev/clear-plants', {}),
 };
 
 // ── Garden state ──────────────────────────────────────────────
 let _gardenInited     = false;
 let _gardenData       = null;   // { purchasedCells, plants, gridConfig, cellPrices, gameTime, weather, ecosystem }
-let _gardenCatalog    = null;   // { plants, pots }
+let _gardenCatalog    = null;   // { plants, pots, tools }
 let _gpmSelectedPlant = null;
 let _gpmSelectedPot   = null;
 let _gpmTargetCell    = null;   // { row, col }
+let _gpmMode          = 'pot';  // 'pot' | 'ground' — which group is the target cell
 let _gcpPlantId       = null;   // currently open care panel plant id
 let _gardenFriendData = null;   // { friend, plants, ... } when visiting a friend's garden
+
+// ── Session I: Tool state ────────────────────────────────────
+let _g3dActiveTool  = null;   // 'tool_cuoc' | 'tool_xuong' | 'tool_bay' | null
+let _g3dToolCounts  = { tool_cuoc: 0, tool_xuong: 0, tool_bay: 0, pot_s: 0, pot_m: 0 };
 
 // ── Garden 3D renderer state ──────────────────────────────────
 let _g3dScene          = null;
@@ -6954,7 +6965,7 @@ async function initGarden() {
   _setupCarePanelInteractions();
   _setupG3DPlantPopup();
   _setupGardenFriendsView();
-  _initGardenTrashBin();
+  _setupToolHUD();
 
   _refreshGardenUI();
 
@@ -6981,8 +6992,15 @@ function _refreshGardenUI() {
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
   _initGarden3D();
   applyWeather(_gardenData.weather || 'sunny');
-  _build3DCells(_gardenData.purchasedCells, _gardenData.plants, _gardenData.shadedCells);
+  _build3DCells(_gardenData.purchasedCells, _gardenData.plants, _gardenData.shadedCells, _gardenData.tilledCells);
   _renderGardenShop();
+  // Refresh tool counts in the HUD
+  (async () => {
+    try {
+      const t = await apiGarden.getTools();
+      if (t) _updateToolHUD(t.tools || t);
+    } catch (e) { /* ignore */ }
+  })();
 }
 
 // ── Three.js 3D garden renderer ───────────────────────────────
@@ -7317,6 +7335,45 @@ function _setupGarden3DInteractions(renderer, raycaster, camera) {
 function _handleG3DClick(hit, evt) {
   if (!hit) { _closeG3DPlantPopup(); return; }
 
+  // ── Active tool overrides default behavior ──
+  if (_g3dActiveTool) {
+    _closeG3DPlantPopup();
+    if (_g3dActiveTool === 'tool_cuoc') {
+      if (hit.type === 'cell') {
+        const grp = _g3dCells.get(hit.cellKey);
+        if (grp?.userData?.state === 'empty') _doTillCell(hit.cellKey);
+        else toast('⛏️ Chỉ cuốc được ô đất trống');
+      } else toast('⛏️ Click ô đất trống để cuốc');
+      return;
+    }
+    if (_g3dActiveTool === 'tool_bay') {
+      let plant = null;
+      if (hit.type === 'plant') plant = _getPlantByPlotIndex(hit.plotIndex);
+      else if (hit.type === 'cell') plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
+      if (plant) _doToolWater(plant._id);
+      else toast('🪣 Không có cây ở ô này');
+      return;
+    }
+    if (_g3dActiveTool === 'tool_xuong') {
+      let plant = null, plotIndex = null;
+      if (hit.type === 'plant') { plant = _getPlantByPlotIndex(hit.plotIndex); plotIndex = hit.plotIndex; }
+      else if (hit.type === 'cell') {
+        plotIndex = _plotFromKey(hit.cellKey);
+        plant = _getPlantByPlotIndex(plotIndex);
+      }
+      if (!plant) { toast('🪏 Không có cây ở ô này'); return; }
+      const pt = plant.plantType || _gardenCatalog?.plants?.find(p => p.id === plant.plantTypeId);
+      if ((pt?.plantGroup || 'ground') !== 'ground') {
+        toast('🪏 Xẻng chỉ nhổ được cây trồng dưới đất. Nhổ cây chậu qua bảng chăm sóc.');
+        return;
+      }
+      _doToolUproot(plant._id, plotIndex);
+      return;
+    }
+    return; // unknown tool
+  }
+
+  // ── No active tool: default behavior ──
   if (hit.type === 'plant') {
     const plant = _getPlantByPlotIndex(hit.plotIndex);
     if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
@@ -7331,7 +7388,11 @@ function _handleG3DClick(hit, evt) {
     if (!rc) return;
 
     if (state === 'empty') {
-      _openPlantModal(rc.row, rc.col);
+      // Empty = un-tilled: only pot plants can go here
+      _openPlantModal(rc.row, rc.col, 'pot');
+    } else if (state === 'tilled') {
+      // Tilled: only ground plants
+      _openPlantModal(rc.row, rc.col, 'ground');
     } else if (state === 'locked') {
       const price = _gardenData?.cellPrices?.[rc.row]?.[rc.col];
       if (typeof price === 'number') _buyCell(rc.row, rc.col, price);
@@ -7339,6 +7400,103 @@ function _handleG3DClick(hit, evt) {
       const plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
       if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
     }
+  }
+}
+
+// ── Session I: Tool HUD + actions ─────────────────────────────
+function _updateToolHUD(counts) {
+  _g3dToolCounts = Object.assign({ tool_cuoc:0, tool_xuong:0, tool_bay:0, pot_s:0, pot_m:0 }, counts || {});
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('gtool-cuoc-n',  _g3dToolCounts.tool_cuoc);
+  set('gtool-xuong-n', _g3dToolCounts.tool_xuong);
+  set('gtool-bay-n',   _g3dToolCounts.tool_bay);
+  set('gtool-pots-n',  _g3dToolCounts.pot_s);
+  set('gtool-potm-n',  _g3dToolCounts.pot_m);
+
+  // Dim tool items with 0 uses
+  [['cuoc','tool_cuoc'], ['xuong','tool_xuong'], ['bay','tool_bay']].forEach(([k, tid]) => {
+    const el = document.getElementById(`gtool-${k}`);
+    if (el) el.classList.toggle('gtool-empty', !_g3dToolCounts[tid]);
+  });
+
+  // Deselect if active tool ran out
+  if (_g3dActiveTool && !_g3dToolCounts[_g3dActiveTool]) _setActiveTool(null);
+}
+
+function _setActiveTool(toolId) {
+  _g3dActiveTool = toolId;
+  document.querySelectorAll('#garden-tool-hud .gtool-item').forEach(el => {
+    el.classList.toggle('gtool-active', el.dataset.tool === toolId);
+  });
+  if (_g3dRenderer) _g3dRenderer.domElement.style.cursor = toolId ? 'crosshair' : '';
+}
+
+function _setupToolHUD() {
+  document.querySelectorAll('#garden-tool-hud .gtool-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('gtool-empty')) {
+        toast('Hết lượt. Mua thêm trong Cửa hàng.');
+        return;
+      }
+      const tid = el.dataset.tool;
+      _setActiveTool(_g3dActiveTool === tid ? null : tid);
+    });
+  });
+}
+
+async function _doTillCell(cellKey) {
+  const rc = _getCellRowColFromKey(cellKey);
+  if (!rc) return;
+  try {
+    const r = await apiGarden.till(rc.row, rc.col);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast('⛏️ Đã cuốc đất!');
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    _updateCellState(cellKey, 'tilled');
+    if (_gardenData) _gardenData.tilledCells = r.tilledCells || _gardenData.tilledCells || [];
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function _doToolWater(plantId) {
+  try {
+    const r = await apiGarden.toolWater(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast('🪣 Đã tưới! +25 nước.');
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function _doToolUproot(plantId, plotIndex) {
+  try {
+    const r = await apiGarden.toolUproot(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast(`🪏 Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
+    if (r.points !== undefined) updatePointsUI(r.points);
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    if (typeof plotIndex === 'number') removePlantMesh(plotIndex);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// Patch one cell's state in the 3D scene (avoid full rebuild)
+function _updateCellState(cellKey, newState) {
+  const grp = _g3dCells.get(cellKey);
+  if (!grp) return;
+  grp.userData.state = newState;
+  const baseMesh = grp.userData.baseMesh;
+  if (!baseMesh) return;
+  if (newState === 'tilled') {
+    baseMesh.material.color.setHex(0x2a1a0a);
+    if (baseMesh.material.emissive) baseMesh.material.emissive.setHex(0x000000);
+    const old = grp.children.find(c => c.userData && c.userData.isBillboard);
+    if (old) { old.geometry?.dispose(); old.material?.dispose(); grp.remove(old); }
+    _addCellBillboard(grp, '⛏️', 0.22, 0.20);
   }
 }
 
@@ -7354,7 +7512,6 @@ function _startG3DPlantDrag(down, x, y) {
   document.body.appendChild(ghost);
   _g3dGhostEl = ghost;
   _moveG3DGhost(x, y);
-  _setTrashZoneArmed(true);
 }
 
 function _moveG3DGhost(x, y) {
@@ -7365,109 +7522,23 @@ function _moveG3DGhost(x, y) {
 
 function _endG3DPlantDrag() {
   if (_g3dGhostEl) { _g3dGhostEl.remove(); _g3dGhostEl = null; }
-  _setTrashZoneArmed(false);
 }
 
-function _trashZoneEls() {
-  return Array.from(document.querySelectorAll(
-    '#garden-trash, #gtb-trash, [data-zone="trash"]'
-  ));
-}
-
-function showTrash() {
-  const el = document.getElementById('garden-trash');
-  if (el) el.classList.add('visible');
-}
-function hideTrash() {
-  const el = document.getElementById('garden-trash');
-  if (el) el.classList.remove('visible', 'lid-open', 'drag-over', 'shake');
-}
-
-function _setTrashZoneArmed(on) {
-  _trashZoneEls().forEach(el => {
-    if (on) el.classList.add('g3d-trash-armed');
-    else el.classList.remove('g3d-trash-armed', 'g3d-trash-hot');
-  });
-  if (on) showTrash(); else hideTrash();
-}
-
-function _elementAtIsTrash(x, y) {
-  const els    = document.elementsFromPoint(x, y);
-  const trash  = _trashZoneEls();
-  return els.some(el => trash.some(t => t === el || t.contains(el)));
-}
-
-function _updateTrashHoverState(x, y) {
-  const over = _elementAtIsTrash(x, y);
-  _trashZoneEls().forEach(el => {
-    if (over) el.classList.add('g3d-trash-hot');
-    else      el.classList.remove('g3d-trash-hot');
-  });
-  const gt = document.getElementById('garden-trash');
-  if (gt) {
-    if (over) gt.classList.add('lid-open');
-    else      gt.classList.remove('lid-open');
-  }
-}
-
-function _initGardenTrashBin() {
-  const trash = document.getElementById('garden-trash');
-  if (!trash) return;
-
-  trash.addEventListener('dragover', e => {
-    e.preventDefault();
-    trash.classList.add('drag-over', 'lid-open');
-  });
-
-  trash.addEventListener('dragleave', () => {
-    trash.classList.remove('drag-over', 'lid-open');
-  });
-
-  trash.addEventListener('drop', e => {
-    e.preventDefault();
-    try {
-      const data = JSON.parse(e.dataTransfer.getData('text/plain'));
-      _handleTrashDrop(data);
-    } catch (_) {}
-    trash.classList.remove('drag-over', 'lid-open');
-    trash.classList.add('shake');
-    setTimeout(() => trash.classList.remove('shake'), 400);
-    hideTrash();
-    quickNotifCheck();
-  });
-}
-
-async function _handleTrashDrop(data) {
-  if (!data?.type) return;
-  try {
-    if (data.type === 'plant') {
-      const r = await apiGarden.uproot(data.plantId || data.id);
-      if (r.error) { toast('❌ ' + r.error); return; }
-      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
-      if (r.points !== undefined) updatePointsUI(r.points);
-      if (typeof data.plotIndex === 'number') removePlantMesh(data.plotIndex);
-      _gardenData = await apiGarden.load();
-      _refreshGardenUI();
-    } else if (data.type === 'pest' || data.type === 'leaf') {
-      const r = await fetch(`/api/garden/creatures/${data.creatureId || data.id}/discard`, {method:'POST'});
-      const json = await r.json();
-      if (json.error) { toast('❌ ' + json.error); return; }
-      toast('🗑️ Đã bỏ.');
-      _gardenData = await apiGarden.load();
-      _refreshGardenUI();
-    }
-  } catch (err) {
-    toast('❌ ' + err.message);
-  }
-}
+// Trash bin removed — uproot is handled via _handleG3DUproot (popup button)
+function _trashZoneEls()          { return []; }
+function showTrash()              {}
+function hideTrash()              {}
+function _setTrashZoneArmed()     {}
+function _elementAtIsTrash()      { return false; }
+function _updateTrashHoverState() {}
+function _initGardenTrashBin()    {}
 
 async function _handleG3DUproot(plantId, plotIndex) {
   if (!plantId) return;
   try {
     const r = await apiGarden.uproot(plantId);
     if (r.error) { toast('❌ ' + r.error); return; }
-    toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
-    if (r.points !== undefined) updatePointsUI(r.points);
+    toast('🪏 Đã nhổ cây.');
     if (typeof plotIndex === 'number') removePlantMesh(plotIndex);
     _gardenData = await apiGarden.load();
     _refreshGardenUI();
@@ -8082,8 +8153,8 @@ const PLANT_DEF = {
 
   ca_chua: {
     name: 'Cà chua',
-    container: 'pot_m',
-    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
     stemColor: 0x5a7a3a,
     leafColor: 0x2d5a2a,
     fruit: { color: 0xd93a2e, count: 4, offsetY: 0.3 },
@@ -8112,8 +8183,8 @@ const PLANT_DEF = {
 
   dua_leo: {
     name: 'Dưa leo',
-    container: 'pot_m',
-    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
     stemColor: 0x4a7a3a,
     leafColor: 0x1e4a1a,
     fruit: { color: 0x3a7a2a, count: 3, offsetY: 0.15 },
@@ -8947,7 +9018,7 @@ function _disposeAllPlants() {
   _g3dHoveredPlant  = null;
 }
 
-function _build3DCells(purchasedCells, plants, shadedCells) {
+function _build3DCells(purchasedCells, plants, shadedCells, tilledCells) {
   if (!_g3dScene) return;
   _disposeG3DCells();
 
@@ -8957,6 +9028,7 @@ function _build3DCells(purchasedCells, plants, shadedCells) {
 
   const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
   const plantMap     = new Map((plants || []).map(p => [`${p.row},${p.col}`, p]));
+  const tilledSet    = new Set((tilledCells || []).map(c => `${c.row},${c.col}`));
 
   // Grass blades via InstancedMesh (all blades = 1 draw call)
   const grassBladeGeo = new THREE.BoxGeometry(0.02, 0.12, 0.02);
@@ -8984,10 +9056,12 @@ function _build3DCells(purchasedCells, plants, shadedCells) {
       let state, baseColor, borderColor;
       if (!isPurchased) {
         state = 'locked';   baseColor = 0x141b14; borderColor = 0x223022;
-      } else if (!plant) {
-        state = 'empty';    baseColor = 0x1d3019; borderColor = 0x5ef0a0;
-      } else {
+      } else if (plant) {
         state = 'planted';  baseColor = 0x1c3020; borderColor = 0x3a6a3a;
+      } else if (tilledSet.has(key)) {
+        state = 'tilled';   baseColor = 0x3a2a18; borderColor = 0x6a4a28;
+      } else {
+        state = 'empty';    baseColor = 0x1d3019; borderColor = 0x5ef0a0;
       }
 
       // Base tile
@@ -9022,6 +9096,8 @@ function _build3DCells(purchasedCells, plants, shadedCells) {
       } else if (state === 'empty') {
         addEdges(borderColor, true, 0.4);
         _addCellBillboard(grp, '+', 0.20, 0.18);
+      } else if (state === 'tilled') {
+        _addCellBillboard(grp, '⛏️', 0.22, 0.20);
       } else {
         addEdges(borderColor, false, 1);
         const containerType = _getContainerType(plant.plantTypeId, plant.potTypeId);
@@ -9087,6 +9163,7 @@ function _addCellBillboard(group, text, size, yAboveBase) {
   const tex  = new THREE.CanvasTexture(canvas);
   const mat  = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  mesh.userData.isBillboard = true;
   mesh.position.y = 0.06 + yAboveBase;
   mesh.rotation.x = -Math.PI / 2;
   group.add(mesh);
@@ -9121,15 +9198,31 @@ async function _buyCell(row, col, price) {
 }
 
 // ── Plant modal ───────────────────────────────────────────────
-function _openPlantModal(row, col) {
+function _openPlantModal(row, col, mode) {
   _gpmTargetCell    = { row, col };
   _gpmSelectedPlant = null;
   _gpmSelectedPot   = null;
+  _gpmMode          = (mode === 'ground') ? 'ground' : 'pot';
   _updateGpmCost();
 
   document.getElementById('gpm-cell-pos').textContent = `${row + 1}×${col + 1}`;
+  // Hide the legacy pot-picker section — pots are now implicit
+  const potSection = document.getElementById('gpm-pot-section');
+  if (potSection) potSection.style.display = 'none';
+
+  // Update modal title prefix depending on mode (keep the cell badge intact)
+  const titleEl = document.getElementById('gpm-title');
+  if (titleEl) {
+    const prefix = (_gpmMode === 'ground')
+      ? '🌱 Trồng xuống đất '
+      : '🌱 Trồng trong chậu ';
+    // Replace only the leading text node, keep the badge span
+    const first = titleEl.childNodes[0];
+    if (first && first.nodeType === Node.TEXT_NODE) first.nodeValue = prefix;
+    else titleEl.insertBefore(document.createTextNode(prefix), titleEl.firstChild);
+  }
+
   _renderGpmPlants('all');
-  _renderGpmPots();
 
   document.getElementById('gpm-backdrop').style.display = '';
   document.getElementById('gpm-modal').style.display = '';
@@ -9143,9 +9236,15 @@ function _closeGpmModal() {
 function _renderGpmPlants(cat) {
   const list = document.getElementById('gpm-plant-list');
   if (!list || !_gardenCatalog) return;
-  const plants = cat === 'all'
+  const mode = _gpmMode || 'pot';
+  let plants = cat === 'all'
     ? _gardenCatalog.plants
     : _gardenCatalog.plants.filter(p => p.category === cat);
+  // Filter by mode — pot plants only in pot mode, ground plants only in ground mode
+  plants = plants.filter(p => {
+    const grp = p.plantGroup || ((p.category === 'hoa' || p.category === 'fengshui') ? 'pot' : 'ground');
+    return grp === mode;
+  });
   // Sort: in-stock first
   const sorted = [...plants].sort((a, b) => {
     const ao = _shopData.gardenSeeds[a.id] || 0;
@@ -9222,23 +9321,34 @@ function _renderGpmPots() {
 function _updateGpmCost() {
   const statusEl  = document.getElementById('gpm-cost-val');
   const confirmBtn = document.getElementById('gpm-confirm');
+  const mode = _gpmMode || 'pot';
   const seedOk = _gpmSelectedPlant && (_shopData.gardenSeeds[_gpmSelectedPlant.id] || 0) > 0;
-  const potOk  = _gpmSelectedPot   && (_shopData.gardenPots[_gpmSelectedPot.id]   || 0) > 0;
+
+  // For pot mode, verify the required pot is in gardenTools inventory
+  let potReqOk = true, potReqLabel = '';
+  if (mode === 'pot' && _gpmSelectedPlant) {
+    const needPot = _gpmSelectedPlant.potType || 'pot_s';
+    const have = (_g3dToolCounts && _g3dToolCounts[needPot]) || 0;
+    potReqOk  = have > 0;
+    potReqLabel = needPot === 'pot_m' ? '🏺 Chậu vừa' : '🪴 Chậu nhỏ';
+  }
 
   if (statusEl) {
-    if (!_gpmSelectedPlant && !_gpmSelectedPot) {
-      statusEl.textContent = '← Chọn cây & chậu để trồng';
-    } else if (_gpmSelectedPlant && !_gpmSelectedPot) {
-      statusEl.textContent = `${_gpmSelectedPlant.name} · chọn chậu →`;
-    } else if (!_gpmSelectedPlant && _gpmSelectedPot) {
-      statusEl.textContent = `${_gpmSelectedPot.name} · chọn cây ←`;
+    if (!_gpmSelectedPlant) {
+      statusEl.textContent = mode === 'ground'
+        ? '← Chọn cây trồng xuống đất'
+        : '← Chọn cây trồng trong chậu';
+    } else if (!seedOk) {
+      statusEl.textContent = '❌ Hết hạt giống — mua thêm trong Cửa hàng';
+    } else if (mode === 'pot' && !potReqOk) {
+      statusEl.textContent = `❌ Thiếu ${potReqLabel} — mua trong Cửa hàng`;
     } else {
-      statusEl.textContent = seedOk && potOk
-        ? `✅ ${_gpmSelectedPlant.name} + ${_gpmSelectedPot.name}`
-        : '❌ Hết hàng — mua thêm trong Cửa hàng';
+      statusEl.textContent = mode === 'ground'
+        ? `✅ ${_gpmSelectedPlant.name} (xuống đất)`
+        : `✅ ${_gpmSelectedPlant.name} + ${potReqLabel}`;
     }
   }
-  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot && seedOk && potOk);
+  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && seedOk && potReqOk);
 }
 
 function _setupPlantModalFilter() {
@@ -9255,18 +9365,19 @@ function _setupPlantModalFilter() {
   document.getElementById('gpm-backdrop')?.addEventListener('click', _closeGpmModal);
 
   document.getElementById('gpm-confirm')?.addEventListener('click', async () => {
-    if (!_gpmSelectedPlant || !_gpmSelectedPot || !_gpmTargetCell) return;
+    if (!_gpmSelectedPlant || !_gpmTargetCell) return;
     const btn = document.getElementById('gpm-confirm');
     btn.disabled = true; btn.textContent = '⏳';
     try {
       const r = await apiGarden.plant(
         _gpmTargetCell.row, _gpmTargetCell.col,
-        _gpmSelectedPlant.id, _gpmSelectedPot.id
+        _gpmSelectedPlant.id
       );
       if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.disabled = false; btn.textContent = '🌱 Trồng ngay!'; return; }
       toast(`🌱 Đã trồng ${_gpmSelectedPlant.name}!`);
       if (r.gardenSeeds) _shopData.gardenSeeds = r.gardenSeeds;
       if (r.gardenPots)  _shopData.gardenPots  = r.gardenPots;
+      if (r.gardenTools) _updateToolHUD(r.gardenTools);
       _closeGpmModal();
       _gardenData = await apiGarden.load();
       _refreshGardenUI();
@@ -9393,11 +9504,11 @@ function _renderCarePanel(plant) {
 
   // Pot info
   const potRow = document.getElementById('gcp-pot-row');
-  if (potRow && pot.name) {
-    const matchWarn = _potMatchWarning(pt.size, pot.size);
-    potRow.innerHTML = `<span class="gcp-pot-icon">${pot.emoji || '🪴'}</span>
-      <span class="gcp-pot-name">${esc(pot.name)}</span>
-      ${matchWarn ? `<span class="gcp-pot-warn">${matchWarn}</span>` : '<span class="gcp-pot-ok">✅ Kích thước phù hợp</span>'}`;
+  if (potRow) {
+    potRow.innerHTML = pot.name
+      ? `<span class="gcp-pot-icon">${pot.emoji || '🪴'}</span>
+         <span class="gcp-pot-name">${esc(pot.name)}</span>`
+      : '';
   }
 }
 
@@ -9435,12 +9546,11 @@ function _setupCarePanelInteractions() {
     if (!_gcpPlantId) return;
     const plant = (_gardenData?.plants || []).find(p => p._id === _gcpPlantId);
     const name  = plant?.plantType?.name || 'cây này';
-    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    if (!confirm(`Nhổ bỏ ${name}?`)) return;
     try {
       const r = await apiGarden.uproot(_gcpPlantId);
       if (r.error) { toast('❌ ' + r.error); return; }
-      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
-      if (r.points !== undefined) updatePointsUI(r.points);
+      toast('🪏 Đã nhổ cây.');
       _closeCarePanel();
       _gardenData = await apiGarden.load();
       _refreshGardenUI();
@@ -9724,15 +9834,53 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
   const container = document.getElementById('gshop-items');
   if (!container || !_gardenCatalog) return;
 
-  if (tab === 'pots') {
-    container.innerHTML = _gardenCatalog.pots.map(p => `
-      <div class="gshop-item">
-        <div class="gshop-item-emoji">${p.emoji}</div>
-        <div class="gshop-item-name">${esc(p.name)}</div>
-        <div class="gshop-item-sub">${esc(p.desc)}</div>
-        <div class="gshop-item-price">${p.price} điểm</div>
-        <div class="gshop-item-note">Mua khi trồng cây</div>
-      </div>`).join('');
+  if (tab === 'tools' || tab === 'pots') {
+    const tools = (_gardenCatalog.tools || []);
+    if (!tools.length) {
+      container.innerHTML = `<div class="gshop-empty">Chưa có dữ liệu công cụ. Mở lại vườn để tải lại.</div>`;
+      return;
+    }
+    container.innerHTML = tools.map(t => {
+      const owned = (_g3dToolCounts && _g3dToolCounts[t.id]) || 0;
+      const cap = t.cap || 9;
+      const maxed = owned >= cap;
+      const usesLine = t.uses
+        ? `<div class="gshop-tool-uses">+${t.uses} lượt / lần mua</div>`
+        : `<div class="gshop-tool-uses">Chậu (dùng 1 lần)</div>`;
+      return `<div class="gshop-item gshop-tool-item" data-toolid="${t.id}">
+        <div class="gshop-item-emoji">${t.emoji}</div>
+        <div class="gshop-item-name">${esc(t.name)}</div>
+        <div class="gshop-item-sub">${esc(t.desc || '')}</div>
+        ${usesLine}
+        <div class="gshop-item-price">${t.price} điểm</div>
+        <div class="gshop-item-owned">Đang có: <b>${owned}</b> / ${cap}</div>
+        <button class="gshop-tool-buy" data-buytool="${t.id}" ${maxed ? 'disabled' : ''}>
+          ${maxed ? '⛔ Đã đầy' : '🛒 Mua'}
+        </button>
+      </div>`;
+    }).join('');
+
+    container.querySelectorAll('[data-buytool]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const toolId = btn.dataset.buytool;
+        btn.disabled = true;
+        const prevTxt = btn.textContent;
+        btn.textContent = '⏳';
+        try {
+          const r = await apiGarden.buyTool(toolId);
+          if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.textContent = prevTxt; btn.disabled = false; return; }
+          toast(`✅ Đã mua ${toolId}`);
+          if (typeof r.points === 'number') updatePointsUI(r.points);
+          if (r.toolCounts) _updateToolHUD(r.toolCounts);
+          else if (r.gardenTools) _updateToolHUD(r.gardenTools);
+          _renderGardenShop('tools');
+          quickNotifCheck();
+        } catch(e) {
+          toast('❌ ' + e.message);
+          btn.textContent = prevTxt; btn.disabled = false;
+        }
+      });
+    });
     return;
   }
 
@@ -10166,3 +10314,16 @@ function _renderFriendGardenGrid(data, _friendId) {
     }
   }
 }
+
+// ── Dev helper: clear all plants (for testing Session I) ─────
+window.devClearPlants = async function () {
+  if (!confirm('⚠️ Dev: Xoá TOÀN BỘ cây trong vườn hiện tại? (không hoàn lại hạt)')) return;
+  try {
+    const r = await apiGarden.devClear();
+    if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); return; }
+    toast(`🗑️ Đã xoá ${r.removed || 0} cây`);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+};

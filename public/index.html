@@ -566,6 +566,16 @@
 
     <!-- ── GRID VIEW ─────────────────────────── -->
     <div id="garden-view-grid">
+      <!-- Tool HUD (Session I) -->
+      <div id="garden-tool-hud">
+        <div class="gtool-item" id="gtool-cuoc" data-tool="tool_cuoc" title="Cuốc đất — chọn rồi click ô trống">⛏️ <span id="gtool-cuoc-n">0</span></div>
+        <div class="gtool-item" id="gtool-xuong" data-tool="tool_xuong" title="Xẻng — chọn rồi click cây trồng đất">🪏 <span id="gtool-xuong-n">0</span></div>
+        <div class="gtool-item" id="gtool-bay" data-tool="tool_bay" title="Bình tưới — chọn rồi click cây cần tưới">🪣 <span id="gtool-bay-n">0</span></div>
+        <div class="gtool-sep"></div>
+        <div class="gtool-pot" id="gtool-pot-s" title="Chậu nhỏ">🪴 <span id="gtool-pots-n">0</span></div>
+        <div class="gtool-pot" id="gtool-pot-m" title="Chậu vừa">🏺 <span id="gtool-potm-n">0</span></div>
+      </div>
+
       <div id="garden-3d-wrap" style="width:100%;height:600px;position:relative;"></div>
 
       <!-- Ecosystem panel -->
@@ -586,7 +596,7 @@
     <div id="garden-view-shop" style="display:none">
       <div class="garden-shop-tabs">
         <button class="gst-btn active" data-gshop="plants">🌱 Cây giống</button>
-        <button class="gst-btn" data-gshop="pots">🪴 Chậu cây</button>
+        <button class="gst-btn" data-gshop="tools">🧰 Công cụ &amp; Chậu</button>
       </div>
 
       <!-- Plant filter -->
@@ -691,7 +701,7 @@
 
   <!-- Header -->
   <div class="gpm-header">
-    <div class="gpm-title">🌱 Trồng cây <span class="gpm-cell-badge">ô <span id="gpm-cell-pos"></span></span></div>
+    <div class="gpm-title" id="gpm-title">🌱 Trồng cây <span class="gpm-cell-badge">ô <span id="gpm-cell-pos"></span></span></div>
     <button class="gpm-close" id="gpm-close">✕</button>
   </div>
 
@@ -713,8 +723,8 @@
       <div class="gpm-plant-list" id="gpm-plant-list"></div>
     </div>
 
-    <!-- RIGHT: Chậu cây -->
-    <div class="gpm-panel">
+    <!-- RIGHT: Chậu cây (legacy — Session I: hidden, pots are implicit) -->
+    <div class="gpm-panel" id="gpm-pot-section" style="display:none">
       <div class="gpm-panel-head">
         <span class="gpm-panel-title">🪴 Chậu cây</span>
       </div>
@@ -1207,16 +1217,6 @@
       <div class="notif-detail-title" id="notif-detail-title"></div>
     </div>
     <div class="notif-detail-body" id="notif-detail-body"></div>
-  </div>
-</div>
-
-<!-- ── Global trash bin — fixed, always visible ── -->
-<div id="garden-trash" class="trash-bin">
-  <div class="trash-lid"></div>
-  <div class="trash-body">
-    <div class="trash-line"></div>
-    <div class="trash-line"></div>
-    <div class="trash-line"></div>
   </div>
 </div>
 
