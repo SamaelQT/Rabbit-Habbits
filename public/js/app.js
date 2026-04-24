@@ -6869,6 +6869,7 @@ const WEATHER_PRESET = {
   rainy:  { skyColor: 0x556677, ambientInt: 0.5, dirInt: 0.2, fogDensity: 0.02 },
   stormy: { skyColor: 0x334455, ambientInt: 0.3, dirInt: 0.1, fogDensity: 0.04 },
   foggy:  { skyColor: 0xcccccc, ambientInt: 0.4, dirInt: 0.3, fogDensity: 0.06 },
+  windy:  { skyColor: 0x9abbd4, ambientInt: 0.7, dirInt: 1.0, fogDensity: 0.005},
   night:  { skyColor: 0x111133, ambientInt: 0.1, dirInt: 0.05,fogDensity: 0.01 },
 };
 
@@ -6878,18 +6879,19 @@ const SWAY_PARAMS = {
   rainy:  { windSpeed: 1.2, swayAmp: 0.06 },
   stormy: { windSpeed: 2.5, swayAmp: 0.15 },
   foggy:  { windSpeed: 0.3, swayAmp: 0.01 },
+  windy:  { windSpeed: 1.8, swayAmp: 0.10 },
   night:  { windSpeed: 0.3, swayAmp: 0.01 },
 };
 
 // Creatures active per weather
 const CREATURE_WEATHER = {
-  bee:      ['sunny', 'cloudy'],
-  bird:     ['sunny'],
-  bat:      ['night'],
-  worm:     ['rainy'],
-  caterpillar: ['rainy', 'stormy'],
-  butterfly:['sunny', 'foggy'],
-  visitor:  ['sunny'],
+  bee:        ['sunny', 'cloudy'],
+  bird:       ['sunny', 'windy'],
+  bat:        ['night'],
+  worm:       ['rainy'],
+  caterpillar:['rainy', 'stormy'],
+  butterfly:  ['sunny', 'foggy'],
+  visitor:    ['sunny'],
 };
 
 // ── Session D: Plant scene state ──────────────────────────────
@@ -8859,7 +8861,8 @@ function buildPlantMesh(type, stage, health) {
       const r = 0.08;
       let fruit;
       if (type === 'dua_leo') {
-        fruit = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.07, 4, 6), fruitMat);
+        // CapsuleGeometry unavailable in r128 — approximate with a cylinder
+        fruit = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 8), fruitMat);
         fruit.rotation.z = Math.PI / 2;
       } else {
         fruit = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), fruitMat);
@@ -10060,5 +10063,64 @@ async function _openFriendGarden(friendId) {
   } catch(e) {
     if (ownerEl) ownerEl.textContent = '❌ Không thể tải vườn';
     toast('❌ ' + e.message);
+  }
+}
+
+function _renderFriendGardenGrid(data, _friendId) {
+  const grid = document.getElementById('gfv-grid');
+  if (!grid) return;
+
+  const ROWS = 6, COLS = 5;
+  const purchasedSet = new Set((data.purchasedCells || []).map(c => `${c.row},${c.col}`));
+  const plantMap     = new Map((data.plants || []).map(p => [`${p.row},${p.col}`, p]));
+
+  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+  grid.innerHTML = '';
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const key   = `${row},${col}`;
+      const isPurchased = purchasedSet.has(key);
+      const plant = plantMap.get(key);
+
+      const cell = document.createElement('div');
+      cell.className = 'garden-cell';
+
+      if (!isPurchased) {
+        cell.classList.add('gc-locked');
+        cell.innerHTML = `<div class="gc-lock-icon">🔒</div>`;
+
+      } else if (!plant) {
+        cell.classList.add('gc-empty');
+        cell.innerHTML = `<div class="gc-empty-plus">+</div>
+          <div class="gc-empty-label">Đất trống</div>`;
+
+      } else {
+        const alive  = plant.isAlive !== false;
+        const si     = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+        const pt     = plant.plantType || {};
+        const hp     = plant.health ?? 100;
+        const hpCol  = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
+
+        cell.classList.add(alive ? 'gc-planted' : 'gc-dead');
+        if (plant.readyToHarvest && alive) cell.classList.add('gc-harvest');
+        if (hp < 30 && alive) cell.classList.add('gc-sick');
+
+        let badges = '';
+        if (plant.readyToHarvest && alive) badges += `<div class="gc-harvest-badge">🌾</div>`;
+        if ((plant.bugs || 0) > 0)         badges += `<div class="gc-bug-badge">🐛×${plant.bugs}</div>`;
+        if ((plant.deadLeaves || 0) > 0)   badges += `<div class="gc-leaf-badge">🍂</div>`;
+
+        cell.innerHTML = `
+          ${badges}
+          <div class="gc-plant-emoji">${alive ? (si.emoji || '🌱') : '💀'}</div>
+          <div class="gc-plant-name">${esc(pt.name || '—')}</div>
+          <div class="gc-hp-bar-wrap">
+            <div class="gc-hp-bar" style="width:${hp}%;background:${hpCol};"></div>
+          </div>`;
+      }
+
+      grid.appendChild(cell);
+    }
   }
 }
