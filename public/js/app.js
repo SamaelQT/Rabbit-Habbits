@@ -6952,7 +6952,7 @@ async function initGarden() {
   _setupGardenShopFilter();
   _setupPlantModalFilter();
   _setupCarePanelInteractions();
-  _setupGardenToolbar();
+  _setupG3DPlantPopup();
   _setupGardenFriendsView();
   _initGardenTrashBin();
 
@@ -7219,7 +7219,7 @@ function _updateG3DHover(raycaster, camera) {
                        : (plant.health < 60 ? '🙂 Khoẻ nhẹ' : '💚 Khoẻ mạnh'));
       tooltipHTML = `<div class="g3d-tt-title">${esc(name)}</div>
         <div class="g3d-tt-sub">Giai đoạn ${stageInt}/${stageMax} · ${healthLbl}</div>
-        <div class="g3d-tt-hint">Click để mở, kéo xuống 🗑️ để nhổ</div>`;
+        <div class="g3d-tt-hint">Click để tương tác</div>`;
     } else {
       tooltipHTML = `<div class="g3d-tt-title">Cây trồng</div>`;
     }
@@ -7286,89 +7286,45 @@ function _setupGarden3DInteractions(renderer, raycaster, camera) {
   };
 
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;   // left button only
+    if (e.button !== 0) return;
     const hit = pickAt(e);
     _g3dDown = { x: e.clientX, y: e.clientY, pid: e.pointerId, hit };
-
-    // Plant-drag arm: disable OrbitControls so pointer stays with us.
-    if (hit?.type === 'plant') {
-      const plant = _getPlantByPlotIndex(hit.plotIndex);
-      if (plant && plant.isAlive) {
-        _g3dDown.plantId    = plant._id;
-        _g3dDown.plotIndex  = hit.plotIndex;
-        _g3dDown.plantName  = plant.plantType?.name || 'cây';
-        _g3dDown.plantStage = typeof plant.stage === 'string' ? plant.stage : 'leafing';
-        if (_g3dControls) _g3dControls.enabled = false;
-      }
-    }
+    // OrbitControls handles camera rotation freely — no drag-to-uproot conflict
   });
 
   const onMove = (e) => {
     _positionG3DTooltip(e.clientX, e.clientY);
-
-    if (!_g3dDown || e.pointerId !== _g3dDown.pid) return;
-
-    if (_g3dDragActive) {
-      _moveG3DGhost(e.clientX, e.clientY);
-      _updateTrashHoverState(e.clientX, e.clientY);
-      return;
-    }
-
-    const dx = e.clientX - _g3dDown.x;
-    const dy = e.clientY - _g3dDown.y;
-    if (!_g3dDown.plantId) return;                   // only plants can start a drag
-    if (Math.hypot(dx, dy) < 8) return;
-
-    _startG3DPlantDrag(_g3dDown, e.clientX, e.clientY);
-    _g3dDragActive = true;
   };
 
-  const onUp = async (e) => {
+  const onUp = (e) => {
     if (!_g3dDown || e.pointerId !== _g3dDown.pid) return;
-    const down            = _g3dDown;
-    const wasDragActive   = _g3dDragActive;
-    _g3dDown       = null;
-    _g3dDragActive = false;
-    if (_g3dControls) _g3dControls.enabled = true;
+    const down = _g3dDown;
+    _g3dDown = null;
 
-    if (wasDragActive) {
-      const overTrash = _elementAtIsTrash(e.clientX, e.clientY);
-      _endG3DPlantDrag();
-      if (overTrash) await _handleG3DUproot(down.plantId, down.plotIndex);
-      return;
-    }
-
-    // Treat as click only if movement was tiny (otherwise user was rotating the camera).
+    // Treat as click only if pointer barely moved (otherwise it was a camera rotation)
     const dx = e.clientX - down.x, dy = e.clientY - down.y;
     if (Math.hypot(dx, dy) > 6) return;
 
     _handleG3DClick(down.hit, e);
   };
 
-  const onCancel = () => {
-    if (_g3dDragActive) _endG3DPlantDrag();
-    _g3dDown       = null;
-    _g3dDragActive = false;
-    if (_g3dControls) _g3dControls.enabled = true;
-  };
-
-  window.addEventListener('pointermove',  onMove);
-  window.addEventListener('pointerup',    onUp);
-  window.addEventListener('pointercancel', onCancel);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup',   onUp);
 
   canvas.addEventListener('pointerleave', () => _hideG3DTooltip());
 }
 
-function _handleG3DClick(hit, _evt) {
-  if (!hit) return;
+function _handleG3DClick(hit, evt) {
+  if (!hit) { _closeG3DPlantPopup(); return; }
 
   if (hit.type === 'plant') {
     const plant = _getPlantByPlotIndex(hit.plotIndex);
-    if (plant) _openCarePanel(plant);
+    if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
     return;
   }
 
   if (hit.type === 'cell') {
+    _closeG3DPlantPopup();
     const grp   = _g3dCells.get(hit.cellKey);
     const state = grp?.userData?.state;
     const rc    = _getCellRowColFromKey(hit.cellKey);
@@ -7380,9 +7336,8 @@ function _handleG3DClick(hit, _evt) {
       const price = _gardenData?.cellPrices?.[rc.row]?.[rc.col];
       if (typeof price === 'number') _buyCell(rc.row, rc.col, price);
     } else if (state === 'planted') {
-      // Fallback: click on container/soil (no plant mesh hit) — treat as plant click.
       const plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
-      if (plant) _openCarePanel(plant);
+      if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
     }
   }
 }
@@ -9494,7 +9449,94 @@ function _setupCarePanelInteractions() {
   });
 }
 
-// ── Garden toolbar drag system ────────────────────────────────
+// ── Plant interaction popup (replaces toolbar) ────────────────
+let _gppCurrentPlant = null;
+
+function _openG3DPlantPopup(plant, clientX, clientY) {
+  _gppCurrentPlant = plant;
+  const popup = document.getElementById('g3d-plant-popup');
+  if (!popup) return;
+
+  // Reset sub-tools state
+  document.getElementById('gpp-subtools').style.display = 'none';
+
+  // Show/hide Bắt sâu / Ngắt lá based on plant state
+  const bugBtn  = document.getElementById('gpp-btn-bug');
+  const leafBtn = document.getElementById('gpp-btn-leaf');
+  if (bugBtn)  bugBtn.style.display  = (plant.bugs       > 0) ? '' : 'none';
+  if (leafBtn) leafBtn.style.display = (plant.deadLeaves > 0) ? '' : 'none';
+
+  // Position popup near click, keep inside viewport
+  popup.style.display = 'flex';
+  const PW = 160, PH = 180;
+  let left = clientX + 12;
+  let top  = clientY - 20;
+  if (left + PW > window.innerWidth  - 8) left = clientX - PW - 12;
+  if (top  + PH > window.innerHeight - 8) top  = window.innerHeight - PH - 8;
+  popup.style.left = left + 'px';
+  popup.style.top  = top  + 'px';
+}
+
+function _closeG3DPlantPopup() {
+  const popup = document.getElementById('g3d-plant-popup');
+  if (popup) popup.style.display = 'none';
+  _gppCurrentPlant = null;
+}
+
+function _setupG3DPlantPopup() {
+  // Close popup when clicking outside it
+  document.addEventListener('pointerdown', (e) => {
+    const popup = document.getElementById('g3d-plant-popup');
+    if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
+      _closeG3DPlantPopup();
+    }
+  }, true);
+
+  // "Thông số" → care panel
+  document.getElementById('gpp-btn-info')?.addEventListener('click', () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (plant) _openCarePanel(plant);
+  });
+
+  // "Công cụ" → toggle sub-tools
+  document.getElementById('gpp-btn-tools')?.addEventListener('click', () => {
+    const sub = document.getElementById('gpp-subtools');
+    if (sub) sub.style.display = sub.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  // Bắt sâu
+  document.getElementById('gpp-btn-bug')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    await _cpCareAction(apiGarden.catchBug, '🐛 Đã bắt sâu!', plant._id);
+  });
+
+  // Ngắt lá hư
+  document.getElementById('gpp-btn-leaf')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    await _cpCareAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!', plant._id);
+  });
+
+  // Nhổ cây
+  document.getElementById('gpp-btn-uproot')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    const name = plant.plantType?.name || 'cây này';
+    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    await _handleG3DUproot(plant._id,
+      _gardenData?.plants
+        ? (plant.row * G3D_COLS + plant.col)
+        : null
+    );
+  });
+}
+
+// ── Garden toolbar drag system (DEPRECATED — kept for reference only) ─────
 function _setupGardenToolbar() {
   const toolbar = document.getElementById('garden-toolbar');
   if (!toolbar) return;

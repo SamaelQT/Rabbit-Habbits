@@ -580,42 +580,6 @@
         <span class="gl-item"><span class="gl-dot gl-dead"></span>Cây chết</span>
       </div>
 
-      <!-- ── GARDEN TOOLBAR ── drag tools onto cells, drag chips/plants to trash -->
-      <div class="garden-toolbar" id="garden-toolbar">
-
-        <!-- Trash bin: receives bug/leaf chips and dead-plant drags -->
-        <div class="gtb-trash gtb-drop-zone" id="gtb-trash" data-zone="trash">
-          <div class="gtb-trash-emoji">🗑️</div>
-          <div class="gtb-trash-label">Thùng rác</div>
-        </div>
-
-        <div class="gtb-divider"></div>
-
-        <!-- Water tool: drag onto a planted cell to water it -->
-        <div class="gtb-tool" id="gtb-water" data-tool="water">
-          <div class="gtb-tool-emoji">💧</div>
-          <div class="gtb-tool-label">Tưới nước</div>
-        </div>
-
-        <!-- Fertilizer tool: drag onto a planted cell to fertilize -->
-        <div class="gtb-tool" id="gtb-fert" data-tool="fert">
-          <div class="gtb-tool-emoji">🌿</div>
-          <div class="gtb-tool-label">Bón phân</div>
-        </div>
-
-        <!-- Catch-bug tool: drag onto a cell that has bugs -->
-        <div class="gtb-tool" id="gtb-bug" data-tool="bug">
-          <div class="gtb-tool-emoji">🪲</div>
-          <div class="gtb-tool-label">Bắt sâu</div>
-        </div>
-
-        <!-- Remove-leaf tool: drag onto a cell that has dead leaves -->
-        <div class="gtb-tool" id="gtb-leaf" data-tool="leaf">
-          <div class="gtb-tool-emoji">✂️</div>
-          <div class="gtb-tool-label">Ngắt lá</div>
-        </div>
-
-      </div>
     </div>
 
     <!-- ── SHOP VIEW ─────────────────────────── -->
@@ -1246,13 +1210,33 @@
   </div>
 </div>
 
-<!-- ── Global trash bin — fixed right, visible only during plant drag ── -->
+<!-- ── Global trash bin — fixed, always visible ── -->
 <div id="garden-trash" class="trash-bin">
   <div class="trash-lid"></div>
   <div class="trash-body">
     <div class="trash-line"></div>
     <div class="trash-line"></div>
     <div class="trash-line"></div>
+  </div>
+</div>
+
+<!-- ── Plant interaction popup (shows on 3D plant click) ── -->
+<div id="g3d-plant-popup" class="g3d-plant-popup" style="display:none">
+  <div class="gpp-arrow"></div>
+  <button class="gpp-btn gpp-btn-info" id="gpp-btn-info">
+    <span class="gpp-btn-icon">📊</span>
+    <span class="gpp-btn-label">Thông số</span>
+  </button>
+  <div class="gpp-divider"></div>
+  <button class="gpp-btn gpp-btn-tools" id="gpp-btn-tools">
+    <span class="gpp-btn-icon">🔧</span>
+    <span class="gpp-btn-label">Công cụ</span>
+  </button>
+  <!-- Sub-tools (shown when Công cụ is clicked) -->
+  <div class="gpp-subtools" id="gpp-subtools" style="display:none">
+    <button class="gpp-sub-btn" id="gpp-btn-bug"  style="display:none">🐛 Bắt sâu</button>
+    <button class="gpp-sub-btn" id="gpp-btn-leaf" style="display:none">🍂 Ngắt lá hư</button>
+    <button class="gpp-sub-btn gpp-btn-uproot" id="gpp-btn-uproot">🪏 Nhổ cây</button>
   </div>
 </div>
 

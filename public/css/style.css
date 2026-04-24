@@ -3509,24 +3509,22 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .trash-bin {
   position: fixed;
   right: 18px;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 90px;       /* above bottom nav */
   width: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0;
   z-index: 9999;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0.35;
+  pointer-events: auto;
   transition: opacity .2s, transform .2s;
   cursor: default;
   filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));
 }
-.trash-bin.visible,
+/* Highlighted when a drag is active */
 .trash-bin.g3d-trash-armed {
   opacity: 1;
-  pointer-events: auto;
 }
 
 /* Lid — inverted trapezoid via clip-path */
