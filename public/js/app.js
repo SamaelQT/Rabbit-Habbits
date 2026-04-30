@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // ─── STATE ────────────────────────────────────────────────
 const today = new Date(); today.setHours(0,0,0,0);
@@ -2174,6 +2174,9 @@ function navigateTo(page){
     loadStats();
     setTimeout(()=>_buildHeatmap(), 300);
   }
+  if (page === 'garden' && _gardenData) {
+    setTimeout(() => _initGarden3D(), 100);
+  }
 }
 
 function initTopNav(){
@@ -2443,11 +2446,13 @@ const TASK_QUOTES = [
 ];
 
 const CHANGELOG = [
-  { version:'v2.4', date:'03/04/2026', icon:'📊', title:'Thống kê nâng cao', isNew:true,
+  { version:'v2.5', date:'17/04/2026', icon:'🌿', title:'Cây cối chuyển sang Vườn', isNew:true,
+    desc:'Toàn bộ cây cối (cây cảnh, hoa...) nay chỉ xuất hiện trong tab Vườn — không còn chạy trên màn hình. Nếu bạn từng mua cây, điểm đã được hoàn lại tự động.' },
+  { version:'v2.4', date:'03/04/2026', icon:'📊', title:'Thống kê nâng cao', isNew:false,
     desc:'Hành trình cá nhân (ngày dùng app, tổng tasks, habits, điểm), tiến bộ theo tháng (line chart 12 tháng), cân bằng cuộc sống (radar chart 5 danh mục), cột mốc sắp tới với progress bar.' },
-  { version:'v2.4', date:'03/04/2026', icon:'🏆', title:'Kho lưu trữ mục tiêu', isNew:true,
+  { version:'v2.4', date:'03/04/2026', icon:'🏆', title:'Kho lưu trữ mục tiêu', isNew:false,
     desc:'Mục tiêu đã kết thúc (dù bỏ lỡ vài ngày) có thể lưu vào kho. Xem lại lịch sử với thống kê: tổng mục tiêu, ngày hoàn thành, tỉ lệ TB, mục tiêu hoàn hảo.' },
-  { version:'v2.3', date:'03/04/2026', icon:'🎁', title:'Hiệu ứng quà tặng', isNew:true,
+  { version:'v2.3', date:'03/04/2026', icon:'🎁', title:'Hiệu ứng quà tặng', isNew:false,
     desc:'Mỗi vật phẩm tặng bạn bè có hiệu ứng riêng: ⭐ Sao mở lì xì random 10-100 điểm, 🍫 Socola bay trái tim, 🌹 Hoa rơi cánh, 🐇 Thỏ chạy ngang màn hình, 🐟 Cá nhảy lên...' },
   { version:'v2.3', date:'02/04/2026', icon:'💬', title:'Nhắn tin bạn bè', isNew:false,
     desc:'Chat trực tiếp với từng người bạn. Cửa sổ chat toàn màn hình, tin nhắn cập nhật mỗi 4 giây, hiển thị chuỗi lửa 🔥 của cả hai.' },
@@ -2603,8 +2608,9 @@ async function loadNotifications() {
     });
   }
 
-  // ─── 5. SICK PETS ───────────────────────────────────────────────────────────
-  const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70);
+  // ─── 5. SICK PETS (chỉ động vật) ───────────────────────────────────────────
+  const isAnimalType = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+  const sick = pets.filter(p => p.alive && !p.hidden && p.health < 70 && isAnimalType(p.type));
   if (sick.length) {
     urgentCount += sick.length;
     html += `<div class="notif-section-title">🐾 Thú cưng cần chăm sóc</div>`;
@@ -2695,7 +2701,29 @@ async function loadNotifications() {
     });
   }
 
-  // ─── 9. CHANGELOG / NEW FEATURES ────────────────────────────────────────────
+  // ─── 9. SYSTEM NOTIFICATIONS ────────────────────────────────────────────────
+  const sysNotifCount = notifData.systemNotifCount || 0;
+  if (sysNotifCount > 0) {
+    const sysNotifs = await apiGamification.systemNotifications().catch(() => []);
+    if (sysNotifs.length > 0) {
+      urgentCount += sysNotifs.length;
+      html += `<div class="notif-section-title">📢 Thông báo hệ thống</div>`;
+      sysNotifs.forEach(n => {
+        const detailTitle = encodeURIComponent(`${n.emoji} Thông báo hệ thống`);
+        const detailBody  = encodeURIComponent(`<p><span class="notif-detail-badge">${n.emoji} Hệ thống</span></p><p>${esc(n.message)}</p>`);
+        html += `<div class="notif-item notif-urgent clickable" data-detail-title="${detailTitle}" data-detail-body="${detailBody}" data-sys-notif="${n._id}">
+          <span class="notif-item-icon">${n.emoji}</span>
+          <div class="notif-item-body">
+            <div class="notif-item-title">Thông báo từ hệ thống</div>
+            <div class="notif-item-sub">${esc((n.message||'').slice(0, 70))}${(n.message||'').length > 70 ? '…' : ''}</div>
+          </div>
+        </div>`;
+      });
+      apiGamification.markSystemNotifSeen().catch(() => {});
+    }
+  }
+
+  // ─── 10. CHANGELOG / NEW FEATURES ───────────────────────────────────────────
   html += `<div class="notif-section-title">✨ Bản cập nhật</div>`;
   CHANGELOG.forEach(c => {
     const newBadge    = c.isNew ? `<span class="notif-version-badge notif-update-new">MỚI</span> ` : '';
@@ -2818,8 +2846,9 @@ async function quickNotifCheck() {
     const notifData   = await apiGamification.notifications();
     const petsRaw     = await apiShop.pets().catch(() => []);
     const pendingGifts = JSON.parse(localStorage.getItem('rh-pending-gifts') || '[]');
-    const sick    = petsRaw.filter(p => p.alive && !p.hidden && p.health < 70).length;
-    const newDead = petsRaw.filter(p => !p.alive && !JSON.parse(localStorage.getItem('rh-seen-dead-pets')||'[]').includes(p._id)).length;
+    const isAnimalT = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+    const sick    = petsRaw.filter(p => p.alive && !p.hidden && p.health < 70 && isAnimalT(p.type)).length;
+    const newDead = petsRaw.filter(p => !p.alive && isAnimalT(p.type) && !JSON.parse(localStorage.getItem('rh-seen-dead-pets')||'[]').includes(p._id)).length;
     const todayStr = tds(state.today);
     const todayTasks = await API.g(`/api/tasks?startDate=${todayStr}&endDate=${todayStr}`).catch(() => []);
     const overdueCount = await API.g('/api/tasks/overdue').catch(() => []);
@@ -2829,6 +2858,7 @@ async function quickNotifCheck() {
       (notifData.fireCount||0) +
       (notifData.messageCount||0) +
       (notifData.gardenVisitCount||0) +
+      (notifData.systemNotifCount||0) +
       sick + newDead + pendingGifts.length +
       incomplete + (overdueCount?.length||0);
     _updateBellBadge(urgentCount);
@@ -4389,7 +4419,11 @@ async function loadMyPets() {
       tree2:'Cây Sen Đá', flower2:'Hoa Mai', flower3:'Hoa Lan'
     };
 
-    pets.forEach(pet => {
+    // Chỉ hiển thị động vật — cây cối chỉ xuất hiện trong Vườn
+    const animalPets = pets.filter(p => isAnimal(p.type));
+    if (!animalPets.length) { if (empty) empty.style.display = ''; return; }
+
+    animalPets.forEach(pet => {
       const isHidden = pet.hidden;
       const category = isAnimal(pet.type) ? 'animal' : 'plant';
       const card = document.createElement('div');
@@ -4908,11 +4942,10 @@ async function loadFloatingPets() {
     // Use server-side hidden flag, sync to localStorage for offline reference
     const hiddenIds = pets.filter(p => p.hidden).map(p => p._id);
     localStorage.setItem('hiddenPetIds', JSON.stringify(hiddenIds));
-    const visiblePets = pets.filter(p => p.alive && !p.hidden);
+    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
+    const visiblePets = pets.filter(p => p.alive && !p.hidden && isAnimal(p.type));
 
     if (!visiblePets.length) return;
-
-    const isAnimal = t => ['rabbit','cat','dog','hamster','bird'].includes(t);
 
     visiblePets.forEach((pet, i) => {
       const el = document.createElement('div');
@@ -5145,8 +5178,10 @@ const apiGamification = {
   sendMessage:      (toId, content) => API.p('/api/gamification/messages', { toUserId: toId, content }),
   unreadMessages:   () => API.g('/api/gamification/unread-messages'),
   fireStreak:       (fid) => API.g(`/api/gamification/fire-streak/${fid}`),
-  gardenVisits:     ()    => API.g('/api/gamification/garden-visits'),
-  gardenVisitsSeen: ()    => API.p('/api/gamification/garden-visits/seen', {}),
+  gardenVisits:         ()  => API.g('/api/gamification/garden-visits'),
+  gardenVisitsSeen:     ()  => API.p('/api/gamification/garden-visits/seen', {}),
+  systemNotifications:  ()  => API.g('/api/gamification/system-notifications'),
+  markSystemNotifSeen:  ()  => API.p('/api/gamification/system-notifications/seen', {}),
 };
 
 // ═══════════════════════════════════════════
@@ -6781,8 +6816,7 @@ const apiGarden = {
   load:             ()                        => API.g('/api/garden'),
   catalog:          ()                        => API.g('/api/garden/catalog'),
   buyPlot:          (row, col)                => API.p('/api/garden/plots/buy', { row, col }),
-  plant:            (row, col, plantTypeId, potTypeId) =>
-                                                 API.p('/api/garden/plant', { row, col, plantTypeId, potTypeId }),
+  plant:            (row, col, plantTypeId)   => API.p('/api/garden/plant', { row, col, plantTypeId }),
   water:            (id)                      => API.p(`/api/garden/water/${id}`, {}),
   fertilize:        (id)                      => API.p(`/api/garden/fertilize/${id}`, {}),
   catchBug:         (id)                      => API.p(`/api/garden/catch-bug/${id}`, {}),
@@ -6793,17 +6827,98 @@ const apiGarden = {
   loadFriendGarden: (friendId)               => API.g(`/api/garden/friend/${friendId}`),
   giftWater:        (friendId, plantId)      => API.p(`/api/garden/friend/${friendId}/water/${plantId}`, {}),
   giftRose:         (friendId)               => API.p(`/api/garden/friend/${friendId}/gift-rose`, {}),
+  // ── Session I: Tools ──
+  getTools:         ()                        => API.g('/api/garden/tools'),
+  till:             (row, col)                => API.p('/api/garden/tools/till', { row, col }),
+  toolWater:        (plantId)                 => API.p(`/api/garden/tools/water/${plantId}`, {}),
+  toolUproot:       (plantId)                 => API.p(`/api/garden/tools/uproot/${plantId}`, {}),
+  buyTool:          (id, qty)                 => API.p('/api/garden/tools/buy', { id, qty: qty || 1 }),
+  devClear:         ()                        => API.p('/api/garden/dev/clear-plants', {}),
 };
 
 // ── Garden state ──────────────────────────────────────────────
 let _gardenInited     = false;
 let _gardenData       = null;   // { purchasedCells, plants, gridConfig, cellPrices, gameTime, weather, ecosystem }
-let _gardenCatalog    = null;   // { plants, pots }
+let _gardenCatalog    = null;   // { plants, pots, tools }
 let _gpmSelectedPlant = null;
 let _gpmSelectedPot   = null;
 let _gpmTargetCell    = null;   // { row, col }
+let _gpmMode          = 'pot';  // 'pot' | 'ground' — which group is the target cell
 let _gcpPlantId       = null;   // currently open care panel plant id
 let _gardenFriendData = null;   // { friend, plants, ... } when visiting a friend's garden
+
+// ── Session I: Tool state ────────────────────────────────────
+let _g3dActiveTool  = null;   // 'tool_cuoc' | 'tool_xuong' | 'tool_bay' | null
+let _g3dToolCounts  = { tool_cuoc: 0, tool_xuong: 0, tool_bay: 0, pot_s: 0, pot_m: 0 };
+
+// ── Garden 3D renderer state ──────────────────────────────────
+let _g3dScene          = null;
+let _g3dCamera         = null;
+let _g3dRenderer       = null;
+let _g3dControls       = null;
+let _g3dCells          = new Map();   // "row,col" → THREE.Group
+let _g3dGrassInstances = null;
+let _g3dHoveredCell    = null;
+let _g3dCellMeshes     = [];
+let _g3dMouseNDC       = { x: 0, y: 0 };
+
+// ── Session G: Interaction state ──────────────────────────────
+let _g3dPlantMeshes    = [];   // plant Group meshes (for raycaster plant-hits)
+let _g3dHoveredPlant   = null; // plotIndex of currently-hovered plant
+let _g3dTooltipEl      = null; // floating DOM tooltip
+let _g3dDown           = null; // pointerdown state: { x, y, pid, hit, plantId? }
+let _g3dDragActive     = false;
+let _g3dGhostEl        = null; // ghost element while dragging plant
+
+// ── Session F: Weather / Rain / Creatures ─────────────────────
+let _g3dAmbientLight   = null;
+let _g3dDirLight       = null;
+let _g3dRain           = null;          // THREE.InstancedMesh (500 drops)
+let _g3dRainActive     = false;
+let _g3dWindOffset     = 0;             // stormy x-drift per frame
+let _g3dCreatures      = [];            // active creature objects
+let _g3dCreatureTimer  = 0;            // seconds until next spawn
+let _g3dCurrentWeather = 'sunny';
+let _g3dClock          = null;          // THREE.Clock
+
+const WEATHER_PRESET = {
+  sunny:  { skyColor: 0x87ceeb, ambientInt: 0.6, dirInt: 1.4, fogDensity: 0    },
+  cloudy: { skyColor: 0xaaaaaa, ambientInt: 0.8, dirInt: 0.4, fogDensity: 0.01 },
+  rainy:  { skyColor: 0x556677, ambientInt: 0.5, dirInt: 0.2, fogDensity: 0.02 },
+  stormy: { skyColor: 0x334455, ambientInt: 0.3, dirInt: 0.1, fogDensity: 0.04 },
+  foggy:  { skyColor: 0xcccccc, ambientInt: 0.4, dirInt: 0.3, fogDensity: 0.06 },
+  windy:  { skyColor: 0x9abbd4, ambientInt: 0.7, dirInt: 1.0, fogDensity: 0.005},
+  night:  { skyColor: 0x111133, ambientInt: 0.1, dirInt: 0.05,fogDensity: 0.01 },
+};
+
+const SWAY_PARAMS = {
+  sunny:  { windSpeed: 0.5, swayAmp: 0.02 },
+  cloudy: { windSpeed: 0.8, swayAmp: 0.04 },
+  rainy:  { windSpeed: 1.2, swayAmp: 0.06 },
+  stormy: { windSpeed: 2.5, swayAmp: 0.15 },
+  foggy:  { windSpeed: 0.3, swayAmp: 0.01 },
+  windy:  { windSpeed: 1.8, swayAmp: 0.10 },
+  night:  { windSpeed: 0.3, swayAmp: 0.01 },
+};
+
+// Creatures active per weather
+const CREATURE_WEATHER = {
+  bee:        ['sunny', 'cloudy'],
+  bird:       ['sunny', 'windy'],
+  bat:        ['night'],
+  worm:       ['rainy'],
+  caterpillar:['rainy', 'stormy'],
+  butterfly:  ['sunny', 'foggy'],
+  visitor:    ['sunny'],
+};
+
+// ── Session D: Plant scene state ──────────────────────────────
+// gardenScene.plots[plotIndex] = { mesh, type, stage, health, hasFruit }
+const gardenScene = { plots: {} };
+
+const G3D_ROWS      = 6;
+const G3D_COLS      = 5;
+const G3D_CELL_SIZE = 1.0;
 
 // ── Stage display info ────────────────────────────────────────
 const STAGE_INFO = {
@@ -6822,6 +6937,17 @@ const CAT_INFO = {
   flower:    { label:'Hoa',        emoji:'🌸', color:'#ff85c8' },
   fengshui:  { label:'Phong thủy', emoji:'🎍', color:'#b07fff' },
 };
+
+// Stub — sẽ được thay thế ở Session D/E (plant models)
+const PLANT_ARCHETYPE = {};
+function _buildPlantBodyHTML() { return ''; }
+function _potClass(potTypeId) {
+  const map = { pot_s:'gc-pot gc-pot-s', pot_m:'gc-pot gc-pot-m', bed_s:'gc-bed gc-bed-s', bed_m:'gc-bed gc-bed-m', hole_l:'gc-hole gc-hole-l' };
+  return map[potTypeId] || 'gc-pot gc-pot-m';
+}
+function _soilClass(waterLevel) {
+  return 'gc-soil-' + _getSoilStateFromWater(waterLevel ?? 50);
+}
 
 // ── Init ──────────────────────────────────────────────────────
 async function initGarden() {
@@ -6843,8 +6969,10 @@ async function initGarden() {
   _setupGardenShopTabs();
   _setupGardenShopFilter();
   _setupPlantModalFilter();
-  _setupCarePanelButtons();
+  _setupCarePanelInteractions();
+  _setupG3DPlantPopup();
   _setupGardenFriendsView();
+  _setupToolHUD();
 
   _refreshGardenUI();
 
@@ -6867,9 +6995,2185 @@ function _refreshGardenUI() {
   _updateGardenTimeLabel();
   _updateGardenPoints();
   _renderWeatherBanner(_gardenData.weatherInfo, _gardenData.weather, 'garden-weather-banner');
+  _applyWeatherToPage(_gardenData.weather);
   _renderEcosystemPanel(_gardenData.ecosystem, 'garden-eco-panel');
-  _renderGardenGrid();
+  _initGarden3D();
+  applyWeather(_gardenData.weather || 'sunny');
+  _build3DCells(_gardenData.purchasedCells, _gardenData.plants, _gardenData.shadedCells, _gardenData.tilledCells);
   _renderGardenShop();
+  // Refresh tool counts in the HUD
+  (async () => {
+    try {
+      const t = await apiGarden.getTools();
+      if (t) _updateToolHUD(t.tools || t);
+    } catch (e) { /* ignore */ }
+  })();
+}
+
+// ── Three.js 3D garden renderer ───────────────────────────────
+function _initGarden3D() {
+  const wrap = document.getElementById('garden-3d-wrap');
+  if (!wrap) return;
+
+  if (_g3dScene) {
+    // Re-attach renderer canvas if user navigated away and back
+    if (!wrap.contains(_g3dRenderer.domElement)) {
+      wrap.innerHTML = '';
+      wrap.appendChild(_g3dRenderer.domElement);
+      const W = wrap.clientWidth || 600;
+      const H = wrap.clientHeight || 600;
+      _g3dRenderer.setSize(W, H);
+      _g3dCamera.aspect = W / H;
+      _g3dCamera.updateProjectionMatrix();
+    }
+    return;
+  }
+
+  wrap.innerHTML = '';
+
+  const W = wrap.clientWidth  || 600;
+  const H = wrap.clientHeight || 600;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a1c0e);
+  _g3dScene = scene;
+
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 1000);
+  camera.position.set(10, 12, 10);
+  camera.lookAt(0, 0, 0);
+  _g3dCamera = camera;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  wrap.appendChild(renderer.domElement);
+  _g3dRenderer = renderer;
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableRotate = true;
+  controls.enableZoom   = true;
+  controls.enablePan    = true;
+  controls.minDistance  = 3;
+  controls.maxDistance  = 30;
+  controls.maxPolarAngle = Math.PI / 2 - 0.05; // không cho xoay xuống dưới mặt đất
+  controls.mouseButtons = {
+    LEFT:   THREE.MOUSE.ROTATE,
+    MIDDLE: THREE.MOUSE.DOLLY,
+    RIGHT:  THREE.MOUSE.PAN,
+  };
+  controls.touches = {
+    ONE:  THREE.TOUCH.ROTATE,
+    TWO:  THREE.TOUCH.DOLLY_PAN,
+  };
+  controls.update();
+  _g3dControls = controls;
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+  dirLight.position.set(5, 10, 5);
+  dirLight.castShadow = true;
+  scene.add(dirLight);
+  _g3dDirLight = dirLight;
+
+  const ambLight = new THREE.AmbientLight(0xffffff, 0.4);
+  scene.add(ambLight);
+  _g3dAmbientLight = ambLight;
+
+  _g3dClock = new THREE.Clock();
+  _buildRainSystem();
+  applyWeather(_gardenData?.weather || 'sunny');
+
+  renderer.domElement.addEventListener('mousemove', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    _g3dMouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    _g3dMouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  });
+
+  _buildGarden3DEnvironment();
+
+  const raycaster = new THREE.Raycaster();
+  function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    const delta = _g3dClock ? _g3dClock.getDelta() : 0.016;
+    const time  = _g3dClock ? _g3dClock.elapsedTime : 0;
+
+    // ── Sway ──
+    const sw = SWAY_PARAMS[_g3dCurrentWeather] || SWAY_PARAMS.sunny;
+    Object.values(gardenScene.plots).forEach(entry => {
+      if (entry && entry.mesh) {
+        const offset = entry.swayOffset || 0;
+        entry.mesh.rotation.z = Math.sin(time * sw.windSpeed + offset) * sw.swayAmp;
+      }
+    });
+
+    // ── Rain ──
+    if (_g3dRainActive && _g3dRain) {
+      _updateRain(delta);
+    }
+
+    // ── Creatures ──
+    _g3dCreatureTimer -= delta;
+    if (_g3dCreatureTimer <= 0) {
+      _trySpawnCreature();
+      _g3dCreatureTimer = 5 + Math.random() * 10;
+    }
+    _updateCreatures(delta);
+
+    // ── Session G: Raycaster hover (cells + plants) ──
+    _updateG3DHover(raycaster, camera);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  _setupGarden3DInteractions(renderer, raycaster, camera);
+}
+
+// ── Session G: Hover detection + tooltip + emissive highlight ──
+function _g3dRaycast(raycaster, camera) {
+  raycaster.setFromCamera(_g3dMouseNDC, camera);
+  const plantHits = _g3dPlantMeshes.length
+    ? raycaster.intersectObjects(_g3dPlantMeshes, true)
+    : [];
+  const cellHits = _g3dCellMeshes.length
+    ? raycaster.intersectObjects(_g3dCellMeshes)
+    : [];
+
+  let plantHit = null;
+  for (const h of plantHits) {
+    let o = h.object;
+    while (o) {
+      if (o.userData && typeof o.userData.plotIndex === 'number') {
+        plantHit = { plotIndex: o.userData.plotIndex, distance: h.distance };
+        break;
+      }
+      o = o.parent;
+    }
+    if (plantHit) break;
+  }
+
+  const cellHit = cellHits.length
+    ? { cellKey: cellHits[0].object.userData.cellKey, distance: cellHits[0].distance }
+    : null;
+
+  // Plants sit on top of cell tiles — if a plant hit exists at the same cell, prefer it.
+  if (plantHit) {
+    return { type: 'plant', plotIndex: plantHit.plotIndex, cellKey: cellHit?.cellKey || null };
+  }
+  if (cellHit) return { type: 'cell', cellKey: cellHit.cellKey };
+  return null;
+}
+
+function _ensureG3DTooltip() {
+  if (_g3dTooltipEl) return _g3dTooltipEl;
+  const el = document.createElement('div');
+  el.className = 'garden-3d-tooltip';
+  el.id = 'garden-3d-tooltip';
+  el.style.display = 'none';
+  document.body.appendChild(el);
+  _g3dTooltipEl = el;
+  return el;
+}
+
+function _hideG3DTooltip() {
+  if (_g3dTooltipEl) _g3dTooltipEl.style.display = 'none';
+}
+
+function _showG3DTooltip(html) {
+  const el = _ensureG3DTooltip();
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+function _positionG3DTooltip(clientX, clientY) {
+  if (!_g3dTooltipEl || _g3dTooltipEl.style.display === 'none') return;
+  const pad = 14;
+  _g3dTooltipEl.style.left = (clientX + pad) + 'px';
+  _g3dTooltipEl.style.top  = (clientY + pad) + 'px';
+}
+
+function _setCellHoverEmissive(cellKey, colorHex) {
+  if (!cellKey) return;
+  const grp = _g3dCells.get(cellKey);
+  if (grp && grp.userData.baseMesh) {
+    grp.userData.baseMesh.material.emissive.setHex(colorHex);
+  }
+}
+
+function _updateG3DHover(raycaster, camera) {
+  if (!_g3dCellMeshes.length && !_g3dPlantMeshes.length) return;
+
+  const hit = _g3dRaycast(raycaster, camera);
+
+  const prevCellKey  = _g3dHoveredCell;
+  const prevPlantIdx = _g3dHoveredPlant;
+
+  const newCellKey  = hit ? (hit.cellKey || _keyFromPlot(hit.plotIndex)) : null;
+  const newPlantIdx = (hit && hit.type === 'plant') ? hit.plotIndex : null;
+
+  if (prevCellKey && prevCellKey !== newCellKey) _setCellHoverEmissive(prevCellKey, 0x000000);
+
+  if (!hit) {
+    if (prevCellKey) _setCellHoverEmissive(prevCellKey, 0x000000);
+    _g3dHoveredCell  = null;
+    _g3dHoveredPlant = null;
+    _hideG3DTooltip();
+    _g3dRenderer.domElement.style.cursor = '';
+    return;
+  }
+
+  const grp = newCellKey ? _g3dCells.get(newCellKey) : null;
+  const state = grp?.userData?.state || null;
+
+  let highlightHex = 0x000000;
+  let cursor       = '';
+  let tooltipHTML  = '';
+
+  if (hit.type === 'plant' || state === 'planted') {
+    highlightHex = 0x2a6a3a;
+    cursor       = 'pointer';
+    const plant  = _getPlantByPlotIndex(hit.plotIndex ?? _plotFromKey(newCellKey));
+    if (plant) {
+      const stageInt  = typeof plant.stage === 'number' ? plant.stage : (STAGE_STR_TO_INT[plant.stage] ?? 0);
+      const stageMax  = Object.keys(plant.plantType?.stages || {}).length || 5;
+      const name      = plant.plantType?.name || 'Cây';
+      const healthLbl = !plant.isAlive ? '💀 Đã chết'
+                       : (plant.health < 30 ? '⚠️ Yếu'
+                       : (plant.health < 60 ? '🙂 Khoẻ nhẹ' : '💚 Khoẻ mạnh'));
+      tooltipHTML = `<div class="g3d-tt-title">${esc(name)}</div>
+        <div class="g3d-tt-sub">Giai đoạn ${stageInt}/${stageMax} · ${healthLbl}</div>
+        <div class="g3d-tt-hint">Click để tương tác</div>`;
+    } else {
+      tooltipHTML = `<div class="g3d-tt-title">Cây trồng</div>`;
+    }
+  } else if (state === 'empty') {
+    highlightHex = 0xffcf5c;
+    cursor       = 'pointer';
+    tooltipHTML  = `<div class="g3d-tt-title">Ô đất trống</div>
+      <div class="g3d-tt-hint">Click để trồng cây</div>`;
+  } else if (state === 'locked') {
+    highlightHex = 0x000000;
+    cursor       = 'help';
+    tooltipHTML  = `<div class="g3d-tt-title">🔒 Chưa mở</div>
+      <div class="g3d-tt-hint">Click để mở khoá</div>`;
+  }
+
+  if (newCellKey) _setCellHoverEmissive(newCellKey, highlightHex);
+  _g3dHoveredCell  = newCellKey;
+  _g3dHoveredPlant = newPlantIdx;
+  _g3dRenderer.domElement.style.cursor = cursor;
+  if (tooltipHTML) _showG3DTooltip(tooltipHTML);
+  else _hideG3DTooltip();
+}
+
+function _keyFromPlot(plotIndex) {
+  if (typeof plotIndex !== 'number') return null;
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return `${row},${col}`;
+}
+
+function _plotFromKey(key) {
+  if (!key) return null;
+  const [r, c] = key.split(',').map(Number);
+  return r * G3D_COLS + c;
+}
+
+function _getPlantByPlotIndex(plotIndex) {
+  if (typeof plotIndex !== 'number' || !_gardenData?.plants) return null;
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return _gardenData.plants.find(p => p.row === row && p.col === col) || null;
+}
+
+function _getCellRowColFromKey(key) {
+  if (!key) return null;
+  const [r, c] = key.split(',').map(Number);
+  return { row: r, col: c };
+}
+
+// ── Session G: Pointer interactions (click + drag-uproot) ──
+function _setupGarden3DInteractions(renderer, raycaster, camera) {
+  const canvas = renderer.domElement;
+
+  // Track mouse NDC for raycaster from pointer events too (mousemove already handled).
+  const updateNDC = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    _g3dMouseNDC.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    _g3dMouseNDC.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+  };
+
+  const pickAt = (e) => {
+    updateNDC(e);
+    return _g3dRaycast(raycaster, camera);
+  };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const hit = pickAt(e);
+    _g3dDown = { x: e.clientX, y: e.clientY, pid: e.pointerId, hit };
+    // OrbitControls handles camera rotation freely — no drag-to-uproot conflict
+  });
+
+  const onMove = (e) => {
+    _positionG3DTooltip(e.clientX, e.clientY);
+  };
+
+  const onUp = (e) => {
+    if (!_g3dDown || e.pointerId !== _g3dDown.pid) return;
+    const down = _g3dDown;
+    _g3dDown = null;
+
+    // Treat as click only if pointer barely moved (otherwise it was a camera rotation)
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if (Math.hypot(dx, dy) > 6) return;
+
+    _handleG3DClick(down.hit, e);
+  };
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup',   onUp);
+
+  canvas.addEventListener('pointerleave', () => _hideG3DTooltip());
+}
+
+function _handleG3DClick(hit, evt) {
+  if (!hit) { _closeG3DPlantPopup(); return; }
+
+  // ── Active tool overrides default behavior ──
+  if (_g3dActiveTool) {
+    _closeG3DPlantPopup();
+    if (_g3dActiveTool === 'tool_cuoc') {
+      if (hit.type === 'cell') {
+        const grp = _g3dCells.get(hit.cellKey);
+        if (grp?.userData?.state === 'empty') _doTillCell(hit.cellKey);
+        else toast('⛏️ Chỉ cuốc được ô đất trống');
+      } else toast('⛏️ Click ô đất trống để cuốc');
+      return;
+    }
+    if (_g3dActiveTool === 'tool_bay') {
+      let plant = null;
+      if (hit.type === 'plant') plant = _getPlantByPlotIndex(hit.plotIndex);
+      else if (hit.type === 'cell') plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
+      if (plant) _doToolWater(plant._id);
+      else toast('🪣 Không có cây ở ô này');
+      return;
+    }
+    if (_g3dActiveTool === 'tool_xuong') {
+      let plant = null, plotIndex = null;
+      if (hit.type === 'plant') { plant = _getPlantByPlotIndex(hit.plotIndex); plotIndex = hit.plotIndex; }
+      else if (hit.type === 'cell') {
+        plotIndex = _plotFromKey(hit.cellKey);
+        plant = _getPlantByPlotIndex(plotIndex);
+      }
+      if (!plant) { toast('🪏 Không có cây ở ô này'); return; }
+      const pt = plant.plantType || _gardenCatalog?.plants?.find(p => p.id === plant.plantTypeId);
+      if ((pt?.plantGroup || 'ground') !== 'ground') {
+        toast('🪏 Xẻng chỉ nhổ được cây trồng dưới đất. Nhổ cây chậu qua bảng chăm sóc.');
+        return;
+      }
+      _doToolUproot(plant._id, plotIndex);
+      return;
+    }
+    return; // unknown tool
+  }
+
+  // ── No active tool: default behavior ──
+  if (hit.type === 'plant') {
+    const plant = _getPlantByPlotIndex(hit.plotIndex);
+    if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
+    return;
+  }
+
+  if (hit.type === 'cell') {
+    _closeG3DPlantPopup();
+    const grp   = _g3dCells.get(hit.cellKey);
+    const state = grp?.userData?.state;
+    const rc    = _getCellRowColFromKey(hit.cellKey);
+    if (!rc) return;
+
+    if (state === 'empty') {
+      // Empty = un-tilled: only pot plants can go here
+      _openPlantModal(rc.row, rc.col, 'pot');
+    } else if (state === 'tilled') {
+      // Tilled: only ground plants
+      _openPlantModal(rc.row, rc.col, 'ground');
+    } else if (state === 'locked') {
+      const price = _gardenData?.cellPrices?.[rc.row]?.[rc.col];
+      if (typeof price === 'number') _buyCell(rc.row, rc.col, price);
+    } else if (state === 'planted') {
+      const plant = _getPlantByPlotIndex(_plotFromKey(hit.cellKey));
+      if (plant) _openG3DPlantPopup(plant, evt.clientX, evt.clientY);
+    }
+  }
+}
+
+// ── Session I: Tool HUD + actions ─────────────────────────────
+function _updateToolHUD(counts) {
+  _g3dToolCounts = Object.assign({ tool_cuoc:0, tool_xuong:0, tool_bay:0, pot_s:0, pot_m:0 }, counts || {});
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('gtool-cuoc-n',  _g3dToolCounts.tool_cuoc);
+  set('gtool-xuong-n', _g3dToolCounts.tool_xuong);
+  set('gtool-bay-n',   _g3dToolCounts.tool_bay);
+  set('gtool-pots-n',  _g3dToolCounts.pot_s);
+  set('gtool-potm-n',  _g3dToolCounts.pot_m);
+
+  // Dim tool items with 0 uses
+  [['cuoc','tool_cuoc'], ['xuong','tool_xuong'], ['bay','tool_bay']].forEach(([k, tid]) => {
+    const el = document.getElementById(`gtool-${k}`);
+    if (el) el.classList.toggle('gtool-empty', !_g3dToolCounts[tid]);
+  });
+
+  // Deselect if active tool ran out
+  if (_g3dActiveTool && !_g3dToolCounts[_g3dActiveTool]) _setActiveTool(null);
+}
+
+function _setActiveTool(toolId) {
+  _g3dActiveTool = toolId;
+  document.querySelectorAll('#garden-tool-hud .gtool-item').forEach(el => {
+    el.classList.toggle('gtool-active', el.dataset.tool === toolId);
+  });
+  if (_g3dRenderer) _g3dRenderer.domElement.style.cursor = toolId ? 'crosshair' : '';
+}
+
+function _setupToolHUD() {
+  document.querySelectorAll('#garden-tool-hud .gtool-item').forEach(el => {
+    el.addEventListener('click', () => {
+      if (el.classList.contains('gtool-empty')) {
+        toast('Hết lượt. Mua thêm trong Cửa hàng.');
+        return;
+      }
+      const tid = el.dataset.tool;
+      _setActiveTool(_g3dActiveTool === tid ? null : tid);
+    });
+  });
+}
+
+async function _doTillCell(cellKey) {
+  const rc = _getCellRowColFromKey(cellKey);
+  if (!rc) return;
+  try {
+    const r = await apiGarden.till(rc.row, rc.col);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast('⛏️ Đã cuốc đất!');
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    _updateCellState(cellKey, 'tilled');
+    if (_gardenData) _gardenData.tilledCells = r.tilledCells || _gardenData.tilledCells || [];
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function _doToolWater(plantId) {
+  try {
+    const r = await apiGarden.toolWater(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast('🪣 Đã tưới! +25 nước.');
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function _doToolUproot(plantId, plotIndex) {
+  try {
+    const r = await apiGarden.toolUproot(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast(`🪏 Đã nhổ cây. Hoàn lại ${r.refund || 0} điểm.`);
+    if (r.points !== undefined) updatePointsUI(r.points);
+    if (r.toolCounts) _updateToolHUD(r.toolCounts);
+    if (typeof plotIndex === 'number') removePlantMesh(plotIndex);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// Patch one cell's state in the 3D scene (avoid full rebuild)
+function _updateCellState(cellKey, newState) {
+  const grp = _g3dCells.get(cellKey);
+  if (!grp) return;
+  grp.userData.state = newState;
+  const baseMesh = grp.userData.baseMesh;
+  if (!baseMesh) return;
+  if (newState === 'tilled') {
+    baseMesh.material.color.setHex(0x2a1a0a);
+    if (baseMesh.material.emissive) baseMesh.material.emissive.setHex(0x000000);
+    const old = grp.children.find(c => c.userData && c.userData.isBillboard);
+    if (old) { old.geometry?.dispose(); old.material?.dispose(); grp.remove(old); }
+    _addCellBillboard(grp, '⛏️', 0.22, 0.20);
+  }
+}
+
+function _startG3DPlantDrag(down, x, y) {
+  _hideG3DTooltip();
+  const si      = STAGE_INFO[down.plantStage] || STAGE_INFO.leafing;
+  const emoji   = si.emoji || '🌱';
+  const ghost   = document.createElement('div');
+  ghost.className = 'garden-ghost';
+  ghost.innerHTML = `
+    <div class="gg-plant">${emoji}</div>
+    <div class="gg-label">${esc(down.plantName || 'cây')}</div>`;
+  document.body.appendChild(ghost);
+  _g3dGhostEl = ghost;
+  _moveG3DGhost(x, y);
+}
+
+function _moveG3DGhost(x, y) {
+  if (!_g3dGhostEl) return;
+  _g3dGhostEl.style.left = (x - 28) + 'px';
+  _g3dGhostEl.style.top  = (y - 28) + 'px';
+}
+
+function _endG3DPlantDrag() {
+  if (_g3dGhostEl) { _g3dGhostEl.remove(); _g3dGhostEl = null; }
+}
+
+// Trash bin removed — uproot is handled via _handleG3DUproot (popup button)
+function _trashZoneEls()          { return []; }
+function showTrash()              {}
+function hideTrash()              {}
+function _setTrashZoneArmed()     {}
+function _elementAtIsTrash()      { return false; }
+function _updateTrashHoverState() {}
+function _initGardenTrashBin()    {}
+
+async function _handleG3DUproot(plantId, plotIndex) {
+  if (!plantId) return;
+  try {
+    const r = await apiGarden.uproot(plantId);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast('🪏 Đã nhổ cây.');
+    if (typeof plotIndex === 'number') removePlantMesh(plotIndex);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch (err) {
+    toast('❌ ' + err.message);
+  }
+}
+
+function _buildGarden3DEnvironment() {
+  const scene = _g3dScene;
+  const ROWS  = G3D_ROWS;
+  const COLS  = G3D_COLS;
+  const CS    = G3D_CELL_SIZE;
+  const W     = COLS * CS;   // 5.0
+  const D     = ROWS * CS;   // 6.0
+  const PAD   = 0.5;
+
+  // Grass floor
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(W + PAD * 2, D + PAD * 2),
+    new THREE.MeshLambertMaterial({ color: 0x2d5a1e })
+  );
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Horizontal wood paths between rows (5 paths)
+  const matH = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
+  for (let i = 0; i < ROWS - 1; i++) {
+    const z    = (i + 1 - ROWS / 2) * CS;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W + PAD, 0.02, 0.12), matH);
+    mesh.position.set(0, 0.01, z);
+    scene.add(mesh);
+  }
+
+  // Vertical wood paths between cols (4 paths)
+  const matV = new THREE.MeshLambertMaterial({ color: 0x7a5030 });
+  for (let j = 0; j < COLS - 1; j++) {
+    const x    = (j + 1 - COLS / 2) * CS;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, D + PAD), matV);
+    mesh.position.set(x, 0.01, 0);
+    scene.add(mesh);
+  }
+
+  // Garden border (4 sides)
+  const matB  = new THREE.MeshLambertMaterial({ color: 0x4a3520 });
+  const BT    = 0.15;
+  const BY    = 0.05;
+  const halfW = W / 2 + PAD;
+  const halfD = D / 2 + PAD;
+
+  [halfD, -halfD].forEach(z => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(W + PAD * 2 + BT * 2, BY, BT), matB);
+    mesh.position.set(0, BY / 2, z);
+    scene.add(mesh);
+  });
+  [-halfW, halfW].forEach(x => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(BT, BY, D + PAD * 2), matB);
+    mesh.position.set(x, BY / 2, 0);
+    scene.add(mesh);
+  });
+}
+
+// ── Session F: Weather ────────────────────────────────────────
+function applyWeather(weatherId) {
+  if (!_g3dScene) return;
+  const preset = WEATHER_PRESET[weatherId] || WEATHER_PRESET.sunny;
+  _g3dCurrentWeather = weatherId;
+
+  _g3dScene.background = new THREE.Color(preset.skyColor);
+
+  if (!_g3dScene.fog) {
+    _g3dScene.fog = new THREE.FogExp2(preset.skyColor, preset.fogDensity);
+  } else {
+    _g3dScene.fog.color.setHex(preset.skyColor);
+    _g3dScene.fog.density = preset.fogDensity;
+  }
+
+  if (_g3dAmbientLight) _g3dAmbientLight.intensity = preset.ambientInt;
+  if (_g3dDirLight)     _g3dDirLight.intensity     = preset.dirInt;
+
+  const rainWeathers = ['rainy', 'stormy'];
+  _g3dRainActive = rainWeathers.includes(weatherId);
+  _g3dWindOffset = weatherId === 'stormy' ? 0.015 : 0;
+  if (_g3dRain) _g3dRain.visible = _g3dRainActive;
+
+  _g3dCreatureTimer = 2; // trigger first spawn soon after weather change
+}
+
+// ── Session F: Rain ───────────────────────────────────────────
+function _buildRainSystem() {
+  if (!_g3dScene) return;
+  const COUNT  = 500;
+  const geo    = new THREE.CylinderGeometry(0.01, 0.01, 0.3, 4);
+  const mat    = new THREE.MeshBasicMaterial({ color: 0xaaccff, transparent: true, opacity: 0.6 });
+  const rain   = new THREE.InstancedMesh(geo, mat, COUNT);
+  rain.visible = false;
+
+  const dummy  = new THREE.Object3D();
+  const SPREAD = 8;
+  const TOP    = 6;
+  for (let i = 0; i < COUNT; i++) {
+    dummy.position.set(
+      (Math.random() - 0.5) * SPREAD,
+      Math.random() * TOP,
+      (Math.random() - 0.5) * SPREAD
+    );
+    dummy.rotation.z = 0.15; // slight tilt
+    dummy.updateMatrix();
+    rain.setMatrixAt(i, dummy.matrix);
+  }
+  rain.instanceMatrix.needsUpdate = true;
+  _g3dScene.add(rain);
+  _g3dRain = rain;
+}
+
+function _updateRain(delta) {
+  const COUNT  = 500;
+  const SPREAD = 8;
+  const TOP    = 6;
+  const BOTTOM = -0.5;
+  const SPEED  = 6;
+  const dummy  = new THREE.Object3D();
+  const mat    = new THREE.Matrix4();
+
+  for (let i = 0; i < COUNT; i++) {
+    _g3dRain.getMatrixAt(i, mat);
+    dummy.position.setFromMatrixPosition(mat);
+
+    dummy.position.y -= SPEED * delta;
+    dummy.position.x += _g3dWindOffset;
+
+    if (dummy.position.y < BOTTOM) {
+      dummy.position.set(
+        (Math.random() - 0.5) * SPREAD,
+        TOP,
+        (Math.random() - 0.5) * SPREAD
+      );
+    }
+    dummy.rotation.z = _g3dWindOffset !== 0 ? 0.3 : 0.1;
+    dummy.updateMatrix();
+    _g3dRain.setMatrixAt(i, dummy.matrix);
+  }
+  _g3dRain.instanceMatrix.needsUpdate = true;
+}
+
+// ── Session F: Creatures ──────────────────────────────────────
+const _CREATURE_COLORS = {
+  bee:         0xffdd00,
+  bird:        0x44aaff,
+  bat:         0x553366,
+  worm:        0xdd6633,
+  caterpillar: 0x66bb44,
+  butterfly:   0xff88cc,
+  visitor:     0xffccaa,
+};
+
+function _trySpawnCreature() {
+  if (!_g3dScene) return;
+  const eligible = Object.entries(CREATURE_WEATHER)
+    .filter(([, weathers]) => weathers.includes(_g3dCurrentWeather))
+    .map(([type]) => type);
+  if (eligible.length === 0) return;
+
+  const type = eligible[Math.floor(Math.random() * eligible.length)];
+  _spawnCreature(type);
+}
+
+function _spawnCreature(type) {
+  const color   = _CREATURE_COLORS[type] || 0xffffff;
+  const mat     = new THREE.SpriteMaterial({ color });
+  const sprite  = new THREE.Sprite(mat);
+  sprite.scale.set(0.25, 0.25, 1);
+
+  const HALF = 4;
+  // Spawn off one edge, move toward the other
+  const side = Math.random() < 0.5 ? -1 : 1;
+
+  let startX, startY, startZ, velX, velY, velZ, pattern;
+
+  if (type === 'bird') {
+    startX = side * HALF; startY = 3 + Math.random() * 1.5; startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 3; velY = 0; velZ = 0;
+    pattern = 'straight';
+  } else if (type === 'bat') {
+    startX = side * HALF; startY = 2 + Math.random(); startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 1.2; velY = 0; velZ = 0;
+    pattern = 'swoop';
+  } else if (type === 'bee' || type === 'butterfly') {
+    startX = side * HALF; startY = 1 + Math.random(); startZ = (Math.random() - 0.5) * 5;
+    velX   = -side * 1.0; velY = 0; velZ = 0;
+    pattern = 'zigzag';
+  } else if (type === 'worm' || type === 'caterpillar') {
+    startX = side * HALF; startY = 0.05; startZ = (Math.random() - 0.5) * 3;
+    velX   = -side * 0.3; velY = 0; velZ = 0;
+    pattern = 'crawl';
+  } else { // visitor
+    startX = side * HALF; startY = 0.1; startZ = 0;
+    velX   = -side * 1.5; velY = 0; velZ = 0;
+    pattern = 'straight';
+  }
+
+  sprite.position.set(startX, startY, startZ);
+  _g3dScene.add(sprite);
+
+  _g3dCreatures.push({
+    sprite, type, pattern,
+    vel: new THREE.Vector3(velX, velY, velZ),
+    age: 0,
+    phaseOffset: Math.random() * Math.PI * 2,
+  });
+}
+
+function _updateCreatures(delta) {
+  const BOUNDS = 6;
+  for (let i = _g3dCreatures.length - 1; i >= 0; i--) {
+    const c = _g3dCreatures[i];
+    c.age += delta;
+
+    const p = c.sprite.position;
+    p.x += c.vel.x * delta;
+
+    if (c.pattern === 'zigzag') {
+      p.y += Math.sin(c.age * 3 + c.phaseOffset) * 0.015;
+      p.z += Math.cos(c.age * 2 + c.phaseOffset) * 0.01;
+    } else if (c.pattern === 'swoop') {
+      p.y += Math.sin(c.age * 1.5 + c.phaseOffset) * 0.01;
+    } else if (c.pattern === 'crawl') {
+      p.z += Math.sin(c.age * 0.8 + c.phaseOffset) * 0.005;
+    }
+
+    // Remove when out of bounds or too old (>20s)
+    if (Math.abs(p.x) > BOUNDS || c.age > 20) {
+      _g3dScene.remove(c.sprite);
+      c.sprite.material.dispose();
+      _g3dCreatures.splice(i, 1);
+    }
+  }
+}
+
+function _disposeG3DCells() {
+  _disposeAllPlants();
+  _g3dCells.forEach(grp => {
+    grp.traverse(obj => {
+      if (obj.isMesh) {
+        obj.geometry.dispose();
+        if (obj.material) {
+          if (obj.material.map) obj.material.map.dispose();
+          obj.material.dispose();
+        }
+      }
+    });
+    if (_g3dScene) _g3dScene.remove(grp);
+  });
+  _g3dCells.clear();
+  _g3dCellMeshes  = [];
+  _g3dHoveredCell = null;
+
+  if (_g3dGrassInstances) {
+    _g3dGrassInstances.geometry.dispose();
+    _g3dGrassInstances.material.dispose();
+    if (_g3dScene) _g3dScene.remove(_g3dGrassInstances);
+    _g3dGrassInstances = null;
+  }
+}
+
+// ── Session C: Container helpers ────────────────────────────────────────────
+
+function _getSoilMaterial(state) {
+  const colors = { dry: 0xc8a06e, normal: 0x8b5e3c, moist: 0x5c3d1e, wet: 0x3d2710 };
+  const col = colors[state] || colors.normal;
+  if (state === 'wet') {
+    return new THREE.MeshLambertMaterial({ color: col, emissive: new THREE.Color(0x1a0f08), emissiveIntensity: 0.1 });
+  }
+  return new THREE.MeshLambertMaterial({ color: col });
+}
+
+function _addSoilCracks(grp, y, radius) {
+  const mat = new THREE.LineBasicMaterial({ color: 0x9a7550 });
+  const n = 3 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < n; i++) {
+    const a   = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+    const len = 0.04 + Math.random() * 0.05;
+    const cx  = (Math.random() - 0.5) * radius * 1.1;
+    const cz  = (Math.random() - 0.5) * radius * 1.1;
+    const pts = [
+      new THREE.Vector3(cx, y, cz),
+      new THREE.Vector3(cx + Math.cos(a) * len, y, cz + Math.sin(a) * len)
+    ];
+    grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+  }
+}
+
+function _make3DContainer(containerType, soilState) {
+  const grp     = new THREE.Group();
+  const soilMat = _getSoilMaterial(soilState);
+
+  if (containerType === 'pot_s') {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0xc4622d });
+    const body    = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.11, 0.20, 12), bodyMat);
+    body.position.y = 0.10;
+    grp.add(body);
+    const rimMat = new THREE.MeshLambertMaterial({ color: 0xb5572a });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.175, 0.018, 6, 12), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.20;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.02, 12), soilMat);
+    soil.position.y = 0.20;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.21, 0.14);
+
+  } else if (containerType === 'pot_m') {
+    const pts = [
+      new THREE.Vector2(0.10, 0),
+      new THREE.Vector2(0.22, 0.10),
+      new THREE.Vector2(0.24, 0.18),
+      new THREE.Vector2(0.20, 0.26),
+      new THREE.Vector2(0.16, 0.28)
+    ];
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0x7ab5c8, shininess: 40 });
+    const body    = new THREE.Mesh(new THREE.LatheGeometry(pts, 16), bodyMat);
+    grp.add(body);
+    const rimMat = new THREE.MeshPhongMaterial({ color: 0x5a9ab5 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.165, 0.015, 8, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.28;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.148, 0.148, 0.02, 16), soilMat);
+    soil.position.y = 0.28;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.29, 0.13);
+
+  } else if (containerType === 'pot_l') {
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
+    const body    = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.28, 0.55), bodyMat);
+    body.position.y = 0.14;
+    grp.add(body);
+    const grainMat = new THREE.MeshLambertMaterial({ color: 0x5a3818 });
+    [-0.08, 0.0, 0.08].forEach(yOff => {
+      [0.28, -0.28].forEach(zOff => {
+        const g = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.02, 0.01), grainMat);
+        g.position.set(0, 0.14 + yOff, zOff);
+        grp.add(g);
+      });
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.02, 0.50), soilMat);
+    soil.position.y = 0.28;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.29, 0.22);
+
+  } else if (containerType === 'pot_xl') {
+    const bodyMat = new THREE.MeshPhongMaterial({ color: 0xf0ece0, shininess: 80 });
+    const body    = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.18, 0.38, 16), bodyMat);
+    body.position.y = 0.19;
+    grp.add(body);
+    const bandMat = new THREE.MeshPhongMaterial({ color: 0x1a5fa8 });
+    [0.13, 0.25].forEach(y => {
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.03, 16), bandMat);
+      band.position.y = y;
+      grp.add(band);
+    });
+    const rimMat = new THREE.MeshPhongMaterial({ color: 0xe0dcd0 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.018, 8, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.38;
+    grp.add(rim);
+    const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.02, 16), soilMat);
+    soil.position.y = 0.38;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, 0.39, 0.21);
+
+  } else if (containerType === 'bed_s') {
+    const woodMat   = new THREE.MeshLambertMaterial({ color: 0x7a5030 });
+    const cornerMat = new THREE.MeshLambertMaterial({ color: 0x5a3820 });
+    const fW = 0.80, fH = 0.12, fT = 0.06;
+    [
+      [0,            fH/2, -(fW/2-fT/2), fW, fH, fT],
+      [0,            fH/2,  (fW/2-fT/2), fW, fH, fT],
+      [-(fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+      [ (fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+    ].forEach(([x, y, z, w, h, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodMat);
+      m.position.set(x, y, z);
+      grp.add(m);
+    });
+    [[-0.37, fH/2, -0.37], [0.37, fH/2, -0.37], [-0.37, fH/2, 0.37], [0.37, fH/2, 0.37]].forEach(([x, y, z]) => {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.06, fH + 0.04, 0.06), cornerMat);
+      post.position.set(x, y, z);
+      grp.add(post);
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.06, 0.76), soilMat);
+    soil.position.y = fH;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, fH + 0.03, 0.35);
+
+  } else if (containerType === 'bed_m') {
+    const woodMat  = new THREE.MeshLambertMaterial({ color: 0x8B6914 });
+    const brickMat = new THREE.MeshLambertMaterial({ color: 0x9a7520 });
+    const fW = 0.80, fH = 0.22, fT = 0.07;
+    [
+      [0,            fH/2, -(fW/2-fT/2), fW, fH, fT],
+      [0,            fH/2,  (fW/2-fT/2), fW, fH, fT],
+      [-(fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+      [ (fW/2-fT/2), fH/2,  0,           fT, fH, fW],
+    ].forEach(([x, y, z, w, h, d]) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), woodMat);
+      m.position.set(x, y, z);
+      grp.add(m);
+    });
+    [-0.06, 0.06].forEach(yOff => {
+      [-(fW/2-fT/2), (fW/2-fT/2)].forEach(z => {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(fW + 0.01, 0.03, fT + 0.01), brickMat);
+        strip.position.set(0, fH/2 + yOff, z);
+        grp.add(strip);
+      });
+    });
+    const soil = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.08, 0.72), soilMat);
+    soil.position.y = fH;
+    grp.add(soil);
+    if (soilState === 'dry') _addSoilCracks(grp, fH + 0.04, 0.34);
+
+  } else {
+    // hole_l
+    const groundMat = new THREE.MeshLambertMaterial({ color: 0x2d5a1e });
+    const ground    = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 0.85), groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = 0.01;
+    grp.add(ground);
+    const holeMat = new THREE.MeshLambertMaterial({ color: 0x3d2710, side: THREE.BackSide });
+    const hole    = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.25, 0.25, 16, 1, true), holeMat);
+    hole.position.y = -0.10;
+    grp.add(hole);
+    const rimMat = new THREE.MeshLambertMaterial({ color: 0x4a3215 });
+    const rim    = new THREE.Mesh(new THREE.TorusGeometry(0.30, 0.03, 6, 16), rimMat);
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = 0.01;
+    grp.add(rim);
+    const moundMat = new THREE.MeshLambertMaterial({ color: 0x5c3d1e });
+    const mound    = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), moundMat);
+    mound.scale.y = 0.5;
+    mound.position.set(0.38, 0.09, 0.10);
+    grp.add(mound);
+    [[0.30, 0.05, 0.28], [0.44, 0.04, -0.05], [0.22, 0.04, 0.38]].forEach(([x, y, z]) => {
+      const clump = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), moundMat);
+      clump.scale.y = 0.5;
+      clump.position.set(x, y, z);
+      grp.add(clump);
+    });
+  }
+
+  return grp;
+}
+
+function _getContainerType(plantTypeId, potTypeId) {
+  const pt = _gardenCatalog?.plants?.find(p => p.id === plantTypeId);
+  if (!pt) return 'bed_s';
+  if (pt.category === 'fengshui' || pt.category === 'flower') return potTypeId || 'pot_m';
+  if (pt.size === 'large')  return 'hole_l';
+  if (pt.size === 'medium') return 'bed_m';
+  return 'bed_s';
+}
+
+function _getSoilStateFromWater(waterLevel) {
+  if (waterLevel <= 20) return 'dry';
+  if (waterLevel <= 50) return 'normal';
+  if (waterLevel <= 80) return 'moist';
+  return 'wet';
+}
+
+// ── Session D: Plant models (Nhóm 1 — Rau & Củ quả) ─────────────────────────
+// Container soil-top Y (in cell-local coords; container is already offset by 0.03)
+const CONTAINER_SOIL_TOP = {
+  pot_s: 0.24,
+  pot_m: 0.32,
+  bed_s: 0.18,
+  bed_m: 0.29,
+  hole_l: 0.02,
+};
+
+// Map backend string stage → 0–5 int
+const STAGE_STR_TO_INT = {
+  seed: 0, sprout: 1, leafing: 2, growing: 3, flowering: 4, fruiting: 5, dormant: 5,
+};
+
+// Map backend plant object → Session D health string
+function _plantHealthString(plant) {
+  if (!plant.isAlive) return 'dead';
+  const h = plant.health ?? 100;
+  if (h < 30) return 'sick';
+  return 'healthy';
+}
+
+// Apply health tint to a base hex color → THREE.Color
+function _applyHealthColor(hex, health) {
+  const c = new THREE.Color(hex);
+  if (health === 'sick') {
+    // desaturate + lerp toward yellow 50%
+    const hsl = { h: 0, s: 0, l: 0 };
+    c.getHSL(hsl);
+    c.setHSL(hsl.h, hsl.s * 0.4, hsl.l);
+    c.lerp(new THREE.Color(0xd4c43a), 0.5);
+  } else if (health === 'dead') {
+    c.set(0x6b4f2a); // nâu khô
+  }
+  return c;
+}
+
+// Scale factor per stage (0=mầm, 5=trưởng thành)
+function _stageScale(stage) {
+  const s = Math.max(0, Math.min(5, stage | 0));
+  return 0.25 + s * 0.15; // 0.25, 0.40, 0.55, 0.70, 0.85, 1.00
+}
+
+const PLANT_DEF = {
+  rau_muong: {
+    name: 'Rau muống',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0x7aba5f,
+    leafColor: 0x1e5a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemH = 0.28 * sc;
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nStems = Math.max(2, 2 + Math.floor(stage * 0.8));
+      for (let i = 0; i < nStems; i++) {
+        const a = (i / nStems) * Math.PI * 2;
+        const r = 0.08 * sc;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, stemH, 6), stemMat);
+        stem.position.set(Math.cos(a) * r, stemH / 2, Math.sin(a) * r);
+        stem.rotation.z = (Math.random() - 0.5) * 0.3;
+        g.add(stem);
+        const nLeaves = 1 + Math.floor(stage * 0.6);
+        for (let k = 0; k < nLeaves; k++) {
+          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.12 * sc, 0.06 * sc), leafMat);
+          leaf.position.set(Math.cos(a) * r, stemH * (0.4 + k * 0.25), Math.sin(a) * r);
+          leaf.rotation.y = a + Math.PI / 2;
+          leaf.rotation.z = Math.PI / 6;
+          g.add(leaf);
+        }
+      }
+      return g;
+    },
+  },
+
+  cai_xanh: {
+    name: 'Cải xanh',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0xa8d070,
+    leafColor: 0x4ca13a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.06 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const r = 0.08 * sc + i * 0.005;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09 * sc, 8, 6), leafMat);
+        leaf.scale.set(1, 0.35, 0.7);
+        leaf.position.set(Math.cos(a) * r, stemH + 0.02 * sc, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 8;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  hanh_la: {
+    name: 'Hành lá',
+    container: 'bed_s',
+    yOffset: CONTAINER_SOIL_TOP.bed_s,
+    stemColor: 0xf0f0d8,
+    leafColor: 0x2d8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const bulbMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nStalks = 3 + stage;
+      for (let i = 0; i < nStalks; i++) {
+        const a = (i / nStalks) * Math.PI * 2;
+        const r = 0.04 * sc;
+        const bulbH = 0.05 * sc;
+        const bulb = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, bulbH, 6), bulbMat);
+        bulb.position.set(Math.cos(a) * r, bulbH / 2, Math.sin(a) * r);
+        g.add(bulb);
+        const leafH = 0.35 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.025 * sc, leafH), leafMat);
+        leaf.position.set(Math.cos(a) * r, bulbH + leafH / 2, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.2;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  ca_chua: {
+    name: 'Cà chua',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x5a7a3a,
+    leafColor: 0x2d5a2a,
+    fruit: { color: 0xd93a2e, count: 4, offsetY: 0.3 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.55 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.022, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      // Vine wrapping around
+      const vineMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      for (let i = 0; i < 3 + stage; i++) {
+        const t = (i + 1) / (4 + stage);
+        const a = t * Math.PI * 4;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.3, 1);
+        leaf.position.set(Math.cos(a) * 0.08 * sc, stemH * t, Math.sin(a) * 0.08 * sc);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  dua_leo: {
+    name: 'Dưa leo',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x4a7a3a,
+    leafColor: 0x1e4a1a,
+    fruit: { color: 0x3a7a2a, count: 3, offsetY: 0.15 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.35 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      // horizontal vines
+      for (let i = 0; i < 2 + stage; i++) {
+        const a = (i / (2 + stage)) * Math.PI * 2;
+        const vineL = 0.18 * sc;
+        const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, vineL, 4), stemMat);
+        vine.position.set(Math.cos(a) * vineL / 2, stemH * 0.6, Math.sin(a) * vineL / 2);
+        vine.rotation.z = Math.PI / 2;
+        vine.rotation.y = -a;
+        g.add(vine);
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.07 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.25, 1);
+        leaf.position.set(Math.cos(a) * vineL, stemH * 0.6, Math.sin(a) * vineL);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  ca_rot: {
+    name: 'Cà rốt',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0xe87a1a,
+    leafColor: 0x3a8a2a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      // Carrot root — mostly below soil, small tip visible
+      const rootMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const rootH = 0.10 * sc;
+      const root = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * sc, 0.01, rootH, 8), rootMat);
+      root.position.y = rootH / 2 - rootH * 0.7; // mostly buried
+      g.add(root);
+      // Leaf fronds
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nLeaves = 3 + stage;
+      const leafH = 0.22 * sc;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.04 * sc, leafH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.02, leafH / 2, Math.sin(a) * 0.02);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.4;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  dau_tay: {
+    name: 'Dâu tây',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a9a4a,
+    leafColor: 0x2e6a2a,
+    fruit: { color: 0xe02030, count: 5, offsetY: 0.04 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.05 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.018, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const r = 0.07 * sc;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.055 * sc, 6, 5), leafMat);
+        leaf.scale.set(1, 0.3, 0.8);
+        leaf.position.set(Math.cos(a) * r, stemH + 0.015, Math.sin(a) * r);
+        leaf.rotation.y = a;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm cây ăn quả ────────────────────────────────────────────────────────
+
+  chanh: {
+    name: 'Chanh',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x7a5a30,
+    leafColor: 0x1a6a20,
+    fruit: { color: 0xd0e020, count: 6, offsetY: 0.70 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.60 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025 * sc, 0.04 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.22 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.position.y = stemH + cr * 0.65;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  oi: {
+    name: 'Ổi',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x8a7a60,
+    leafColor: 0x2a7a2a,
+    fruit: { color: 0xc8d050, count: 5, offsetY: 0.65 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.55 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * sc, 0.05 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.28 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.scale.x = 1.2;
+        canopy.scale.z = 1.2;
+        canopy.position.y = stemH + cr * 0.5;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  cam: {
+    name: 'Cam',
+    container: 'bed_m',
+    yOffset: CONTAINER_SOIL_TOP.bed_m,
+    stemColor: 0x6a4a20,
+    leafColor: 0x1e5a1a,
+    fruit: { color: 0xff8020, count: 6, offsetY: 0.75 },
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.65 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * sc, 0.05 * sc, stemH, 7), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.30 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 8, 7), leafMat);
+        canopy.position.y = stemH + cr * 0.6;
+        g.add(canopy);
+      }
+      return g;
+    },
+  },
+
+  xoai: {
+    name: 'Xoài',
+    container: 'hole_l',
+    yOffset: CONTAINER_SOIL_TOP.hole_l,
+    stemColor: 0x4a2a10,
+    leafColor: 0x1a4a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const fruitMat = new THREE.MeshLambertMaterial({ color: stage >= 5 ? 0xffcc30 : 0x5a9a30 });
+      const stemH = 0.85 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * sc, 0.07 * sc, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const cr = 0.35 * sc;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cr, 9, 8), leafMat);
+        canopy.scale.y = 0.85;
+        canopy.position.y = stemH + cr * 0.5;
+        g.add(canopy);
+      }
+      if (stage >= 4) {
+        const nFruit = stage >= 5 ? 5 : 3;
+        for (let i = 0; i < nFruit; i++) {
+          const a = (i / nFruit) * Math.PI * 2;
+          const fruit = new THREE.Mesh(new THREE.BoxGeometry(0.06 * sc, 0.04 * sc, 0.10 * sc), fruitMat);
+          fruit.position.set(Math.cos(a) * 0.15 * sc, stemH + 0.15 * sc, Math.sin(a) * 0.15 * sc);
+          fruit.rotation.z = 0.3;
+          g.add(fruit);
+        }
+      }
+      return g;
+    },
+  },
+
+  chuoi: {
+    name: 'Chuối',
+    container: 'hole_l',
+    yOffset: CONTAINER_SOIL_TOP.hole_l,
+    stemColor: 0x6a8a40,
+    leafColor: 0x2a8a2a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const fruitMat = new THREE.MeshLambertMaterial({ color: 0xf0d820 });
+      const stemH = 0.90 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07 * sc, 0.09 * sc, stemH, 8), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      const nLeaves = 2 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lW = 0.35 * sc, lH = 0.55 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(lW, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.12 * sc, stemH + lH * 0.4, Math.sin(a) * 0.12 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 6;
+        g.add(leaf);
+      }
+      if (stage >= 4) {
+        const bunch = new THREE.Mesh(new THREE.CylinderGeometry(0.08 * sc, 0.04 * sc, 0.30 * sc, 6), fruitMat);
+        bunch.position.set(0.12 * sc, stemH * 0.6, 0);
+        bunch.rotation.z = Math.PI / 4;
+        g.add(bunch);
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm hoa ───────────────────────────────────────────────────────────────
+
+  tulip: {
+    name: 'Tulip',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x3a8a3a,
+    leafColor: 0xdd2060,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const flowerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.45 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.015, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const bladeMat = new THREE.MeshLambertMaterial({ color: stemCol, side: THREE.DoubleSide });
+        for (let i = 0; i < 2; i++) {
+          const a = i * Math.PI;
+          const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.22 * sc), bladeMat);
+          blade.position.set(Math.cos(a) * 0.03, stemH * 0.35, Math.sin(a) * 0.03);
+          blade.rotation.y = a;
+          blade.rotation.z = Math.PI / 8;
+          g.add(blade);
+        }
+      }
+      if (stage >= 2) {
+        const scaleX = stage >= 4 ? 1.2 : 0.8;
+        const scaleY = stage >= 4 ? 0.8 : 1.4;
+        const bud = new THREE.Mesh(new THREE.SphereGeometry(0.07 * sc, 8, 7), flowerMat);
+        bud.scale.set(scaleX, scaleY, scaleX);
+        bud.position.y = stemH + 0.07 * sc;
+        g.add(bud);
+      }
+      return g;
+    },
+  },
+
+  cuc_vang: {
+    name: 'Cúc vàng',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x3a8a3a,
+    leafColor: 0xffcc00,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const stemH = 0.35 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.013, stemH, 5), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 2) {
+        const nPetals = 6 + Math.floor(stage * 1.5);
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.10 * sc), petalMat);
+          petal.position.set(Math.cos(a) * 0.05 * sc, stemH + 0.05 * sc, Math.sin(a) * 0.05 * sc);
+          petal.rotation.y = a;
+          petal.rotation.z = -Math.PI / 8;
+          g.add(petal);
+        }
+        const centerMat = new THREE.MeshLambertMaterial({ color: 0xffaa00 });
+        const center = new THREE.Mesh(new THREE.SphereGeometry(0.03 * sc, 6, 5), centerMat);
+        center.scale.y = 0.4;
+        center.position.y = stemH + 0.05 * sc;
+        g.add(center);
+      }
+      return g;
+    },
+  },
+
+  lavender: {
+    name: 'Lavender',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a8a60,
+    leafColor: 0x9a3ab8,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const flowerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const nSpikes = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nSpikes; i++) {
+        const a = (i / nSpikes) * Math.PI * 2;
+        const r = 0.05 * sc;
+        const spikeH = 0.40 * sc;
+        const spike = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, spikeH, 5), stemMat);
+        spike.position.set(Math.cos(a) * r, spikeH / 2, Math.sin(a) * r);
+        spike.rotation.z = (i % 2 === 0 ? 1 : -1) * 0.1;
+        g.add(spike);
+        if (stage >= 2) {
+          const nClusters = 2 + Math.floor(stage * 0.6);
+          for (let k = 0; k < nClusters; k++) {
+            const bead = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.016, 0.025 * sc, 5), flowerMat);
+            bead.position.set(Math.cos(a) * r, spikeH * 0.6 + k * 0.028 * sc, Math.sin(a) * r);
+            g.add(bead);
+          }
+        }
+      }
+      return g;
+    },
+  },
+
+  hoa_hong: {
+    name: 'Hoa hồng',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x3a7a3a,
+    leafColor: 0xdd1a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const stemH = 0.50 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 2) {
+        for (let t = 0; t < 3; t++) {
+          const thorn = new THREE.Mesh(new THREE.BoxGeometry(0.02 * sc, 0.01, 0.01), stemMat);
+          thorn.position.set(0.012, stemH * (0.3 + t * 0.2), 0);
+          thorn.rotation.z = Math.PI / 6;
+          g.add(thorn);
+        }
+        const nLayers = Math.min(stage, 4);
+        for (let l = 0; l < nLayers; l++) {
+          const r = (0.04 + l * 0.025) * sc;
+          const layer = new THREE.Mesh(new THREE.SphereGeometry(r, 7, 6), petalMat);
+          layer.scale.y = 0.6 - l * 0.08;
+          layer.position.y = stemH + 0.04 * sc + l * 0.015 * sc;
+          g.add(layer);
+        }
+      }
+      return g;
+    },
+  },
+
+  huong_duong: {
+    name: 'Hướng dương',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x5a8a3a,
+    leafColor: 0xffcc00,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const centerMat = new THREE.MeshLambertMaterial({ color: 0x4a2a08 });
+      const stemH = 0.70 * sc;
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, stemH, 6), stemMat);
+      stem.position.y = stemH / 2;
+      g.add(stem);
+      if (stage >= 1) {
+        const bladeMat = new THREE.MeshLambertMaterial({ color: stemCol, side: THREE.DoubleSide });
+        [0, Math.PI].forEach(a => {
+          const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.12 * sc, 0.08 * sc), bladeMat);
+          leaf.position.set(Math.cos(a) * 0.06, stemH * 0.5, Math.sin(a) * 0.06);
+          leaf.rotation.y = a;
+          leaf.rotation.z = -Math.PI / 5;
+          g.add(leaf);
+        });
+      }
+      if (stage >= 2) {
+        const nPetals = 10 + Math.floor(stage * 2);
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, 0.14 * sc), petalMat);
+          petal.position.set(Math.cos(a) * 0.09 * sc, stemH + 0.02, Math.sin(a) * 0.09 * sc);
+          petal.rotation.y = a;
+          g.add(petal);
+        }
+        const diskR = 0.08 * sc;
+        const disk = new THREE.Mesh(new THREE.SphereGeometry(diskR, 8, 6), centerMat);
+        disk.scale.y = 0.4;
+        disk.position.y = stemH + 0.02;
+        g.add(disk);
+      }
+      return g;
+    },
+  },
+
+  hoa_giay: {
+    name: 'Hoa giấy',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x3a7a3a,
+    leafColor: 0xff3aa0,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const petalMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nVines = 2 + Math.floor(stage * 0.5);
+      for (let i = 0; i < nVines; i++) {
+        const a = (i / nVines) * Math.PI * 2;
+        const vH = 0.55 * sc;
+        const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, vH, 5), stemMat);
+        vine.position.set(Math.cos(a) * 0.05 * sc, vH / 2, Math.sin(a) * 0.05 * sc);
+        vine.rotation.z = Math.cos(a) * 0.2;
+        g.add(vine);
+        if (stage >= 2) {
+          const nBracts = 2 + stage;
+          for (let k = 0; k < nBracts; k++) {
+            const ba = a + (k / nBracts) * Math.PI;
+            const bract = new THREE.Mesh(new THREE.PlaneGeometry(0.07 * sc, 0.07 * sc), petalMat);
+            bract.position.set(
+              Math.cos(a) * 0.05 * sc + Math.cos(ba) * 0.05 * sc,
+              vH * 0.8 + k * 0.03 * sc,
+              Math.sin(a) * 0.05 * sc + Math.sin(ba) * 0.05 * sc,
+            );
+            bract.rotation.y = ba;
+            bract.rotation.x = -Math.PI / 6;
+            g.add(bract);
+          }
+        }
+      }
+      return g;
+    },
+  },
+
+  // ── Nhóm cây cảnh ──────────────────────────────────────────────────────────
+
+  kim_tien: {
+    name: 'Kim tiền',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x5a3a20,
+    leafColor: 0x1a5a20,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const trunkH = 0.15 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * sc, 0.03 * sc, trunkH, 6), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nBranches = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nBranches; i++) {
+        const a = (i / nBranches) * Math.PI * 2;
+        const r = 0.10 * sc;
+        const leafR = (0.055 + stage * 0.005) * sc;
+        const leaf = new THREE.Mesh(new THREE.SphereGeometry(leafR, 7, 6), leafMat);
+        leaf.scale.set(1.1, 0.3, 1.0);
+        leaf.position.set(Math.cos(a) * r, trunkH + leafR * 0.2, Math.sin(a) * r);
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  kim_ngan: {
+    name: 'Kim ngân',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x4a3a20,
+    leafColor: 0x2a8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const trunkH = 0.40 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.025 * sc, 0.03 * sc, trunkH, 6), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nLeaves = 4 + stage;
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lH = 0.30 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.04 * sc, trunkH + lH * 0.4, Math.sin(a) * 0.04 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = (Math.random() - 0.5) * 0.3;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+
+  truc_may: {
+    name: 'Trúc may',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x7aba60,
+    leafColor: 0x3a8a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const stemMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const nodeMat = new THREE.MeshLambertMaterial({ color: 0x5a8a50 });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const nSegments = 3 + Math.floor(stage * 0.8);
+      const segH = 0.15 * sc;
+      const gap = 0.02 * sc;
+      for (let i = 0; i < nSegments; i++) {
+        const baseY = i * (segH + gap);
+        const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.020 * sc, 0.022 * sc, segH, 7), stemMat);
+        seg.position.y = baseY + segH / 2;
+        g.add(seg);
+        const node = new THREE.Mesh(new THREE.TorusGeometry(0.022 * sc, 0.006, 4, 8), nodeMat);
+        node.rotation.x = Math.PI / 2;
+        node.position.y = baseY + segH;
+        g.add(node);
+        if (stage >= 2 && i >= 1) {
+          const a = (i * 1.3) % (Math.PI * 2);
+          const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.04 * sc, 0.10 * sc), leafMat);
+          blade.position.set(Math.cos(a) * 0.04 * sc, baseY + segH, Math.sin(a) * 0.04 * sc);
+          blade.rotation.y = a;
+          blade.rotation.z = -Math.PI / 6;
+          g.add(blade);
+        }
+      }
+      return g;
+    },
+  },
+
+  sen_da: {
+    name: 'Sen đá',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a9a70,
+    leafColor: 0x8a5a90,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const outerMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const innerMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const nLayers = 2 + Math.floor(stage * 0.6);
+      for (let l = 0; l < nLayers; l++) {
+        const layerR = (0.16 - l * 0.03) * sc;
+        const nPetals = 6 + (nLayers - l) * 2;
+        const mat = l === 0 ? outerMat : innerMat;
+        for (let i = 0; i < nPetals; i++) {
+          const a = (i / nPetals) * Math.PI * 2;
+          const petal = new THREE.Mesh(new THREE.SphereGeometry(0.05 * sc, 6, 5), mat);
+          petal.scale.set(0.7, 0.3, 1.0);
+          petal.position.set(Math.cos(a) * layerR, l * 0.025 * sc + 0.01, Math.sin(a) * layerR);
+          petal.rotation.y = a;
+          petal.rotation.z = Math.PI / 6;
+          g.add(petal);
+        }
+      }
+      const bud = new THREE.Mesh(new THREE.SphereGeometry(0.04 * sc, 6, 5), innerMat);
+      bud.scale.y = 1.5;
+      bud.position.y = nLayers * 0.025 * sc;
+      g.add(bud);
+      return g;
+    },
+  },
+
+  ngoc_bich: {
+    name: 'Ngọc bích',
+    container: 'pot_s',
+    yOffset: CONTAINER_SOIL_TOP.pot_s,
+    stemColor: 0x6a3a20,
+    leafColor: 0x1a7a3a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol });
+      const trunkH = 0.22 * sc;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.04 * sc, 0.06 * sc, trunkH, 7), trunkMat);
+      trunk.position.y = trunkH / 2;
+      g.add(trunk);
+      const nBranches = 3 + Math.floor(stage * 0.6);
+      for (let i = 0; i < nBranches; i++) {
+        const a = (i / nBranches) * Math.PI * 2;
+        const bH = 0.12 * sc;
+        const br = new THREE.Mesh(new THREE.CylinderGeometry(0.010 * sc, 0.015 * sc, bH, 5), trunkMat);
+        br.position.set(Math.cos(a) * 0.06 * sc, trunkH, Math.sin(a) * 0.06 * sc);
+        br.rotation.z = (i % 2 === 0 ? 1 : -1) * Math.PI / 6;
+        g.add(br);
+        const leafMesh = new THREE.Mesh(new THREE.SphereGeometry(0.045 * sc, 6, 5), leafMat);
+        leafMesh.scale.set(0.9, 0.5, 1.3);
+        leafMesh.position.set(Math.cos(a) * 0.10 * sc, trunkH + bH * 0.7, Math.sin(a) * 0.10 * sc);
+        g.add(leafMesh);
+      }
+      return g;
+    },
+  },
+
+  phat_tai: {
+    name: 'Phát tài',
+    container: 'pot_m',
+    yOffset: CONTAINER_SOIL_TOP.pot_m,
+    stemColor: 0x6a4a20,
+    leafColor: 0x1a5a1a,
+    fruit: null,
+    build(stage, stemCol, leafCol) {
+      const g = new THREE.Group();
+      const sc = _stageScale(stage);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: stemCol });
+      const leafMat = new THREE.MeshLambertMaterial({ color: leafCol, side: THREE.DoubleSide });
+      const trunkH = 0.55 * sc;
+      for (let b = 0; b < 3; b++) {
+        const ba = (b / 3) * Math.PI * 2;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.018 * sc, 0.025 * sc, trunkH, 6), trunkMat);
+        trunk.position.set(Math.cos(ba) * 0.03 * sc, trunkH / 2, Math.sin(ba) * 0.03 * sc);
+        trunk.rotation.z = Math.cos(ba) * 0.12;
+        trunk.rotation.x = Math.sin(ba) * 0.12;
+        g.add(trunk);
+      }
+      const nLeaves = 3 + Math.floor(stage * 0.8);
+      for (let i = 0; i < nLeaves; i++) {
+        const a = (i / nLeaves) * Math.PI * 2;
+        const lH = 0.28 * sc;
+        const leaf = new THREE.Mesh(new THREE.PlaneGeometry(0.06 * sc, lH), leafMat);
+        leaf.position.set(Math.cos(a) * 0.08 * sc, trunkH + lH * 0.45, Math.sin(a) * 0.08 * sc);
+        leaf.rotation.y = a;
+        leaf.rotation.z = -Math.PI / 4;
+        g.add(leaf);
+      }
+      return g;
+    },
+  },
+};
+
+function buildPlantMesh(type, stage, health) {
+  const def = PLANT_DEF[type];
+  if (!def) return new THREE.Group();
+  const stemCol = _applyHealthColor(def.stemColor, health);
+  const leafCol = _applyHealthColor(def.leafColor, health);
+  const group = def.build(stage, stemCol, leafCol);
+
+  // Fruit at stage 5 (if this plant has fruit)
+  if (def.fruit && (stage | 0) >= 5 && health !== 'dead') {
+    const fruitColor = _applyHealthColor(def.fruit.color, health);
+    const fruitMat = new THREE.MeshLambertMaterial({ color: fruitColor });
+    for (let i = 0; i < def.fruit.count; i++) {
+      const a = (i / def.fruit.count) * Math.PI * 2;
+      const r = 0.08;
+      let fruit;
+      if (type === 'dua_leo') {
+        // CapsuleGeometry unavailable in r128 — approximate with a cylinder
+        fruit = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.09, 8), fruitMat);
+        fruit.rotation.z = Math.PI / 2;
+      } else {
+        fruit = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), fruitMat);
+      }
+      fruit.position.set(Math.cos(a) * r, def.fruit.offsetY, Math.sin(a) * r);
+      group.add(fruit);
+    }
+    group.userData.hasFruit = true;
+  } else {
+    group.userData.hasFruit = false;
+  }
+
+  if (health === 'dead') {
+    group.rotation.x = -Math.PI / 6;
+  }
+  group.userData.plantType = type;
+  group.userData.plantStage = stage | 0;
+  group.userData.plantHealth = health;
+  return group;
+}
+
+function _plotIndexToRowCol(plotIndex) {
+  const row = Math.floor(plotIndex / G3D_COLS);
+  const col = plotIndex - row * G3D_COLS;
+  return { row, col };
+}
+
+function placePlantInPlot(plotIndex, type, stage, health) {
+  if (!_g3dScene) return null;
+  const def = PLANT_DEF[type];
+  if (!def) return null;
+
+  // Remove prior plant at this index
+  if (gardenScene.plots[plotIndex]) removePlantMesh(plotIndex);
+
+  const { row, col } = _plotIndexToRowCol(plotIndex);
+  const cx = (col - G3D_COLS / 2 + 0.5) * G3D_CELL_SIZE;
+  const cz = (row - G3D_ROWS / 2 + 0.5) * G3D_CELL_SIZE;
+
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.set(cx, def.yOffset, cz);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
+  _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
+
+  gardenScene.plots[plotIndex] = {
+    mesh,
+    type,
+    stage: stage | 0,
+    health,
+    hasFruit: !!mesh.userData.hasFruit,
+    swayOffset: Math.random() * Math.PI * 2,
+  };
+  return mesh;
+}
+
+function updatePlantStage(plotIndex, stage) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  const { type, health } = entry;
+  const pos = entry.mesh.position.clone();
+  const oldIdx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (oldIdx >= 0) _g3dPlantMeshes.splice(oldIdx, 1);
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.copy(pos);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
+  if (_g3dScene) _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
+  entry.mesh     = mesh;
+  entry.stage    = stage | 0;
+  entry.hasFruit = !!mesh.userData.hasFruit;
+}
+
+function updatePlantHealth(plotIndex, health) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  const { type, stage } = entry;
+  const pos = entry.mesh.position.clone();
+  const oldIdx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (oldIdx >= 0) _g3dPlantMeshes.splice(oldIdx, 1);
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  const mesh = buildPlantMesh(type, stage, health);
+  mesh.position.copy(pos);
+  mesh.userData.plotIndex = plotIndex;
+  mesh.userData.isPlant   = true;
+  if (_g3dScene) _g3dScene.add(mesh);
+  _g3dPlantMeshes.push(mesh);
+  entry.mesh   = mesh;
+  entry.health = health;
+}
+
+function removePlantMesh(plotIndex) {
+  const entry = gardenScene.plots[plotIndex];
+  if (!entry) return;
+  const idx = _g3dPlantMeshes.indexOf(entry.mesh);
+  if (idx >= 0) _g3dPlantMeshes.splice(idx, 1);
+  _disposePlantGroup(entry.mesh);
+  if (_g3dScene) _g3dScene.remove(entry.mesh);
+  delete gardenScene.plots[plotIndex];
+}
+
+function _disposePlantGroup(group) {
+  group.traverse(obj => {
+    if (obj.isMesh) {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (obj.material.map) obj.material.map.dispose();
+        obj.material.dispose();
+      }
+    }
+  });
+}
+
+function _disposeAllPlants() {
+  Object.keys(gardenScene.plots).forEach(k => {
+    const entry = gardenScene.plots[k];
+    _disposePlantGroup(entry.mesh);
+    if (_g3dScene) _g3dScene.remove(entry.mesh);
+  });
+  gardenScene.plots = {};
+  _g3dPlantMeshes   = [];
+  _g3dHoveredPlant  = null;
+}
+
+function _build3DCells(purchasedCells, plants, shadedCells, tilledCells) {
+  if (!_g3dScene) return;
+  _disposeG3DCells();
+
+  const ROWS = G3D_ROWS;
+  const COLS = G3D_COLS;
+  const CS   = G3D_CELL_SIZE;
+
+  const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
+  const plantMap     = new Map((plants || []).map(p => [`${p.row},${p.col}`, p]));
+  const tilledSet    = new Set((tilledCells || []).map(c => `${c.row},${c.col}`));
+
+  // Grass blades via InstancedMesh (all blades = 1 draw call)
+  const grassBladeGeo = new THREE.BoxGeometry(0.02, 0.12, 0.02);
+  const grassBladeMat = new THREE.MeshLambertMaterial({ color: 0x3a7a25 });
+  const MAX_GRASS     = ROWS * COLS * 12;
+  const grassMesh     = new THREE.InstancedMesh(grassBladeGeo, grassBladeMat, MAX_GRASS);
+  grassMesh.count     = 0;
+  _g3dScene.add(grassMesh);
+  _g3dGrassInstances = grassMesh;
+
+  const dummy    = new THREE.Object3D();
+  let   grassIdx = 0;
+
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const key = `${row},${col}`;
+      const cx  = (col - COLS / 2 + 0.5) * CS;
+      const cz  = (row - ROWS / 2 + 0.5) * CS;
+      const grp = new THREE.Group();
+      grp.position.set(cx, 0, cz);
+
+      const isPurchased = purchasedSet.has(key);
+      const plant       = plantMap.get(key);
+
+      let state, baseColor, borderColor;
+      if (!isPurchased) {
+        state = 'locked';   baseColor = 0x141b14; borderColor = 0x223022;
+      } else if (plant) {
+        state = 'planted';  baseColor = 0x1c3020; borderColor = 0x3a6a3a;
+      } else if (tilledSet.has(key)) {
+        state = 'tilled';   baseColor = 0x3a2a18; borderColor = 0x6a4a28;
+      } else {
+        state = 'empty';    baseColor = 0x1d3019; borderColor = 0x5ef0a0;
+      }
+
+      // Base tile
+      const baseMat  = new THREE.MeshLambertMaterial({ color: baseColor });
+      const baseMesh = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.06, 0.85), baseMat);
+      baseMesh.position.y       = 0.03;
+      baseMesh.userData.cellKey = key;
+      baseMesh.receiveShadow    = true;
+      grp.add(baseMesh);
+      _g3dCellMeshes.push(baseMesh);
+      grp.userData = { row, col, state, baseMesh };
+
+      // Edge strips shared geometry helper
+      const addEdges = (color, transparent, opacity) => {
+        const mat = new THREE.MeshLambertMaterial({ color, transparent, opacity: opacity || 1 });
+        [
+          [0,      0.03,  0.415, 0.82, 0.04, 0.02],
+          [0,      0.03, -0.415, 0.82, 0.04, 0.02],
+          [ 0.415, 0.03,  0,     0.02, 0.04, 0.82],
+          [-0.415, 0.03,  0,     0.02, 0.04, 0.82],
+        ].forEach(([ex, ey, ez, ew, eh, ed]) => {
+          const em = new THREE.Mesh(new THREE.BoxGeometry(ew, eh, ed), mat);
+          em.position.set(ex, ey, ez);
+          grp.add(em);
+        });
+      };
+
+      if (state === 'locked') {
+        baseMat.transparent = true;
+        baseMat.opacity     = 0.6;
+        _addCellBillboard(grp, '🔒', 0.25, 0.20);
+      } else if (state === 'empty') {
+        addEdges(borderColor, true, 0.4);
+        _addCellBillboard(grp, '+', 0.20, 0.18);
+      } else if (state === 'tilled') {
+        _addCellBillboard(grp, '⛏️', 0.22, 0.20);
+      } else {
+        addEdges(borderColor, false, 1);
+        const containerType = _getContainerType(plant.plantTypeId, plant.potTypeId);
+        const soilState     = _getSoilStateFromWater(plant.waterLevel ?? 50);
+        const container     = _make3DContainer(containerType, soilState);
+        container.position.y = 0.03;
+        if (!plant.isAlive) {
+          container.traverse(child => {
+            if (child.isMesh && child.material) {
+              child.material = child.material.clone();
+              child.material.color.multiplyScalar(0.4);
+            }
+          });
+        }
+        grp.add(container);
+
+        // Session D: Plant mesh on top of container
+        if (PLANT_DEF[plant.plantTypeId]) {
+          const stageInt = typeof plant.stage === 'number'
+            ? plant.stage
+            : (STAGE_STR_TO_INT[plant.stage] ?? 0);
+          const healthStr = _plantHealthString(plant);
+          const plotIndex = row * G3D_COLS + col;
+          placePlantInPlot(plotIndex, plant.plantTypeId, stageInt, healthStr);
+        }
+      }
+
+      _g3dScene.add(grp);
+      _g3dCells.set(key, grp);
+
+      // Grass blades around purchased cells
+      if (isPurchased) {
+        const bladeCount = 8 + Math.floor(Math.random() * 5);
+        for (let b = 0; b < bladeCount && grassIdx < MAX_GRASS; b++) {
+          const angle  = Math.random() * Math.PI * 2;
+          const radius = 0.40 + Math.random() * 0.08;
+          const h      = 0.08 + Math.random() * 0.07;
+          dummy.position.set(cx + Math.cos(angle) * radius, h / 2, cz + Math.sin(angle) * radius);
+          dummy.rotation.set((Math.random() - 0.5) * 0.52, Math.random() * Math.PI * 2, 0);
+          dummy.scale.set(1, h / 0.12, 1);
+          dummy.updateMatrix();
+          grassMesh.setMatrixAt(grassIdx++, dummy.matrix);
+        }
+      }
+    }
+  }
+
+  grassMesh.count = grassIdx;
+  grassMesh.instanceMatrix.needsUpdate = true;
+}
+
+function _addCellBillboard(group, text, size, yAboveBase) {
+  const canvas  = document.createElement('canvas');
+  canvas.width  = 64;
+  canvas.height = 64;
+  const ctx     = canvas.getContext('2d');
+  ctx.font      = '42px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, 32, 32);
+
+  const tex  = new THREE.CanvasTexture(canvas);
+  const mat  = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+  mesh.userData.isBillboard = true;
+  mesh.position.y = 0.06 + yAboveBase;
+  mesh.rotation.x = -Math.PI / 2;
+  group.add(mesh);
 }
 
 function _updateGardenTimeLabel() {
@@ -6883,78 +9187,6 @@ function _updateGardenPoints() {
   const hdr = document.getElementById('header-points-val');
   const el  = document.getElementById('garden-pts-val');
   if (el && hdr) el.textContent = hdr.textContent + ' điểm';
-}
-
-// ── Render grid ───────────────────────────────────────────────
-function _renderGardenGrid() {
-  const grid = document.getElementById('garden-grid');
-  if (!grid || !_gardenData) return;
-
-  const { gridConfig, cellPrices, purchasedCells, plants } = _gardenData;
-  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
-
-  // Build lookup maps
-  const purchasedSet = new Set(purchasedCells.map(c => `${c.row},${c.col}`));
-  const plantMap     = {};
-  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
-
-  grid.innerHTML = '';
-  grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
-
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const key      = `${r},${c}`;
-      const owned    = purchasedSet.has(key);
-      const plant    = plantMap[key];
-      const price    = cellPrices?.[r]?.[c] || 50;
-      const cell     = document.createElement('div');
-      cell.className = 'garden-cell';
-      cell.dataset.row = r;
-      cell.dataset.col = c;
-
-      if (!owned) {
-        cell.classList.add('gc-locked');
-        cell.innerHTML = `<div class="gc-lock-icon">🔒</div><div class="gc-price">${price}đ</div>`;
-        cell.addEventListener('click', () => _buyCell(r, c, price));
-
-      } else if (!plant || !plant.isAlive) {
-        cell.classList.add(plant ? 'gc-dead' : 'gc-empty');
-        if (plant && !plant.isAlive) {
-          const si = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
-          cell.innerHTML = `<div class="gc-dead-emoji">💀</div>
-            <div class="gc-dead-name">${esc(plant.plantType?.name || '')}</div>
-            <div class="gc-cell-action">Nhổ cây</div>`;
-          cell.addEventListener('click', () => _openCarePanel(plant));
-        } else {
-          cell.innerHTML = `<div class="gc-empty-plus">+</div><div class="gc-empty-label">Trồng cây</div>`;
-          cell.addEventListener('click', () => _openPlantModal(r, c));
-        }
-
-      } else {
-        // Living plant
-        const si   = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
-        const hp   = Math.round(plant.health);
-        const hpColor = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
-        cell.classList.add('gc-planted');
-        if (plant.readyToHarvest)  cell.classList.add('gc-harvest');
-        if (plant.health < 30)     cell.classList.add('gc-sick');
-        if (plant.bugs > 0)        cell.classList.add('gc-has-bugs');
-
-        cell.innerHTML = `
-          <div class="gc-plant-emoji">${si.emoji}</div>
-          <div class="gc-plant-name">${esc(plant.plantType?.name?.split(' ').slice(-1)[0] || '')}</div>
-          <div class="gc-hp-bar-wrap">
-            <div class="gc-hp-bar" style="width:${hp}%;background:${hpColor}"></div>
-          </div>
-          ${plant.readyToHarvest ? '<div class="gc-harvest-badge">🌾</div>' : ''}
-          ${plant.bugs > 0       ? `<div class="gc-bug-badge">🐛${plant.bugs}</div>` : ''}
-          ${plant.deadLeaves > 3 ? '<div class="gc-leaf-badge">🍂</div>' : ''}
-        `;
-        cell.addEventListener('click', () => _openCarePanel(plant));
-      }
-      grid.appendChild(cell);
-    }
-  }
 }
 
 // ── Buy cell ──────────────────────────────────────────────────
@@ -6973,15 +9205,31 @@ async function _buyCell(row, col, price) {
 }
 
 // ── Plant modal ───────────────────────────────────────────────
-function _openPlantModal(row, col) {
+function _openPlantModal(row, col, mode) {
   _gpmTargetCell    = { row, col };
   _gpmSelectedPlant = null;
   _gpmSelectedPot   = null;
+  _gpmMode          = (mode === 'ground') ? 'ground' : 'pot';
   _updateGpmCost();
 
   document.getElementById('gpm-cell-pos').textContent = `${row + 1}×${col + 1}`;
+  // Hide the legacy pot-picker section — pots are now implicit
+  const potSection = document.getElementById('gpm-pot-section');
+  if (potSection) potSection.style.display = 'none';
+
+  // Update modal title prefix depending on mode (keep the cell badge intact)
+  const titleEl = document.getElementById('gpm-title');
+  if (titleEl) {
+    const prefix = (_gpmMode === 'ground')
+      ? '🌱 Trồng xuống đất '
+      : '🌱 Trồng trong chậu ';
+    // Replace only the leading text node, keep the badge span
+    const first = titleEl.childNodes[0];
+    if (first && first.nodeType === Node.TEXT_NODE) first.nodeValue = prefix;
+    else titleEl.insertBefore(document.createTextNode(prefix), titleEl.firstChild);
+  }
+
   _renderGpmPlants('all');
-  _renderGpmPots();
 
   document.getElementById('gpm-backdrop').style.display = '';
   document.getElementById('gpm-modal').style.display = '';
@@ -6995,9 +9243,15 @@ function _closeGpmModal() {
 function _renderGpmPlants(cat) {
   const list = document.getElementById('gpm-plant-list');
   if (!list || !_gardenCatalog) return;
-  const plants = cat === 'all'
+  const mode = _gpmMode || 'pot';
+  let plants = cat === 'all'
     ? _gardenCatalog.plants
     : _gardenCatalog.plants.filter(p => p.category === cat);
+  // Filter by mode — pot plants only in pot mode, ground plants only in ground mode
+  plants = plants.filter(p => {
+    const grp = p.plantGroup || ((p.category === 'hoa' || p.category === 'fengshui') ? 'pot' : 'ground');
+    return grp === mode;
+  });
   // Sort: in-stock first
   const sorted = [...plants].sort((a, b) => {
     const ao = _shopData.gardenSeeds[a.id] || 0;
@@ -7011,8 +9265,14 @@ function _renderGpmPlants(cat) {
     const sel = _gpmSelectedPlant?.id === p.id ? 'gpm-item-selected' : '';
     const noStock = owned < 1 ? 'gpm-item-disabled' : '';
     const invLabel = owned > 0 ? `Có: ${owned}` : 'Hết';
+    // Show plant at leafing stage as preview (more recognisable than seed/sprout)
+    const previewStage = 'leafing';
+    const arch = PLANT_ARCHETYPE[p.id] || 'ground-leafy';
+    const previewHTML = _buildPlantBodyHTML(p.id, previewStage);
     return `<div class="gpm-plant-item ${sel} ${noStock}" data-pid="${p.id}">
-      <div class="gpm-item-emoji">${p.emoji}</div>
+      <div class="gpm-item-plant-preview">
+        <div class="gc-plant-body stage-${previewStage} plant-${arch} plant-${p.id}">${previewHTML}</div>
+      </div>
       <div class="gpm-item-name">${esc(p.name)}</div>
       <div class="gpm-item-sub">${ci.emoji||''} ${ci.label||''}</div>
       <div class="gpm-item-inv ${owned > 0 ? 'inv-ok' : 'inv-empty'}">${invLabel}</div>
@@ -7068,23 +9328,34 @@ function _renderGpmPots() {
 function _updateGpmCost() {
   const statusEl  = document.getElementById('gpm-cost-val');
   const confirmBtn = document.getElementById('gpm-confirm');
+  const mode = _gpmMode || 'pot';
   const seedOk = _gpmSelectedPlant && (_shopData.gardenSeeds[_gpmSelectedPlant.id] || 0) > 0;
-  const potOk  = _gpmSelectedPot   && (_shopData.gardenPots[_gpmSelectedPot.id]   || 0) > 0;
+
+  // For pot mode, verify the required pot is in gardenTools inventory
+  let potReqOk = true, potReqLabel = '';
+  if (mode === 'pot' && _gpmSelectedPlant) {
+    const needPot = _gpmSelectedPlant.potType || 'pot_s';
+    const have = (_g3dToolCounts && _g3dToolCounts[needPot]) || 0;
+    potReqOk  = have > 0;
+    potReqLabel = needPot === 'pot_m' ? '🏺 Chậu vừa' : '🪴 Chậu nhỏ';
+  }
 
   if (statusEl) {
-    if (!_gpmSelectedPlant && !_gpmSelectedPot) {
-      statusEl.textContent = '← Chọn cây & chậu để trồng';
-    } else if (_gpmSelectedPlant && !_gpmSelectedPot) {
-      statusEl.textContent = `${_gpmSelectedPlant.name} · chọn chậu →`;
-    } else if (!_gpmSelectedPlant && _gpmSelectedPot) {
-      statusEl.textContent = `${_gpmSelectedPot.name} · chọn cây ←`;
+    if (!_gpmSelectedPlant) {
+      statusEl.textContent = mode === 'ground'
+        ? '← Chọn cây trồng xuống đất'
+        : '← Chọn cây trồng trong chậu';
+    } else if (!seedOk) {
+      statusEl.textContent = '❌ Hết hạt giống — mua thêm trong Cửa hàng';
+    } else if (mode === 'pot' && !potReqOk) {
+      statusEl.textContent = `❌ Thiếu ${potReqLabel} — mua trong Cửa hàng`;
     } else {
-      statusEl.textContent = seedOk && potOk
-        ? `✅ ${_gpmSelectedPlant.name} + ${_gpmSelectedPot.name}`
-        : '❌ Hết hàng — mua thêm trong Cửa hàng';
+      statusEl.textContent = mode === 'ground'
+        ? `✅ ${_gpmSelectedPlant.name} (xuống đất)`
+        : `✅ ${_gpmSelectedPlant.name} + ${potReqLabel}`;
     }
   }
-  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && _gpmSelectedPot && seedOk && potOk);
+  if (confirmBtn) confirmBtn.disabled = !(_gpmSelectedPlant && seedOk && potReqOk);
 }
 
 function _setupPlantModalFilter() {
@@ -7101,18 +9372,19 @@ function _setupPlantModalFilter() {
   document.getElementById('gpm-backdrop')?.addEventListener('click', _closeGpmModal);
 
   document.getElementById('gpm-confirm')?.addEventListener('click', async () => {
-    if (!_gpmSelectedPlant || !_gpmSelectedPot || !_gpmTargetCell) return;
+    if (!_gpmSelectedPlant || !_gpmTargetCell) return;
     const btn = document.getElementById('gpm-confirm');
     btn.disabled = true; btn.textContent = '⏳';
     try {
       const r = await apiGarden.plant(
         _gpmTargetCell.row, _gpmTargetCell.col,
-        _gpmSelectedPlant.id, _gpmSelectedPot.id
+        _gpmSelectedPlant.id
       );
       if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.disabled = false; btn.textContent = '🌱 Trồng ngay!'; return; }
       toast(`🌱 Đã trồng ${_gpmSelectedPlant.name}!`);
       if (r.gardenSeeds) _shopData.gardenSeeds = r.gardenSeeds;
       if (r.gardenPots)  _shopData.gardenPots  = r.gardenPots;
+      if (r.gardenTools) _updateToolHUD(r.gardenTools);
       _closeGpmModal();
       _gardenData = await apiGarden.load();
       _refreshGardenUI();
@@ -7146,27 +9418,56 @@ function _renderCarePanel(plant) {
   const pot = plant.potType    || {};
   const si  = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
 
-  // Hero
-  const emojiEl = document.getElementById('gcp-emoji');
-  const nameEl  = document.getElementById('gcp-name');
-  const stageEl = document.getElementById('gcp-stage');
-  const glowEl  = document.getElementById('gcp-hero-glow');
-  if (emojiEl) emojiEl.textContent = si.emoji;
-  if (nameEl)  nameEl.textContent  = pt.name || '—';
-  if (stageEl) { stageEl.textContent = si.label; stageEl.style.background = si.color + '2a'; stageEl.style.color = si.color; stageEl.style.border = `1px solid ${si.color}44`; }
-  if (glowEl)  glowEl.style.background = `radial-gradient(ellipse 100% 100% at 30% 0%, ${si.color}22 0%, transparent 70%)`;
+  // ── CSS Plant hero (replaces emoji) ──────────────────────────
+  const heroPlant = document.getElementById('gcp-hero-plant');
+  if (heroPlant) {
+    const potCls  = _potClass(plant.potTypeId || '');
+    const soilCls = _soilClass(plant.waterLevel ?? 50);
+    const plantBodyHTML = _buildPlantBodyHTML(plant.plantTypeId || '', plant.stage);
 
-  // Circular gauges
-  function setGauge(gaugeId, valId, pct, color) {
-    const g = document.getElementById(gaugeId), v = document.getElementById(valId);
-    const deg = Math.round(pct * 3.6);
-    if (g) g.style.background = `conic-gradient(${color} ${deg}deg, rgba(255,255,255,0.05) ${deg}deg)`;
-    if (v) v.textContent = Math.round(pct) + '%';
+    // Health/nutrient visual filters
+    const hp = plant.health || 0, nl = plant.nutrientLevel || 0;
+    let stateClass = '';
+    if (!plant.isAlive) stateClass = 'health-dead';
+    else if (hp < 30)   stateClass = 'health-low';
+    else if (hp < 60)   stateClass = 'health-medium';
+    if (nl < 20)        stateClass += ' nutr-very-low';
+    else if (nl < 40)   stateClass += ' nutr-low';
+
+    heroPlant.innerHTML = `
+      <div class="gcp-plant-scene">
+        <div class="${potCls}">
+          <div class="gc-soil ${soilCls}"></div>
+          <div class="gc-plant-body ${stateClass}">${plantBodyHTML}</div>
+        </div>
+      </div>`;
   }
-  const hp = plant.health || 0, wl = plant.waterLevel || 0, nl = plant.nutrientLevel || 0;
-  setGauge('gcp-gauge-health',   'gcp-health-val',   hp, hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a');
-  setGauge('gcp-gauge-water',    'gcp-water-val',    wl, wl > 50 ? '#5ee8f0' : '#ffcf5c');
-  setGauge('gcp-gauge-nutrient', 'gcp-nutrient-val', nl, nl > 50 ? '#b07fff' : '#ffcf5c');
+
+  // ── Name / species / stage ────────────────────────────────────
+  const nameEl    = document.getElementById('gcp-name');
+  const speciesEl = document.getElementById('gcp-species');
+  const stageEl   = document.getElementById('gcp-stage');
+  const glowEl    = document.getElementById('gcp-hero-glow');
+  if (nameEl)    nameEl.textContent    = pt.name || '—';
+  if (speciesEl) {
+    const arch = PLANT_ARCHETYPE[plant.plantTypeId || ''] || '';
+    const CAT_LABELS = {
+      'ground-leafy':'Rau lá', 'hanh_la':'Rau gia vị',
+      'bush-veg':'Rau quả leo', 'ca_rot':'Củ cải',
+      'dau_tay':'Quả thấp', 'med-tree':'Cây ăn quả',
+      'large-tree':'Cây lớn', 'small-flower':'Hoa nhỏ',
+      'large-flower':'Hoa lớn', 'fengshui':'Cây phong thủy'
+    };
+    speciesEl.textContent = CAT_LABELS[arch] || pt.category || '';
+  }
+  if (stageEl) {
+    stageEl.textContent = si.label;
+    stageEl.style.background = si.color + '2a';
+    stageEl.style.color = si.color;
+    stageEl.style.border = `1px solid ${si.color}44`;
+  }
+  if (glowEl) glowEl.style.background =
+    `radial-gradient(ellipse 100% 100% at 30% 0%, ${si.color}22 0%, transparent 70%)`;
 
   // Status badges
   const statusRow = document.getElementById('gcp-status-row');
@@ -7200,84 +9501,311 @@ function _renderCarePanel(plant) {
       : (dLeft > 0 ? `${dLeft}n ` : '') + `${hLeft}h nữa`;
   }
 
-  // Action button states
+  // Harvest button + uproot hint
   const alive = plant.isAlive;
-  document.getElementById('gcp-btn-water').disabled   = !alive;
-  document.getElementById('gcp-btn-fert').disabled    = !alive;
-  document.getElementById('gcp-btn-bug').disabled     = !alive || plant.bugs === 0;
-  document.getElementById('gcp-btn-leaf').disabled    = !alive || plant.deadLeaves === 0;
   const harvestBtn = document.getElementById('gcp-btn-harvest');
-  if (harvestBtn) {
-    harvestBtn.style.display = (plant.readyToHarvest && alive) ? '' : 'none';
-  }
+  if (harvestBtn) harvestBtn.style.display = (plant.readyToHarvest && alive) ? '' : 'none';
+
+  const uprootHint = document.getElementById('gcp-uproot-hint');
+  if (uprootHint) uprootHint.style.display = alive ? '' : 'none';
 
   // Pot info
   const potRow = document.getElementById('gcp-pot-row');
+<<<<<<< HEAD
   if (potRow && pot.name) {
     const matchWarn = _potMatchWarning(pt.size, pot.size);
     potRow.innerHTML = `${_buildPotHTML(pot.id, 'pot-3d--xs')}
       <span class="gcp-pot-name">${esc(pot.name)}</span>
       ${matchWarn ? `<span class="gcp-pot-warn">${matchWarn}</span>` : '<span class="gcp-pot-ok">✅ Kích thước phù hợp</span>'}`;
+=======
+  if (potRow) {
+    potRow.innerHTML = pot.name
+      ? `<span class="gcp-pot-icon">${pot.emoji || '🪴'}</span>
+         <span class="gcp-pot-name">${esc(pot.name)}</span>`
+      : '';
+>>>>>>> 589244dc7a5cd151a7b3558c7be1bcadbef5e031
   }
 }
 
-function _potMatchWarning(plantSize, potSize) {
-  const idx  = { small:0, medium:1, large:2, xl:3 };
-  const diff = Math.abs((idx[plantSize]||1) - (idx[potSize]||1));
-  if (potSize === 'xl') return '';
-  if (diff === 0) return '';
-  if (diff === 1) return '⚠️ Chậu hơi lệch, -15% tốc độ';
-  if (diff === 2) return '❌ Chậu sai size, -40% tốc độ';
-  return '❌ Chậu rất sai size, -60% tốc độ';
+
+// ── Care action helper (used by toolbar drag + harvest btn) ───
+async function _cpCareAction(apiFn, successMsg, plantId) {
+  const pid = plantId || _gcpPlantId;
+  if (!pid) return;
+  try {
+    const r = await apiFn(pid);
+    if (r.error) { toast('❌ ' + r.error); return; }
+    toast(successMsg);
+    if (r.points !== undefined) updatePointsUI(r.points);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    // If care panel is open for this plant, refresh it
+    if (_gcpPlantId === pid) {
+      const updated = (_gardenData.plants || []).find(p => p._id === pid);
+      if (updated) _renderCarePanel(updated);
+      else _closeCarePanel();
+    }
+    quickNotifCheck();
+  } catch(err) { toast('❌ ' + err.message); }
 }
 
-function _setupCarePanelButtons() {
+// ── Care panel: info-only, harvest + uproot buttons ───────────
+function _setupCarePanelInteractions() {
   document.getElementById('gcp-close')?.addEventListener('click', _closeCarePanel);
   document.getElementById('garden-care-backdrop')?.addEventListener('click', _closeCarePanel);
 
-  async function careAction(apiFn, successMsg, reloadFn) {
-    if (!_gcpPlantId) return;
-    try {
-      const r = await apiFn(_gcpPlantId);
-      if (r.error) { toast('❌ ' + r.error); return; }
-      toast(successMsg);
-      if (r.points !== undefined) updatePointsUI(r.points);
-      _gardenData = await apiGarden.load();
-      _refreshGardenUI();
-      // Re-render care panel with updated plant
-      const updated = (_gardenData.plants || []).find(p => p._id === _gcpPlantId);
-      if (updated) _renderCarePanel(updated);
-      else _closeCarePanel();
-      quickNotifCheck();
-    } catch(e) { toast('❌ ' + e.message); }
-  }
-
-  document.getElementById('gcp-btn-water')?.addEventListener('click',
-    () => careAction(apiGarden.water,      '💧 Đã tưới nước!',      null));
-  document.getElementById('gcp-btn-fert')?.addEventListener('click',
-    () => careAction(apiGarden.fertilize,  '🌿 Đã bón phân!',       null));
-  document.getElementById('gcp-btn-bug')?.addEventListener('click',
-    () => careAction(apiGarden.catchBug,   '🐛 Đã bắt sâu!',        null));
-  document.getElementById('gcp-btn-leaf')?.addEventListener('click',
-    () => careAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!',     null));
   document.getElementById('gcp-btn-harvest')?.addEventListener('click',
-    () => careAction(apiGarden.harvest,    '🌾 Thu hoạch thành công!', null));
+    () => _cpCareAction(apiGarden.harvest, '🌾 Thu hoạch thành công!'));
 
-  document.getElementById('gcp-btn-uproot')?.addEventListener('click', async () => {
+  document.getElementById('gcp-uproot-link')?.addEventListener('click', async () => {
     if (!_gcpPlantId) return;
     const plant = (_gardenData?.plants || []).find(p => p._id === _gcpPlantId);
     const name  = plant?.plantType?.name || 'cây này';
-    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    if (!confirm(`Nhổ bỏ ${name}?`)) return;
     try {
       const r = await apiGarden.uproot(_gcpPlantId);
       if (r.error) { toast('❌ ' + r.error); return; }
-      toast(`🗑️ Đã nhổ cây. Hoàn lại ${r.refund} điểm.`);
-      if (r.points !== undefined) updatePointsUI(r.points);
+      toast('🪏 Đã nhổ cây.');
       _closeCarePanel();
       _gardenData = await apiGarden.load();
       _refreshGardenUI();
       quickNotifCheck();
-    } catch(e) { toast('❌ ' + e.message); }
+    } catch(err) { toast('❌ ' + err.message); }
+  });
+}
+
+// ── Plant interaction popup (replaces toolbar) ────────────────
+let _gppCurrentPlant = null;
+
+function _openG3DPlantPopup(plant, clientX, clientY) {
+  _gppCurrentPlant = plant;
+  const popup = document.getElementById('g3d-plant-popup');
+  if (!popup) return;
+
+  // Reset sub-tools state
+  document.getElementById('gpp-subtools').style.display = 'none';
+
+  // Show/hide Bắt sâu / Ngắt lá based on plant state
+  const bugBtn  = document.getElementById('gpp-btn-bug');
+  const leafBtn = document.getElementById('gpp-btn-leaf');
+  if (bugBtn)  bugBtn.style.display  = (plant.bugs       > 0) ? '' : 'none';
+  if (leafBtn) leafBtn.style.display = (plant.deadLeaves > 0) ? '' : 'none';
+
+  // Position popup near click, keep inside viewport
+  popup.style.display = 'flex';
+  const PW = 160, PH = 180;
+  let left = clientX + 12;
+  let top  = clientY - 20;
+  if (left + PW > window.innerWidth  - 8) left = clientX - PW - 12;
+  if (top  + PH > window.innerHeight - 8) top  = window.innerHeight - PH - 8;
+  popup.style.left = left + 'px';
+  popup.style.top  = top  + 'px';
+}
+
+function _closeG3DPlantPopup() {
+  const popup = document.getElementById('g3d-plant-popup');
+  if (popup) popup.style.display = 'none';
+  _gppCurrentPlant = null;
+}
+
+function _setupG3DPlantPopup() {
+  // Close popup when clicking outside it
+  document.addEventListener('pointerdown', (e) => {
+    const popup = document.getElementById('g3d-plant-popup');
+    if (popup && popup.style.display !== 'none' && !popup.contains(e.target)) {
+      _closeG3DPlantPopup();
+    }
+  }, true);
+
+  // "Thông số" → care panel
+  document.getElementById('gpp-btn-info')?.addEventListener('click', () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (plant) _openCarePanel(plant);
+  });
+
+  // "Công cụ" → toggle sub-tools
+  document.getElementById('gpp-btn-tools')?.addEventListener('click', () => {
+    const sub = document.getElementById('gpp-subtools');
+    if (sub) sub.style.display = sub.style.display === 'none' ? 'flex' : 'none';
+  });
+
+  // Bắt sâu
+  document.getElementById('gpp-btn-bug')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    await _cpCareAction(apiGarden.catchBug, '🐛 Đã bắt sâu!', plant._id);
+  });
+
+  // Ngắt lá hư
+  document.getElementById('gpp-btn-leaf')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    await _cpCareAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!', plant._id);
+  });
+
+  // Nhổ cây
+  document.getElementById('gpp-btn-uproot')?.addEventListener('click', async () => {
+    const plant = _gppCurrentPlant;
+    _closeG3DPlantPopup();
+    if (!plant) return;
+    const name = plant.plantType?.name || 'cây này';
+    if (!confirm(`Nhổ bỏ ${name}? Bạn sẽ được hoàn lại một phần điểm.`)) return;
+    await _handleG3DUproot(plant._id,
+      _gardenData?.plants
+        ? (plant.row * G3D_COLS + plant.col)
+        : null
+    );
+  });
+}
+
+// ── Garden toolbar drag system (DEPRECATED — kept for reference only) ─────
+function _setupGardenToolbar() {
+  const toolbar = document.getElementById('garden-toolbar');
+  if (!toolbar) return;
+
+  let _ghost    = null;
+  let _dragEl   = null;
+  let _dragTool = null;   // 'water' | 'fert' | 'bug' | 'leaf'
+  let _offX = 0, _offY = 0;
+
+  // Build ghost element that follows cursor
+  function _mkGhost(el) {
+    const r = el.getBoundingClientRect();
+    const g = el.cloneNode(true);
+    g.style.cssText =
+      `position:fixed;left:${r.left}px;top:${r.top}px;`
+      + `width:${r.width}px;height:${r.height}px;`
+      + `pointer-events:none;z-index:9999;`
+      + `opacity:.92;transform:scale(1.25);transform-origin:center;`
+      + `transition:none;border-radius:14px;`;
+    document.body.appendChild(g);
+    return g;
+  }
+
+  // Find which planted/dead cell is under pointer (uses elementsFromPoint for 3D grid)
+  function _cellAt(x, y) {
+    const els = document.elementsFromPoint(x, y);
+    return els.find(el =>
+      el.classList.contains('gc-planted') || el.classList.contains('gc-dead')) || null;
+  }
+
+  // Highlight all valid target cells while dragging
+  function _highlightCells(tool) {
+    document.querySelectorAll('#garden-grid .garden-cell').forEach(cell => {
+      const isPlanted = cell.classList.contains('gc-planted');
+      const isDead    = cell.classList.contains('gc-dead');
+      // water/fert → only living plants
+      // bug/leaf   → only living plants with bugs/leaves (we highlight all planted, disable at drop if 0)
+      if ((tool === 'water' || tool === 'fert' || tool === 'bug' || tool === 'leaf') && isPlanted)
+        cell.classList.add('gtb-cell-valid');
+    });
+  }
+
+  function _clearCells() {
+    document.querySelectorAll('#garden-grid .garden-cell').forEach(cell => {
+      cell.classList.remove('gtb-cell-valid', 'gtb-cell-hover');
+    });
+  }
+
+  function _clearTrash() {
+    document.getElementById('gtb-trash')?.classList.remove('gtb-dz-valid', 'gtb-dz-hover');
+  }
+
+  // Drop animation pop
+  function _popDrop(x, y, emoji) {
+    const el = document.createElement('div');
+    el.textContent = emoji;
+    el.style.cssText =
+      `position:fixed;left:${x - 14}px;top:${y - 14}px;`
+      + `font-size:28px;pointer-events:none;z-index:9999;`
+      + `animation:gtbDropPop .5s ease forwards;`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 520);
+  }
+
+  // ── Pointer down on a toolbar tool ──
+  toolbar.addEventListener('pointerdown', e => {
+    const target = e.target.closest('.gtb-tool');
+    if (!target || target.classList.contains('gtb-disabled')) return;
+
+    e.preventDefault();
+    _dragEl   = target;
+    _dragTool = target.dataset.tool;
+    try { target.setPointerCapture(e.pointerId); } catch(_) {}
+
+    const r = target.getBoundingClientRect();
+    _offX = e.clientX - r.left;
+    _offY = e.clientY - r.top;
+    _ghost = _mkGhost(target);
+    target.classList.add('gtb-dragging');
+    _highlightCells(_dragTool);
+  });
+
+  // ── Pointer move: move ghost, hover-highlight cell under cursor ──
+  document.addEventListener('pointermove', e => {
+    if (!_ghost) return;
+    _ghost.style.left = (e.clientX - _offX) + 'px';
+    _ghost.style.top  = (e.clientY - _offY) + 'px';
+
+    // Clear previous hover
+    document.querySelectorAll('#garden-grid .gtb-cell-hover').forEach(c => c.classList.remove('gtb-cell-hover'));
+
+    const cell = _cellAt(e.clientX, e.clientY);
+    if (cell?.classList.contains('gtb-cell-valid')) cell.classList.add('gtb-cell-hover');
+  });
+
+  // ── Pointer up: execute action on the cell ──
+  document.addEventListener('pointerup', async e => {
+    if (!_ghost) return;
+
+    const cell = _cellAt(e.clientX, e.clientY);
+    const tool = _dragTool;
+    const px   = e.clientX, py = e.clientY;
+
+    _ghost.remove(); _ghost = null;
+    _dragEl?.classList.remove('gtb-dragging');
+    _dragEl = null; _dragTool = null;
+    _clearCells();
+    _clearTrash();
+
+    if (!cell?.classList.contains('gtb-cell-valid')) return;
+
+    // Get plant id from cell's row/col
+    const row   = parseInt(cell.dataset.row);
+    const col   = parseInt(cell.dataset.col);
+    const plant = (_gardenData?.plants || []).find(p => p.row === row && p.col === col);
+    if (!plant) return;
+
+    const pid = plant._id;
+
+    if (tool === 'water') {
+      _popDrop(px, py, '💧');
+      await _cpCareAction(apiGarden.water, '💧 Đã tưới nước!', pid);
+    } else if (tool === 'fert') {
+      _popDrop(px, py, '🌿');
+      await _cpCareAction(apiGarden.fertilize, '🌿 Đã bón phân!', pid);
+    } else if (tool === 'bug') {
+      if (!plant.bugs || plant.bugs < 1) { toast('🌿 Cây này không có sâu!'); return; }
+      _popDrop(px, py, '🪲');
+      await _cpCareAction(apiGarden.catchBug, '🐛 Đã bắt sâu!', pid);
+    } else if (tool === 'leaf') {
+      if (!plant.deadLeaves || plant.deadLeaves < 1) { toast('🌿 Cây này không có lá hư!'); return; }
+      _popDrop(px, py, '✂️');
+      await _cpCareAction(apiGarden.removeLeaf, '🍂 Đã ngắt lá hư!', pid);
+    }
+  });
+
+  // Cancel
+  document.addEventListener('pointercancel', () => {
+    if (!_ghost) return;
+    _ghost.remove(); _ghost = null;
+    _dragEl?.classList.remove('gtb-dragging');
+    _dragEl = null; _dragTool = null;
+    _clearCells();
+    _clearTrash();
   });
 }
 
@@ -7321,15 +9849,53 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
   const container = document.getElementById('gshop-items');
   if (!container || !_gardenCatalog) return;
 
-  if (tab === 'pots') {
-    container.innerHTML = _gardenCatalog.pots.map(p => `
-      <div class="gshop-item">
-        <div class="gshop-item-emoji">${p.emoji}</div>
-        <div class="gshop-item-name">${esc(p.name)}</div>
-        <div class="gshop-item-sub">${esc(p.desc)}</div>
-        <div class="gshop-item-price">${p.price} điểm</div>
-        <div class="gshop-item-note">Mua khi trồng cây</div>
-      </div>`).join('');
+  if (tab === 'tools' || tab === 'pots') {
+    const tools = (_gardenCatalog.tools || []);
+    if (!tools.length) {
+      container.innerHTML = `<div class="gshop-empty">Chưa có dữ liệu công cụ. Mở lại vườn để tải lại.</div>`;
+      return;
+    }
+    container.innerHTML = tools.map(t => {
+      const owned = (_g3dToolCounts && _g3dToolCounts[t.id]) || 0;
+      const cap = t.cap || 9;
+      const maxed = owned >= cap;
+      const usesLine = t.uses
+        ? `<div class="gshop-tool-uses">+${t.uses} lượt / lần mua</div>`
+        : `<div class="gshop-tool-uses">Chậu (dùng 1 lần)</div>`;
+      return `<div class="gshop-item gshop-tool-item" data-toolid="${t.id}">
+        <div class="gshop-item-emoji">${t.emoji}</div>
+        <div class="gshop-item-name">${esc(t.name)}</div>
+        <div class="gshop-item-sub">${esc(t.desc || '')}</div>
+        ${usesLine}
+        <div class="gshop-item-price">${t.price} điểm</div>
+        <div class="gshop-item-owned">Đang có: <b>${owned}</b> / ${cap}</div>
+        <button class="gshop-tool-buy" data-buytool="${t.id}" ${maxed ? 'disabled' : ''}>
+          ${maxed ? '⛔ Đã đầy' : '🛒 Mua'}
+        </button>
+      </div>`;
+    }).join('');
+
+    container.querySelectorAll('[data-buytool]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const toolId = btn.dataset.buytool;
+        btn.disabled = true;
+        const prevTxt = btn.textContent;
+        btn.textContent = '⏳';
+        try {
+          const r = await apiGarden.buyTool(toolId);
+          if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); btn.textContent = prevTxt; btn.disabled = false; return; }
+          toast(`✅ Đã mua ${toolId}`);
+          if (typeof r.points === 'number') updatePointsUI(r.points);
+          if (r.toolCounts) _updateToolHUD(r.toolCounts);
+          else if (r.gardenTools) _updateToolHUD(r.gardenTools);
+          _renderGardenShop('tools');
+          quickNotifCheck();
+        } catch(e) {
+          toast('❌ ' + e.message);
+          btn.textContent = prevTxt; btn.disabled = false;
+        }
+      });
+    });
     return;
   }
 
@@ -7341,10 +9907,20 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
   container.innerHTML = plants.map(p => {
     const ci = CAT_INFO[p.category] || {};
     const stageSummary = Object.entries(p.stages || {})
-      .map(([s, d]) => `${STAGE_INFO[s]?.emoji||''} ${d}n`)
+      .map(([s, d]) => `${STAGE_INFO[s]?.label||s} ${d}n`)
       .join(' → ');
+    // Pick a signature stage for the shop preview
+    const allStages = Object.keys(p.stages || {});
+    const sigStage = allStages.includes('flowering') ? 'flowering'
+                   : allStages.includes('fruiting')  ? 'fruiting'
+                   : allStages.includes('growing')   ? 'growing'
+                   : allStages[allStages.length - 1] || 'leafing';
+    const arch = PLANT_ARCHETYPE[p.id] || 'ground-leafy';
+    const previewHTML = _buildPlantBodyHTML(p.id, sigStage);
     return `<div class="gshop-item gshop-plant-item">
-      <div class="gshop-item-emoji">${p.emoji}</div>
+      <div class="gshop-item-plant-preview">
+        <div class="gc-plant-body stage-${sigStage} plant-${arch} plant-${p.id}">${previewHTML}</div>
+      </div>
       <div class="gshop-item-name">${esc(p.name)}</div>
       <div class="gshop-cat-badge" style="background:${ci.color||'#b07fff'}22;color:${ci.color||'#b07fff'}">${ci.emoji} ${ci.label}</div>
       <div class="gshop-item-sub">${esc(p.desc)}</div>
@@ -7353,6 +9929,182 @@ function _renderGardenShop(tab = 'plants', cat = 'all') {
       <div class="gshop-item-price">${p.price} điểm</div>
     </div>`;
   }).join('');
+}
+
+
+// ── Weather grid effects ──────────────────────────────────────
+function _applyWeatherEffectsToGrid(wrap, weatherId) {
+  if (!wrap) return;
+  const WEATHERS = ['sunny','cloudy','rainy','stormy','foggy','windy'];
+  WEATHERS.forEach(w => wrap.classList.remove('gw-' + w));
+  const old = wrap.querySelector('.gw-fx');
+  if (old) old.remove();
+  if (!weatherId || !WEATHERS.includes(weatherId)) return;
+
+  wrap.classList.add('gw-' + weatherId);
+
+  const fx = document.createElement('div');
+  fx.className = 'gw-fx';
+
+  if (weatherId === 'rainy' || weatherId === 'stormy') {
+    const count = weatherId === 'stormy' ? 30 : 20;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-rain';
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.animationDelay = (Math.random() * 1.8) + 's';
+      s.style.animationDuration = (0.55 + Math.random() * 0.55) + 's';
+      s.style.opacity = (0.3 + Math.random() * 0.45);
+      fx.appendChild(s);
+    }
+    if (weatherId === 'stormy') {
+      const flash = document.createElement('div');
+      flash.className = 'gw-lightning';
+      fx.appendChild(flash);
+    }
+  }
+
+  if (weatherId === 'sunny') {
+    const glow = document.createElement('div');
+    glow.className = 'gw-sunglow';
+    fx.appendChild(glow);
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-sunray';
+      s.style.setProperty('--i', i);
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'foggy') {
+    for (let i = 0; i < 3; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-fog';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  if (weatherId === 'windy') {
+    for (let i = 0; i < 9; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-windline';
+      s.style.top = (8 + Math.random() * 84) + '%';
+      s.style.width = (18 + Math.random() * 28) + '%';
+      s.style.animationDelay = (Math.random() * 2.5) + 's';
+      s.style.animationDuration = (0.9 + Math.random() * 1.4) + 's';
+      fx.appendChild(s);
+    }
+    const leaves = ['🍃', '🍂', '🌿'];
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-leaf';
+      s.textContent = leaves[i % leaves.length];
+      s.style.top = (10 + Math.random() * 72) + '%';
+      s.style.animationDelay = (Math.random() * 3.5) + 's';
+      s.style.animationDuration = (2.2 + Math.random() * 2) + 's';
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'cloudy') {
+    for (let i = 0; i < 2; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-cloud-shadow';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  wrap.appendChild(fx);
+}
+
+// ── Weather page-level background effects ─────────────────────
+function _applyWeatherToPage(weatherId) {
+  const page = document.getElementById('page-garden');
+  if (!page) return;
+  const WEATHERS = ['sunny','cloudy','rainy','stormy','foggy','windy'];
+  WEATHERS.forEach(w => page.classList.remove('gw-' + w));
+  const old = page.querySelector(':scope > .gw-page-fx');
+  if (old) old.remove();
+  if (!weatherId || !WEATHERS.includes(weatherId)) return;
+
+  page.classList.add('gw-' + weatherId);
+
+  const fx = document.createElement('div');
+  fx.className = 'gw-page-fx';
+
+  if (weatherId === 'rainy' || weatherId === 'stormy') {
+    const count = weatherId === 'stormy' ? 70 : 45;
+    for (let i = 0; i < count; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-rain';
+      s.style.left = (Math.random() * 100) + '%';
+      s.style.animationDelay = (Math.random() * 2.5) + 's';
+      s.style.animationDuration = (0.6 + Math.random() * 0.8) + 's';
+      s.style.opacity = (0.1 + Math.random() * 0.18);
+      fx.appendChild(s);
+    }
+    if (weatherId === 'stormy') {
+      const flash = document.createElement('div');
+      flash.className = 'gw-page-lightning';
+      fx.appendChild(flash);
+    }
+  }
+
+  if (weatherId === 'sunny') {
+    const glow = document.createElement('div');
+    glow.className = 'gw-page-sunglow';
+    fx.appendChild(glow);
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-sunray';
+      s.style.setProperty('--i', i);
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'foggy') {
+    for (let i = 0; i < 5; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-page-fog';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  if (weatherId === 'windy') {
+    for (let i = 0; i < 14; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-windline';
+      s.style.top = (Math.random() * 100) + '%';
+      s.style.width = (12 + Math.random() * 22) + '%';
+      s.style.animationDelay = (Math.random() * 4) + 's';
+      s.style.animationDuration = (1.2 + Math.random() * 2) + 's';
+      fx.appendChild(s);
+    }
+    const leaves = ['🍃','🍂','🌿','🍁'];
+    for (let i = 0; i < 8; i++) {
+      const s = document.createElement('span');
+      s.className = 'gw-page-leaf';
+      s.textContent = leaves[i % leaves.length];
+      s.style.top = (Math.random() * 85) + '%';
+      s.style.animationDelay = (Math.random() * 5) + 's';
+      s.style.animationDuration = (3.5 + Math.random() * 3.5) + 's';
+      fx.appendChild(s);
+    }
+  }
+
+  if (weatherId === 'cloudy') {
+    for (let i = 0; i < 4; i++) {
+      const d = document.createElement('div');
+      d.className = 'gw-page-cloud';
+      d.style.setProperty('--i', i);
+      fx.appendChild(d);
+    }
+  }
+
+  page.insertBefore(fx, page.firstChild);
 }
 
 // ── Weather banner ────────────────────────────────────────────
@@ -7509,6 +10261,8 @@ async function _openFriendGarden(friendId) {
     }
 
     _renderWeatherBanner(_gardenFriendData.weatherInfo, _gardenFriendData.weather, 'gfv-weather-banner');
+    _applyWeatherEffectsToGrid(document.getElementById('gfv-grid')?.closest('.garden-grid-wrap'), _gardenFriendData.weather);
+    _applyWeatherToPage(_gardenFriendData.weather);
     _renderEcosystemPanel(_gardenFriendData.ecosystem, 'gfv-eco-panel');
     _renderFriendGardenGrid(_gardenFriendData, friendId);
   } catch(e) {
@@ -7517,72 +10271,74 @@ async function _openFriendGarden(friendId) {
   }
 }
 
-function _renderFriendGardenGrid(data, friendId) {
+function _renderFriendGardenGrid(data, _friendId) {
   const grid = document.getElementById('gfv-grid');
-  if (!grid || !data) return;
+  if (!grid) return;
 
-  const { gridConfig, cellPrices, purchasedCells, plants } = data;
-  const ROWS = gridConfig?.rows || 6, COLS = gridConfig?.cols || 5;
+  const ROWS = 6, COLS = 5;
+  const purchasedSet = new Set((data.purchasedCells || []).map(c => `${c.row},${c.col}`));
+  const plantMap     = new Map((data.plants || []).map(p => [`${p.row},${p.col}`, p]));
 
-  const purchasedSet = new Set((purchasedCells || []).map(c => `${c.row},${c.col}`));
-  const plantMap = {};
-  (plants || []).forEach(p => { plantMap[`${p.row},${p.col}`] = p; });
-
-  grid.innerHTML = '';
   grid.style.gridTemplateColumns = `repeat(${COLS}, 1fr)`;
+  grid.innerHTML = '';
 
-  for (let r = 0; r < ROWS; r++) {
-    for (let c = 0; c < COLS; c++) {
-      const key   = `${r},${c}`;
-      const owned = purchasedSet.has(key);
-      const plant = plantMap[key];
-      const cell  = document.createElement('div');
+  for (let row = 0; row < ROWS; row++) {
+    for (let col = 0; col < COLS; col++) {
+      const key   = `${row},${col}`;
+      const isPurchased = purchasedSet.has(key);
+      const plant = plantMap.get(key);
+
+      const cell = document.createElement('div');
       cell.className = 'garden-cell';
 
-      if (!owned) {
+      if (!isPurchased) {
         cell.classList.add('gc-locked');
         cell.innerHTML = `<div class="gc-lock-icon">🔒</div>`;
-      } else if (!plant || !plant.isAlive) {
-        cell.classList.add(plant ? 'gc-dead' : 'gc-empty');
-        if (plant && !plant.isAlive) {
-          cell.innerHTML = `<div class="gc-dead-emoji">💀</div>
-            <div class="gc-dead-name">${esc(plant.plantType?.name || '')}</div>`;
-        } else {
-          cell.innerHTML = `<div class="gc-empty-plus" style="color:#5ef0a033">·</div>`;
-        }
+
+      } else if (!plant) {
+        cell.classList.add('gc-empty');
+        cell.innerHTML = `<div class="gc-empty-plus">+</div>
+          <div class="gc-empty-label">Đất trống</div>`;
+
       } else {
-        const si    = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
-        const hp    = Math.round(plant.health);
-        const hpColor = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
-        cell.classList.add('gc-planted');
-        if (plant.readyToHarvest) cell.classList.add('gc-harvest');
-        if (plant.health < 30)    cell.classList.add('gc-sick');
+        const alive  = plant.isAlive !== false;
+        const si     = STAGE_INFO[plant.stage] || STAGE_INFO.seed;
+        const pt     = plant.plantType || {};
+        const hp     = plant.health ?? 100;
+        const hpCol  = hp > 60 ? '#5ef0a0' : hp > 30 ? '#ffcf5c' : '#ff6b8a';
+
+        cell.classList.add(alive ? 'gc-planted' : 'gc-dead');
+        if (plant.readyToHarvest && alive) cell.classList.add('gc-harvest');
+        if (hp < 30 && alive) cell.classList.add('gc-sick');
+
+        let badges = '';
+        if (plant.readyToHarvest && alive) badges += `<div class="gc-harvest-badge">🌾</div>`;
+        if ((plant.bugs || 0) > 0)         badges += `<div class="gc-bug-badge">🐛×${plant.bugs}</div>`;
+        if ((plant.deadLeaves || 0) > 0)   badges += `<div class="gc-leaf-badge">🍂</div>`;
 
         cell.innerHTML = `
-          <div class="gc-plant-emoji">${si.emoji}</div>
-          <div class="gc-plant-name">${esc(plant.plantType?.name?.split(' ').slice(-1)[0] || '')}</div>
-          <div class="gc-hp-bar-wrap"><div class="gc-hp-bar" style="width:${hp}%;background:${hpColor}"></div></div>
-          ${plant.readyToHarvest ? '<div class="gc-harvest-badge">🌾</div>' : ''}
-          ${plant.bugs > 0 ? `<div class="gc-bug-badge">🐛${plant.bugs}</div>` : ''}
-          <div class="gfv-gift-btn" data-pid="${esc(plant._id)}" title="Tặng tưới nước">💧</div>`;
-
-        cell.querySelector('.gfv-gift-btn')?.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          const btn = e.currentTarget;
-          btn.textContent = '⏳';
-          try {
-            const r = await apiGarden.giftWater(friendId, plant._id);
-            if (r.error) { toast('❌ ' + r.error); btn.textContent = '💧'; return; }
-            toast('💧 Đã tặng tưới nước! Bạn được +3 điểm.');
-            if (r.points !== undefined) updatePointsUI(r.points);
-            // Refresh friend garden
-            _gardenFriendData = await apiGarden.loadFriendGarden(friendId);
-            _renderFriendGardenGrid(_gardenFriendData, friendId);
-            quickNotifCheck();
-          } catch(err) { toast('❌ ' + err.message); btn.textContent = '💧'; }
-        });
+          ${badges}
+          <div class="gc-plant-emoji">${alive ? (si.emoji || '🌱') : '💀'}</div>
+          <div class="gc-plant-name">${esc(pt.name || '—')}</div>
+          <div class="gc-hp-bar-wrap">
+            <div class="gc-hp-bar" style="width:${hp}%;background:${hpCol};"></div>
+          </div>`;
       }
+
       grid.appendChild(cell);
     }
   }
 }
+
+// ── Dev helper: clear all plants (for testing Session I) ─────
+window.devClearPlants = async function () {
+  if (!confirm('⚠️ Dev: Xoá TOÀN BỘ cây trong vườn hiện tại? (không hoàn lại hạt)')) return;
+  try {
+    const r = await apiGarden.devClear();
+    if (!r.success) { toast('❌ ' + (r.error || 'Lỗi')); return; }
+    toast(`🗑️ Đã xoá ${r.removed || 0} cây`);
+    _gardenData = await apiGarden.load();
+    _refreshGardenUI();
+    quickNotifCheck();
+  } catch(e) { toast('❌ ' + e.message); }
+};

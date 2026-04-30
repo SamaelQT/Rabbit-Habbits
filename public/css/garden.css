@@ -1,4 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════
+﻿/* ═══════════════════════════════════════════════════════════════
    🌿 VƯỜN SINH THÁI — PHASE 1
    ═══════════════════════════════════════════════════════════════ */
 
@@ -26,11 +26,11 @@
 .garden-grid-wrap {
   background: linear-gradient(175deg, #0a1c0e 0%, #0d2214 60%, #081508 100%);
   border-radius: 16px;
-  padding: 20px 14px 26px;
+  padding: 20px 14px 40px;
   border: 1px solid #2d5a2d55;
-  overflow: hidden;
+  /* perspective moved into .garden-grid-3d transform — overflow:hidden + perspective together
+     clips pointer events on the bottom rows of the 3D-rotated grid */
   position: relative;
-  perspective: 900px;
   box-shadow:
     inset 0 -10px 30px rgba(0,0,0,0.5),
     inset 0 1px 0 rgba(94,240,160,0.06),
@@ -45,13 +45,6 @@
     radial-gradient(ellipse 60% 30% at 50% 100%, rgba(0,0,0,0.4) 0%, transparent 60%);
   pointer-events: none;
 }
-
-.garden-grid-3d {
-  transform: rotateX(20deg);
-  transform-style: preserve-3d;
-  transition: transform 0.5s cubic-bezier(.4,0,.2,1);
-}
-.garden-grid-wrap:hover .garden-grid-3d { transform: rotateX(16deg); }
 
 .garden-grid { display: grid; gap: 9px; min-width: 280px; }
 
@@ -195,23 +188,58 @@
   transition: background 0.5s ease;
   border-radius: 24px 24px 0 0;
 }
-.gcp-hero-emoji {
-  font-size: 52px;
-  line-height: 1;
-  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.6));
+/* CSS plant scene hero (replaces emoji) */
+.gcp-hero-plant {
   position: relative;
   z-index: 1;
-  animation: gcpEmojiFloat 3s ease-in-out infinite;
+  flex-shrink: 0;
+  width: 88px;
+  height: 110px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
-@keyframes gcpEmojiFloat {
-  0%,100% { transform: translateY(0); }
-  50%      { transform: translateY(-4px); }
+.gcp-plant-scene {
+  position: relative;
+  width: 88px;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* scale up the pot+plant to fill the scene nicely */
+  transform-origin: bottom center;
+}
+/* Let the inner pot/plant overflow upward within the scene */
+.gcp-plant-scene .gc-pot-s,
+.gcp-plant-scene .gc-pot-m,
+.gcp-plant-scene .gc-pot-l,
+.gcp-plant-scene .gc-pot-xl {
+  position: relative;
+  overflow: visible;
+  transform: scale(1.5);
+  transform-origin: bottom center;
+}
+/* Plant body floats gently */
+.gcp-plant-scene .gc-plant-body {
+  animation: gcpPlantFloat 4s ease-in-out infinite;
+}
+@keyframes gcpPlantFloat {
+  0%,100% { transform: translateY(0) rotate(0deg); }
+  40%     { transform: translateY(-3px) rotate(.5deg); }
+  70%     { transform: translateY(-1px) rotate(-.3deg); }
 }
 .gcp-hero-info { flex: 1; position: relative; z-index: 1; }
 .gcp-plant-name { font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.gcp-species-label {
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  letter-spacing: .3px;
+  font-style: italic;
+}
 .gcp-stage-badge {
   display: inline-block;
-  margin-top: 5px;
+  margin-top: 6px;
   font-size: 11px; font-weight: 600;
   border-radius: 6px; padding: 3px 10px;
   letter-spacing: .3px;
@@ -241,52 +269,6 @@
 .gcp-badge-warn    { background: rgba(255,153,0,.12); color: #ff9900; border: 1px solid #ff990033; }
 .gcp-badge-cycle   { background: rgba(176,127,255,.12); color: #b07fff; border: 1px solid #b07fff33; }
 
-/* Circular vitals */
-.gcp-vitals {
-  display: flex;
-  justify-content: space-around;
-  gap: 8px;
-  margin-bottom: 18px;
-  padding: 16px 8px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.06);
-  border-radius: 16px;
-}
-.gcp-vital-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.gcp-gauge-wrap {
-  position: relative;
-  width: 76px; height: 76px;
-}
-.gcp-gauge {
-  width: 76px; height: 76px;
-  border-radius: 50%;
-  transition: background 0.55s ease;
-}
-.gcp-gauge-inner {
-  position: absolute;
-  inset: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-.gcp-gauge-inner::before {
-  content: '';
-  position: absolute;
-  width: 56px; height: 56px;
-  background: #111b12;
-  border-radius: 50%;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
-}
-.gcp-gauge-inner span {
-  position: relative; z-index: 1;
-  font-size: 12px; font-weight: 700;
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-}
-.gcp-vital-label {
-  font-size: 10px; color: var(--text3);
-  font-weight: 500; letter-spacing: .2px;
-  text-align: center;
-}
-
 /* Stage progress */
 .gcp-stage-row {
   background: rgba(255,255,255,.03);
@@ -312,49 +294,137 @@
 }
 .gcp-stage-eta { font-size: 11px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
 
-/* Action buttons */
-.gcp-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+/* Harvest button (full-width, shown when ready) */
 .gcp-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 4px;
-  padding: 12px 6px;
+  display: flex; flex-direction: row; align-items: center; justify-content: center;
+  gap: 8px; width: 100%;
+  padding: 13px 16px;
   border-radius: 14px;
   border: 1.5px solid rgba(255,255,255,.07);
   background: rgba(255,255,255,.04);
   color: var(--text);
-  font-size: 12px; font-weight: 500;
+  font-size: 13px; font-weight: 600;
   cursor: pointer;
   transition: all .2s ease;
+  margin-bottom: 8px;
 }
-.gcp-btn:disabled { opacity: .28; cursor: not-allowed; }
-.gcp-btn-icon { font-size: 22px; line-height: 1; }
-.gcp-btn-water:not(:disabled)  { border-color: rgba(94,232,240,.2); }
-.gcp-btn-water:not(:disabled):hover { background: rgba(94,232,240,.12); border-color: #5ee8f0; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(94,232,240,.15); }
-.gcp-btn-fert:not(:disabled)   { border-color: rgba(176,127,255,.2); }
-.gcp-btn-fert:not(:disabled):hover  { background: rgba(176,127,255,.12); border-color: #b07fff; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(176,127,255,.15); }
-.gcp-btn-bug:not(:disabled)    { border-color: rgba(255,107,138,.2); }
-.gcp-btn-bug:not(:disabled):hover   { background: rgba(255,107,138,.1); border-color: #ff6b8a; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255,107,138,.12); }
-.gcp-btn-leaf:not(:disabled)   { border-color: rgba(200,149,74,.2); }
-.gcp-btn-leaf:not(:disabled):hover  { background: rgba(200,149,74,.1); border-color: #c8954a; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(200,149,74,.12); }
+.gcp-btn-icon { font-size: 20px; line-height: 1; }
 .gcp-btn-harvest {
-  grid-column: 1/-1;
-  background: linear-gradient(135deg, #ffcf5c22, #ff990022);
+  background: linear-gradient(135deg, #ffcf5c1a, #ff99001a);
   border-color: #ffcf5c55;
   color: #ffcf5c;
-  font-weight: 700;
-  font-size: 13px;
-  flex-direction: row; gap: 8px;
 }
-.gcp-btn-harvest:not(:disabled):hover { background: linear-gradient(135deg,#ffcf5c33,#ff990033); border-color: #ffcf5c; transform: translateY(-2px); box-shadow: 0 4px 16px rgba(255,207,92,.2); }
-.gcp-btn-uproot {
-  grid-column: 1/-1;
-  background: transparent;
-  border-color: rgba(255,107,138,.1);
-  color: var(--text3);
-  font-size: 11px; flex-direction: row; gap: 6px;
-  padding: 9px 6px;
+.gcp-btn-harvest:hover { background: linear-gradient(135deg,#ffcf5c2a,#ff99002a); border-color: #ffcf5c; box-shadow: 0 4px 16px rgba(255,207,92,.2); }
+
+/* Uproot hint row */
+.gcp-uproot-hint {
+  text-align: center; font-size: 11px; color: var(--text3);
+  margin-bottom: 12px;
 }
-.gcp-btn-uproot:hover { color: #ff6b8a; border-color: #ff6b8a44; background: rgba(255,107,138,.06); }
+.gcp-uproot-link {
+  background: none; border: none; color: #ff6b8a88;
+  font-size: 11px; cursor: pointer; text-decoration: underline;
+  transition: color .15s; padding: 0;
+}
+.gcp-uproot-link:hover { color: #ff6b8a; }
+
+/* ── GARDEN TOOLBAR ── */
+.garden-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, rgba(255,255,255,.03), rgba(255,255,255,.02));
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 18px;
+}
+
+/* Trash bin */
+.gtb-trash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 10px;
+  background: rgba(255,107,138,.06);
+  border: 1.5px dashed rgba(255,107,138,.2);
+  border-radius: 14px;
+  min-width: 56px;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.gtb-trash.gtb-dz-valid { border-color: rgba(255,107,138,.5); background: rgba(255,107,138,.12); }
+.gtb-trash.gtb-dz-hover {
+  border-color: #ff6b8a; background: rgba(255,107,138,.22);
+  transform: scale(1.08);
+  box-shadow: 0 0 14px rgba(255,107,138,.3);
+}
+.gtb-trash-emoji { font-size: 22px; line-height: 1; pointer-events: none; }
+.gtb-trash-label { font-size: 9px; color: var(--text3); font-weight: 600; white-space: nowrap; pointer-events: none; }
+
+/* Divider */
+.gtb-divider {
+  flex: 1;
+}
+
+/* Tool cards */
+.gtb-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.04);
+  border: 1.5px solid rgba(255,255,255,.09);
+  border-radius: 14px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  transition: all .15s;
+  min-width: 54px;
+  flex-shrink: 0;
+}
+.gtb-tool:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.18); transform: translateY(-2px); }
+.gtb-tool.gtb-dragging { opacity: .3; transform: scale(.93); }
+.gtb-tool.gtb-disabled  { opacity: .25; cursor: not-allowed; pointer-events: none; }
+
+.gtb-tool[data-tool="water"] { border-color: rgba(94,232,240,.2); }
+.gtb-tool[data-tool="water"]:hover { background: rgba(94,232,240,.1); border-color: rgba(94,232,240,.5); }
+.gtb-tool[data-tool="fert"]  { border-color: rgba(176,127,255,.2); }
+.gtb-tool[data-tool="fert"]:hover  { background: rgba(176,127,255,.1); border-color: rgba(176,127,255,.5); }
+.gtb-tool[data-tool="bug"]   { border-color: rgba(255,107,138,.2); }
+.gtb-tool[data-tool="bug"]:hover   { background: rgba(255,107,138,.1); border-color: rgba(255,107,138,.45); }
+.gtb-tool[data-tool="leaf"]  { border-color: rgba(200,149,74,.2); }
+.gtb-tool[data-tool="leaf"]:hover  { background: rgba(200,149,74,.1); border-color: rgba(200,149,74,.45); }
+
+.gtb-tool-emoji { font-size: 22px; line-height: 1; pointer-events: none; }
+.gtb-tool-label { font-size: 9px; color: var(--text2); font-weight: 600; white-space: nowrap; pointer-events: none; }
+
+/* Plant cell highlight states during drag */
+.gc-planted.gtb-cell-valid {
+  border-color: rgba(94,240,160,.6) !important;
+  box-shadow: 0 0 0 2px rgba(94,240,160,.25), 0 5px 0 rgba(0,0,0,0.55) !important;
+}
+.gc-planted.gtb-cell-hover,
+.gc-dead.gtb-cell-hover {
+  transform: translateY(-5px) scale(1.07) !important;
+  box-shadow: 0 10px 0 rgba(0,0,0,0.55), 0 0 22px rgba(94,240,160,.4) !important;
+  z-index: 10;
+}
+.gc-dead.gtb-cell-valid {
+  border-color: rgba(255,107,138,.5) !important;
+  box-shadow: 0 0 0 2px rgba(255,107,138,.2), 0 5px 0 rgba(0,0,0,0.55) !important;
+}
+
+/* Drop pop animation */
+@keyframes gtbDropPop {
+  0%   { transform: scale(.5) translateY(0);   opacity: 1; }
+  55%  { transform: scale(1.5) translateY(-12px); opacity: 1; }
+  100% { transform: scale(1)   translateY(-28px); opacity: 0; }
+}
 
 /* Pot info */
 .gcp-pot-row {
@@ -442,7 +512,20 @@
 }
 .gpm-plant-item:hover { border-color: var(--accent); background: var(--bg4); }
 .gpm-item-selected { border-color: var(--accent) !important; background: rgba(176,127,255,.12) !important; }
-.gpm-item-emoji { font-size: 26px; line-height: 1; }
+/* Mini CSS plant preview in plant-selector modal */
+.gpm-item-plant-preview {
+  position: relative;
+  width: 48px; height: 54px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible;
+  flex-shrink: 0;
+}
+.gpm-item-plant-preview .gc-plant-body {
+  transform: scale(.7);
+  transform-origin: bottom center;
+  animation: none !important; /* no sway in selector */
+  --sway: 0deg;
+}
 .gpm-item-name { font-size: 11px; font-weight: 600; color: var(--text); line-height: 1.2; }
 .gpm-item-sub  { font-size: 10px; color: var(--text3); }
 .gpm-item-inv {
@@ -496,7 +579,20 @@
 .gf-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .garden-shop-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(160px,1fr)); gap: 10px; }
 .gshop-item { background: var(--bg3); border-radius: 12px; padding: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
-.gshop-item-emoji { font-size: 28px; }
+/* Mini CSS plant preview in garden shop catalog */
+.gshop-item-plant-preview {
+  position: relative;
+  width: 100%; height: 72px;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: visible;
+  margin-bottom: 2px;
+}
+.gshop-item-plant-preview .gc-plant-body {
+  transform: scale(.85);
+  transform-origin: bottom center;
+  animation: none !important;
+  --sway: 0deg;
+}
 .gshop-item-name { font-size: 13px; font-weight: 700; color: var(--text); }
 .gshop-cat-badge { display: inline-block; font-size: 10px; font-weight: 600; border-radius: 5px; padding: 2px 6px; width: fit-content; }
 .gshop-item-sub { font-size: 11px; color: var(--text3); line-height: 1.4; }
@@ -506,9 +602,9 @@
 .gshop-item-price { font-size: 13px; font-weight: 700; color: var(--accent); margin-top: auto; }
 .gshop-item-note { font-size: 10px; color: var(--text3); }
 
-/* ═══════════════════════════════════════════════════════════════
-   🌿 PHASE 2 — WEATHER, ECOSYSTEM, FRIENDS
-   ═══════════════════════════════════════════════════════════════ */
+#page-garden { position: relative; }
+.garden-page-inner { position: relative; z-index: 2; }
+
 
 /* ── WEATHER BANNER ── */
 .garden-weather-banner {
@@ -641,3 +737,153 @@
   transition: all .15s; line-height: 1.4;
 }
 .gfv-gift-btn:hover { background: rgba(94,232,240,.4); transform: scale(1.15); }
+
+/* ═══════════════════════════════════════════════════════════
+   SESSION G — Interaction layer (tooltip · ghost drag · trash)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Hover tooltip that follows the cursor over the 3D garden */
+.garden-3d-tooltip {
+  position: fixed;
+  z-index: 9998;
+  pointer-events: none;
+  background: rgba(14, 22, 14, 0.94);
+  border: 1px solid rgba(94, 240, 160, 0.35);
+  border-radius: 10px;
+  padding: 7px 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  font-size: 12px;
+  color: var(--text);
+  max-width: 220px;
+  backdrop-filter: blur(4px);
+  animation: g3dTtIn .12s ease-out;
+}
+.garden-3d-tooltip .g3d-tt-title { font-weight: 700; color: #5ef0a0; font-size: 13px; margin-bottom: 2px; }
+.garden-3d-tooltip .g3d-tt-sub   { color: var(--text2); font-size: 11px; }
+.garden-3d-tooltip .g3d-tt-hint  { color: var(--text3); font-size: 10px; margin-top: 4px; font-style: italic; }
+@keyframes g3dTtIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Ghost element that follows the cursor while dragging a plant to the trash */
+.garden-ghost {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  width: 56px; height: 56px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(94,240,160,.28) 0%, rgba(94,240,160,0) 70%);
+  transform: scale(1.1);
+  animation: g3dGhostFloat .9s ease-in-out infinite alternate;
+}
+.garden-ghost .gg-plant {
+  font-size: 38px;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.55));
+}
+.garden-ghost .gg-label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #fff;
+  background: rgba(0,0,0,.65);
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  border: 1px solid rgba(94,240,160,.35);
+}
+@keyframes g3dGhostFloat {
+  from { transform: scale(1.1) translateY(0); }
+  to   { transform: scale(1.15) translateY(-3px); }
+}
+
+/* ── Plant interaction popup ── */
+.g3d-plant-popup {
+  position: fixed;
+  z-index: 10001;
+  background: rgba(12, 20, 13, 0.96);
+  border: 1px solid rgba(94, 240, 160, 0.30);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 148px;
+  animation: gppIn .15s ease-out;
+}
+@keyframes gppIn {
+  from { opacity: 0; transform: scale(.88) translateY(6px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+.gpp-arrow {
+  display: none; /* reserved for future pointing triangle */
+}
+.gpp-btn {
+  display: flex; align-items: center; gap: 8px;
+  background: none; border: none;
+  color: var(--text);
+  font-size: 13px; font-weight: 500;
+  padding: 9px 12px; border-radius: 10px;
+  cursor: pointer; width: 100%; text-align: left;
+  transition: background .12s;
+}
+.gpp-btn:hover { background: rgba(94, 240, 160, 0.10); }
+.gpp-btn-icon { font-size: 16px; flex-shrink: 0; }
+.gpp-divider  { height: 1px; background: rgba(255,255,255,.07); margin: 2px 4px; }
+.gpp-subtools {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 0 4px 4px;
+}
+.gpp-sub-btn {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  color: var(--text2); font-size: 12px;
+  padding: 7px 10px; border-radius: 8px;
+  cursor: pointer; text-align: left;
+  transition: background .12s, border-color .12s;
+}
+.gpp-sub-btn:hover { background: rgba(94,240,160,.12); border-color: rgba(94,240,160,.3); color: #fff; }
+.gpp-btn-uproot { color: #ff8a8a !important; }
+.gpp-btn-uproot:hover { background: rgba(255,100,100,.15) !important; border-color: rgba(255,100,100,.3) !important; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   🧰 TOOL HUD — Session I
+   ═══════════════════════════════════════════════════════════════ */
+
+#garden-tool-hud {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 10px; flex-wrap: wrap;
+}
+.gtool-item, .gtool-pot {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 10px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; font-size: 13px;
+  user-select: none;
+  transition: all .15s;
+}
+.gtool-item { cursor: pointer; }
+.gtool-item:hover  { border-color: var(--accent); }
+.gtool-item.gtool-active {
+  border-color: var(--accent);
+  background: rgba(94,240,160,.12);
+  color: var(--accent);
+  box-shadow: 0 0 8px rgba(94,240,160,.25);
+}
+.gtool-item.gtool-empty { opacity: .35; pointer-events: none; }
+.gtool-pot { cursor: default; opacity: .85; }
+.gtool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 2px; }
+
+/* Tool-tab shop entries */
+.gshop-tool-item { display: flex; flex-direction: column; gap: 4px; }
+.gshop-tool-uses { font-size: 11px; color: var(--text2); }
+.gshop-tool-buy {
+  margin-top: 6px; padding: 6px 10px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 6px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.gshop-tool-buy:disabled { opacity: .5; cursor: not-allowed; }

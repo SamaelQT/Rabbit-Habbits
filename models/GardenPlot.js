@@ -10,6 +10,12 @@ const gardenPlotSchema = new mongoose.Schema({
   }],
   migrationDone: { type: Boolean, default: false }, // tracks old-plant refund migration
 
+  // ── Tilled ground cells (prepared by cuốc, consumed on ground-plant) ───
+  tilledCells: [{
+    row: { type: Number, required: true },
+    col: { type: Number, required: true },
+  }],
+
   // ── Weather (changes every 12 real hours) ──────────────────────
   weather: {
     type: String,

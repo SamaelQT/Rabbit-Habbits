@@ -56,6 +56,12 @@ const userSchema = new mongoose.Schema({
     totalGifts:     { type: Number, default: 0 },
     lastInteractAt: { type: Date, default: Date.now }
   }],
+  systemNotifications: [{
+    message:   { type: String, default: '' },
+    emoji:     { type: String, default: '📢' },
+    createdAt: { type: Date, default: Date.now },
+    seen:      { type: Boolean, default: false }
+  }],
   lastSeen:    { type: Date, default: null },
   createdAt:   { type: Date, default: Date.now }
 });
