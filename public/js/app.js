@@ -4042,6 +4042,10 @@ function _renderStoreSeedsGrid(cat = 'all') {
   });
 }
 
+function _buildPotHTML(potId, sizeClass = '') {
+  return `<div class="pot-3d ${sizeClass}" data-pot="${potId}"><div class="pt-wrap"><div class="pt-rim"></div><div class="pt-body"><div class="pt-sheen"></div></div><div class="pt-base"></div></div></div>`;
+}
+
 function _renderStorePotsGrid() {
   const grid = document.getElementById('store-pots-grid');
   if (!grid || !_storeCatalog) return;
@@ -4050,9 +4054,12 @@ function _renderStorePotsGrid() {
     const owned = _shopData.gardenPots[p.id] || 0;
     const card = document.createElement('div');
     card.className = 'store-card';
+    const sizeBadge = {small:'Nhỏ',medium:'Vừa',large:'To',xl:'XL'}[p.size] || p.size;
+    const sizeColor = {small:'#78d878',medium:'#60b8f0',large:'#e8a050',xl:'#c8a040'}[p.size] || '#aaa';
     card.innerHTML = `
-      <div class="store-emoji">${p.emoji}</div>
+      ${_buildPotHTML(p.id)}
       <div class="store-name">${p.name}</div>
+      <div style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;background:${sizeColor}22;color:${sizeColor};margin-bottom:6px">Cỡ ${sizeBadge}</div>
       <div class="store-desc">${p.desc}</div>
       <div class="store-owned-badge" id="pot-owned-${p.id}">Bạn có: <b>${owned}</b></div>
       <button class="store-price" data-potid="${p.id}">⭐ ${p.price} điểm</button>
@@ -7039,7 +7046,7 @@ function _renderGpmPots() {
     const noStock = owned < 1 ? 'gpm-item-disabled' : '';
     const invLabel = owned > 0 ? `Có: ${owned}` : 'Hết';
     return `<div class="gpm-pot-item ${sel} ${noStock}" data-potid="${p.id}">
-      <div class="gpm-item-emoji">${p.emoji}</div>
+      ${_buildPotHTML(p.id, 'pot-3d--sm')}
       <div class="gpm-item-info">
         <div class="gpm-item-name">${esc(p.name)}</div>
         <div class="gpm-item-sub">${esc(p.desc)}</div>
@@ -7208,7 +7215,7 @@ function _renderCarePanel(plant) {
   const potRow = document.getElementById('gcp-pot-row');
   if (potRow && pot.name) {
     const matchWarn = _potMatchWarning(pt.size, pot.size);
-    potRow.innerHTML = `<span class="gcp-pot-icon">${pot.emoji || '🪴'}</span>
+    potRow.innerHTML = `${_buildPotHTML(pot.id, 'pot-3d--xs')}
       <span class="gcp-pot-name">${esc(pot.name)}</span>
       ${matchWarn ? `<span class="gcp-pot-warn">${matchWarn}</span>` : '<span class="gcp-pot-ok">✅ Kích thước phù hợp</span>'}`;
   }

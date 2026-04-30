@@ -155,14 +155,22 @@ const PLANT_TYPES = [
 ];
 
 const POT_TYPES = [
-  { id:'pot_s',  name:'Chậu Đất Nhỏ',  emoji:'🪴', size:'small',  price:20,
-    desc:'Phù hợp cây nhỏ. Cây vừa/lớn sẽ bị bó rễ, chậm lớn.' },
-  { id:'pot_m',  name:'Chậu Gốm',      emoji:'🏺', size:'medium', price:40,
-    desc:'Phù hợp cây vừa. Đa năng nhất cho hầu hết loại cây.' },
-  { id:'pot_l',  name:'Chậu Gỗ',       emoji:'🪵', size:'large',  price:80,
-    desc:'Phù hợp cây to. Cây nhỏ dễ bị úng rễ vì quá ẩm.' },
-  { id:'pot_xl', name:'Chậu Sứ Lớn',   emoji:'🏛️', size:'xl',    price:150,
-    desc:'Cây ăn quả lớn. Bonus +5% tốc độ tất cả cây. Đẹp nhất.' },
+  { id:'pot_s',        name:'Chậu Đất Nung',     size:'small',  price:18,
+    desc:'Đất nung thở tốt, lý tưởng cho sen đá, thảo mộc và hoa nhỏ.' },
+  { id:'pot_su_mini',  name:'Chậu Sứ Trắng',     size:'small',  price:30,
+    desc:'Sứ trắng thanh thoát, sang trọng cho hoa nhỏ và cây phong thủy mini.' },
+  { id:'pot_m',        name:'Chậu Gốm Xanh',     size:'medium', price:50,
+    desc:'Gốm sứ xanh truyền thống Việt Nam, hoa văn tinh tế cho cây phong thủy.' },
+  { id:'pot_tre',      name:'Chậu Tre Xanh',     size:'medium', price:68,
+    desc:'Tre tự nhiên thân thiện môi trường, tốt cho rau sạch và cây may mắn.' },
+  { id:'pot_l',        name:'Thùng Gỗ',          size:'large',  price:92,
+    desc:'Gỗ tự nhiên rộng rãi, thoát nước tốt, lý tưởng cho cây ăn quả và hoa leo.' },
+  { id:'pot_da',       name:'Chậu Đá Tự Nhiên',  size:'large',  price:125,
+    desc:'Đá tự nhiên bền vững, cách nhiệt tốt, phù hợp cây ăn quả cỡ lớn.' },
+  { id:'pot_xl',       name:'Chậu Đồng Cổ',      size:'xl',     price:148,
+    desc:'Đồng cổ phong thủy sang trọng, thu hút vận may. Bonus tốc độ cây.' },
+  { id:'pot_hoang_gia',name:'Chậu Hoàng Gia',    size:'xl',     price:215, speedBonus:0.08,
+    desc:'Sứ hoàng gia dát vàng, đỉnh cao nghệ thuật. Bonus +8% tốc độ tất cả cây.' },
 ];
 
 // ── Helpers ─────────────────────────────────────────────────
@@ -175,15 +183,17 @@ function cellPrice(row, col) {
   return 30;
 }
 
-function getPotMult(plantSize, potSize) {
+function getPotMult(plantSize, potSize, potBonus = 0) {
   const idx = { small:0, medium:1, large:2, xl:3 };
   const pi = idx[plantSize] ?? 1, pot = idx[potSize] ?? 1;
   const diff = Math.abs(pi - pot);
-  if (potSize === 'xl') return diff === 0 ? 1.25 : diff === 1 ? 1.05 : 0.8;
-  if (diff === 0) return 1.2;
-  if (diff === 1) return 0.85;
-  if (diff === 2) return 0.6;
-  return 0.4;
+  let mult;
+  if (potSize === 'xl') mult = diff === 0 ? 1.25 : diff === 1 ? 1.05 : 0.8;
+  else if (diff === 0) mult = 1.2;
+  else if (diff === 1) mult = 0.85;
+  else if (diff === 2) mult = 0.6;
+  else mult = 0.4;
+  return mult * (1 + potBonus);
 }
 
 function getNextStage(stage, plantType) {
@@ -320,7 +330,7 @@ function applyTick(plant, plantType, potType, weather = 'sunny', ecosystem = {})
   if (hoursElapsed < 0.25) return false; // skip < 15 min
 
   const gameDays = hoursElapsed / GAME_DAY_HOURS;
-  const baseMult = getPotMult(plantType.size, potType?.size || 'medium');
+  const baseMult = getPotMult(plantType.size, potType?.size || 'medium', potType?.speedBonus || 0);
 
   // ── Weather modifiers ────────────────────────────────────
   let waterDecayMult  = 1;
